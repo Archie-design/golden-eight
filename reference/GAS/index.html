@@ -1,0 +1,167 @@
+<style>
+.login-hero {
+  background: linear-gradient(135deg, #FF6F00 0%, #FFD700 100%);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  border-radius: 20px;
+  padding: 2.5rem;
+  background: #fff;
+  box-shadow: 0 8px 32px rgba(0,0,0,.18);
+}
+.logo-emoji { font-size: 3.5rem; line-height: 1; }
+.tab-btn {
+  background: transparent;
+  border: none;
+  padding: .5rem 1.5rem;
+  font-weight: 600;
+  color: #999;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+}
+.tab-btn.active { color: #FF6F00; border-color: #FF6F00; }
+</style>
+
+<div class="login-hero">
+  <div class="login-card">
+    <div class="text-center mb-4">
+      <div class="logo-emoji">🌟</div>
+      <h4 class="mt-2 mb-0 fw-bold">黃金八套餐</h4>
+      <div class="text-muted small">定課打卡系統</div>
+    </div>
+
+    <!-- Tab 切換 -->
+    <div class="d-flex border-bottom mb-3">
+      <button class="tab-btn active" id="tab-login" onclick="switchTab('login')">登入</button>
+      <button class="tab-btn" id="tab-register" onclick="switchTab('register')">新成員加入</button>
+    </div>
+
+    <!-- 登入表單 -->
+    <div id="form-login">
+      <div class="mb-3">
+        <label class="form-label fw-600">姓名</label>
+        <input type="text" id="login-name" class="form-control" placeholder="請輸入您的姓名">
+      </div>
+      <div class="mb-4">
+        <label class="form-label fw-600">手機末三碼</label>
+        <input type="text" id="login-phone" class="form-control" maxlength="3" placeholder="例：789">
+        <div class="form-text">用於驗證身分，不儲存原始號碼</div>
+      </div>
+      <button class="btn btn-gold w-100" onclick="doLogin()">登入</button>
+    </div>
+
+    <!-- 註冊表單 -->
+    <div id="form-register" style="display:none">
+      <div class="mb-3">
+        <label class="form-label fw-600">姓名</label>
+        <input type="text" id="reg-name" class="form-control" placeholder="請輸入您的姓名">
+      </div>
+      <div class="mb-3">
+        <label class="form-label fw-600">手機末三碼</label>
+        <input type="text" id="reg-phone" class="form-control" maxlength="3" placeholder="例：789">
+      </div>
+      <div class="mb-3">
+        <label class="form-label fw-600">加入日期</label>
+        <input type="date" id="reg-date" class="form-control">
+      </div>
+      <div class="mb-4">
+        <label class="form-label fw-600">挑戰階梯</label>
+        <select id="reg-level" class="form-select">
+          <option value="青銅戰士">青銅戰士（60%，罰 400 元）</option>
+          <option value="白銀戰士">白銀戰士（70%，罰 300 元）</option>
+          <option value="黃金戰士">黃金戰士（80%，罰 200 元）</option>
+        </select>
+      </div>
+      <button class="btn btn-gold w-100" onclick="doRegister()">加入挑戰！</button>
+    </div>
+
+    <div id="error-msg" class="alert alert-danger mt-3" style="display:none"></div>
+  </div>
+</div>
+
+<script>
+// 初始化（每次顯示登入 view 時呼叫）
+window._initView_login = function() {
+  document.getElementById('reg-date').value = new Date().toISOString().substring(0, 10);
+  document.getElementById('error-msg').style.display = 'none';
+  document.getElementById('login-name').value = '';
+  document.getElementById('login-phone').value = '';
+};
+
+// 初始設定今日日期
+document.getElementById('reg-date').value = new Date().toISOString().substring(0, 10);
+
+function switchTab(tab) {
+  document.getElementById('form-login').style.display    = tab === 'login' ? '' : 'none';
+  document.getElementById('form-register').style.display = tab === 'register' ? '' : 'none';
+  document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+  document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+  document.getElementById('error-msg').style.display = 'none';
+}
+
+function showError(msg) {
+  var el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.style.display = '';
+}
+
+function doLogin() {
+  var name  = document.getElementById('login-name').value.trim();
+  var phone = document.getElementById('login-phone').value.trim();
+  if (!name || !phone) { showError('請填寫姓名與手機末三碼'); return; }
+  if (!/^\d{3}$/.test(phone)) { showError('手機末三碼須為 3 位數字'); return; }
+
+  showLoading(true);
+  call('authLogin', name, phone).then(function(res) {
+    showLoading(false);
+    if (res.ok) {
+      _setToken(res.token);          // 儲存 token 到 localStorage
+      window._currentUser = res.user;
+      _spaActivate('main', res.user);
+    } else {
+      showError(res.msg);
+    }
+  }).catch(function() { showLoading(false); showError('連線失敗，請稍後再試'); });
+}
+
+function doRegister() {
+  var name  = document.getElementById('reg-name').value.trim();
+  var phone = document.getElementById('reg-phone').value.trim();
+  var date  = document.getElementById('reg-date').value;
+  var level = document.getElementById('reg-level').value;
+  if (!name || !phone) { showError('請填寫所有必填欄位'); return; }
+  if (!/^\d{3}$/.test(phone)) { showError('手機末三碼須為 3 位數字'); return; }
+
+  showLoading(true);
+  call('authRegister', name, phone, date, level).then(function(res) {
+    showLoading(false);
+    if (res.ok) {
+      _setToken(res.token);          // 儲存 token 到 localStorage
+      // 用 token 取得完整用戶資料
+      call('authGetCurrentUserPublic', res.token).then(function(user) {
+        window._currentUser = user;
+        _spaActivate('main', user);
+      }).catch(function() {
+        _spaActivate('main', null);
+      });
+    } else {
+      showError(res.msg);
+    }
+  }).catch(function() { showLoading(false); showError('連線失敗，請稍後再試'); });
+}
+
+// Enter 鍵送出（只在登入 view 可見時觸發）
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Enter') return;
+  var loginView = document.getElementById('view-login');
+  if (!loginView || loginView.classList.contains('d-none')) return;
+  var loginVisible = document.getElementById('form-login').style.display !== 'none';
+  if (loginVisible) doLogin(); else doRegister();
+});
+</script>

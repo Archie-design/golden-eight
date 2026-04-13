@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getCurrentMember, getTodayTaipei } from '@/lib/api-helper'
+import { getCurrentMember, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
 import { calcMonthStats, calcMaxPunchStreak } from '@/lib/scoring'
 import { getCalendarColor } from '@/lib/constants'
 import type { CheckInRecord } from '@/types'
@@ -12,9 +12,8 @@ export async function GET() {
   const today     = getTodayTaipei()
   const yearMonth = today.substring(0, 7)
   const day       = parseInt(today.split('-')[2], 10)
-
   const [monthRecsRes, achievementsRes] = await Promise.all([
-    db.from('checkin_records').select('*').eq('member_id', member.id).gte('date', yearMonth + '-01').lte('date', yearMonth + '-31').order('date'),
+    db.from('checkin_records').select('*').eq('member_id', member.id).gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth)).order('date'),
     db.from('achievements').select('*').eq('member_id', member.id),
   ])
 

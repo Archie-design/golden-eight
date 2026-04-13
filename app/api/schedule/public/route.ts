@@ -13,14 +13,25 @@ export async function GET() {
     .order('member_id')
     .order('start_time')
 
-  // 以成員分組
-  const grouped: Record<string, { memberName: string; entries: unknown[] }> = {}
+  const grouped: Record<string, {
+    memberName: string
+    blocks: { id: number; startTime: string; endTime: string; tags: unknown[] }[]
+  }> = {}
+
   for (const row of data ?? []) {
-    const r = row as { member_id: string; members: { name: string }; [key: string]: unknown }
-    if (!grouped[r.member_id]) {
-      grouped[r.member_id] = { memberName: r.members?.name ?? '', entries: [] }
+    const r = row as {
+      id: number; member_id: string; start_time: string; end_time: string
+      block_tags: unknown[]; members: { name: string }
     }
-    grouped[r.member_id].entries.push(row)
+    if (!grouped[r.member_id]) {
+      grouped[r.member_id] = { memberName: r.members?.name ?? '', blocks: [] }
+    }
+    grouped[r.member_id].blocks.push({
+      id:        r.id,
+      startTime: r.start_time,
+      endTime:   r.end_time,
+      tags:      r.block_tags ?? [],
+    })
   }
 
   return NextResponse.json({ ok: true, schedules: Object.values(grouped) })

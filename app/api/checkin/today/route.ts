@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getCurrentMember, getTodayTaipei, getYesterdayTaipei, getNowHourTaipei } from '@/lib/api-helper'
+import { getCurrentMember, getTodayTaipei, getYesterdayTaipei, getNowHourTaipei, getMonthEnd } from '@/lib/api-helper'
 import { getSunriseTime, getPunchDeadline } from '@/lib/sunrise'
 import { calcMonthStats } from '@/lib/scoring'
 
@@ -16,7 +16,7 @@ export async function GET() {
   const [todayRec, yesterdayRec, monthRecs] = await Promise.all([
     db.from('checkin_records').select('*').eq('member_id', member.id).eq('date', today).maybeSingle(),
     db.from('checkin_records').select('id').eq('member_id', member.id).eq('date', yesterday).maybeSingle(),
-    db.from('checkin_records').select('*').eq('member_id', member.id).gte('date', yearMonth + '-01').lte('date', yearMonth + '-31'),
+    db.from('checkin_records').select('*').eq('member_id', member.id).gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth)),
   ])
 
   const monthStats = calcMonthStats(member, monthRecs.data ?? [], today)
@@ -34,8 +34,8 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     today,
-    sunrise:       getSunriseTime(today),
-    punchDeadline: getPunchDeadline(today),
+    sunrise:       await getSunriseTime(today),
+    punchDeadline: await getPunchDeadline(today),
     punchStreak,
     monthRate:     monthStats.rate,
     todayRecord:   todayRec.data

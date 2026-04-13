@@ -133,6 +133,15 @@ export default function CheckInPage() {
           <CardContent className="pt-4 text-center">
             <div className="text-3xl">✅</div>
             <div className="font-semibold text-green-800 mt-1">今日已打卡！得分：{data.todayRecord.totalScore} 分</div>
+            {data.todayRecord.submitTime && (
+              <div className="text-sm text-green-700 mt-1">
+                打卡時間：{new Intl.DateTimeFormat('zh-TW', {
+                  timeZone: 'Asia/Taipei',
+                  hour: '2-digit', minute: '2-digit', second: '2-digit',
+                  hour12: false,
+                }).format(new Date(data.todayRecord.submitTime))}
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : (

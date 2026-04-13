@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -11,53 +11,58 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { cn } from '@/lib/utils'
 
 interface Tag { id: string; tag_name: string; color: string; emoji?: string; is_system: boolean }
-interface Entry { id?: number; tagId?: string; tagName: string; color: string; startTime: string; endTime: string; note?: string }
-interface PublicSchedule { memberName: string; entries: Entry[] }
+interface BlockTag { id?: string; name: string; color: string; emoji?: string }
+interface Block { id?: number; startTime: string; endTime: string; tags: BlockTag[] }
+interface PublicSchedule {
+  memberName: string
+  blocks: { startTime: string; endTime: string; tags: BlockTag[] }[]
+}
 
 const COLORS = ['#4A90D9','#E17055','#00B894','#FDCB6E','#6C5CE7','#A29BFE','#FD79A8','#55EFC4']
-const HOURS = Array.from({ length: 19 }, (_, i) => i + 5)  // 05:00 – 23:00
-const CELL_HEIGHT = 32  // px per 15min
 
-function timeToMinutes(t: string) {
-  const [h, m] = t.split(':').map(Number)
-  return h * 60 + m
+function isCrossMidnight(start: string, end: string) {
+  return end < start
 }
-function minutesToTime(m: number) {
-  return `${String(Math.floor(m / 60)).padStart(2,'0')}:${String(m % 60).padStart(2,'0')}`
+
+function tagLabel(t: BlockTag) {
+  return (t.emoji ? t.emoji + ' ' : '') + t.name
 }
+
+const EMPTY_DIALOG = { open: false, editIdx: -1, startTime: '', endTime: '', selectedTags: [] as BlockTag[] }
 
 export default function SchedulePage() {
-  const [tags,      setTags]      = useState<Tag[]>([])
-  const [entries,   setEntries]   = useState<Entry[]>([])
-  const [isPublic,  setIsPublic]  = useState(false)
-  const [search,    setSearch]    = useState('')
-  const [showTag,   setShowTag]   = useState(false)
-  const [showGroup, setShowGroup] = useState(false)
-  const [groupData, setGroupData] = useState<PublicSchedule[]>([])
-  const [tagName,   setTagName]   = useState('')
-  const [tagColor,  setTagColor]  = useState(COLORS[0])
-  const [tagEmoji,  setTagEmoji]  = useState('')
-  const [selected,  setSelected]  = useState<Entry | null>(null)
-  const timelineRef = useRef<HTMLDivElement>(null)
+  const [tags,       setTags]      = useState<Tag[]>([])
+  const [blocks,     setBlocks]    = useState<Block[]>([])
+  const [isPublic,   setIsPublic]  = useState(false)
+  const [search,     setSearch]    = useState('')
+  const [showTag,    setShowTag]   = useState(false)
+  const [showGroup,  setShowGroup] = useState(false)
+  const [groupData,  setGroupData] = useState<PublicSchedule[]>([])
+  const [tagName,    setTagName]   = useState('')
+  const [tagColor,   setTagColor]  = useState(COLORS[0])
+  const [tagEmoji,   setTagEmoji]  = useState('')
+  const [dialog,     setDialog]    = useState(EMPTY_DIALOG)
 
   const loadData = useCallback(async () => {
     const res  = await fetch('/api/schedule/data')
     const json = await res.json()
-    if (json.ok) { setTags(json.tags); setEntries(json.entries); setIsPublic(json.isPublic) }
+    if (json.ok) { setTags(json.tags); setBlocks(json.blocks ?? []); setIsPublic(json.isPublic) }
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
 
+  // ─── 儲存模板 ──────────────────────────────────────────────
   async function saveTemplate() {
     const res  = await fetch('/api/schedule/template', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entries, isPublic }),
+      body: JSON.stringify({ blocks, isPublic }),
     })
     const json = await res.json()
     toast[json.ok ? 'success' : 'error'](json.msg)
   }
 
+  // ─── 標籤管理 ──────────────────────────────────────────────
   async function addTag() {
     if (!tagName) { toast.error('請填寫標籤名稱'); return }
     const res  = await fetch('/api/schedule/tag', {
@@ -78,7 +83,7 @@ export default function SchedulePage() {
       body: JSON.stringify({ tagId: tag.id }),
     })
     const json = await res.json()
-    if (json.ok) { setTags(prev => prev.filter(t => t.id !== tag.id)); setEntries(prev => prev.filter(e => e.tagId !== tag.id)) }
+    if (json.ok) setTags(prev => prev.filter(t => t.id !== tag.id))
     else toast.error(json.msg)
   }
 
@@ -89,37 +94,58 @@ export default function SchedulePage() {
     setShowGroup(true)
   }
 
-  // 拖拉放置：點擊時間軸空格直接新增 30 分鐘
-  function handleTimelineClick(e: React.MouseEvent<HTMLDivElement>) {
-    const rect = timelineRef.current!.getBoundingClientRect()
-    const y    = e.clientY - rect.top
-    const minFromTop = Math.round(y / CELL_HEIGHT) * 15
-    const absMin = 5 * 60 + minFromTop
-    const startTime = minutesToTime(Math.min(absMin, 22 * 60 + 45))
-    const endTime   = minutesToTime(Math.min(absMin + 30, 23 * 60))
-    setEntries(prev => [...prev, { tagName: '新活動', color: COLORS[0], startTime, endTime }])
+  // ─── 對話框：新增 / 編輯 ───────────────────────────────────
+  function openAdd() {
+    setDialog({ open: true, editIdx: -1, startTime: '', endTime: '', selectedTags: [] })
   }
 
-  // Drop a tag onto timeline
-  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
-    e.preventDefault()
-    const tagId   = e.dataTransfer.getData('tagId')
-    const tag     = tags.find(t => t.id === tagId)
-    if (!tag) return
-    const rect    = timelineRef.current!.getBoundingClientRect()
-    const y       = e.clientY - rect.top
-    const minFrom = Math.round(y / CELL_HEIGHT) * 15
-    const absMin  = 5 * 60 + minFrom
-    const startTime = minutesToTime(Math.min(absMin, 22 * 60 + 45))
-    const endTime   = minutesToTime(Math.min(absMin + 30, 23 * 60))
-    setEntries(prev => [...prev, { tagId: tag.id, tagName: tag.tag_name, color: tag.color, startTime, endTime }])
+  function openEdit(idx: number) {
+    const b = blocks[idx]
+    setDialog({ open: true, editIdx: idx, startTime: b.startTime, endTime: b.endTime, selectedTags: [...b.tags] })
+  }
+
+  function toggleDialogTag(tag: Tag) {
+    setDialog(prev => {
+      const already = prev.selectedTags.some(t => t.id === tag.id)
+      return {
+        ...prev,
+        selectedTags: already
+          ? prev.selectedTags.filter(t => t.id !== tag.id)
+          : [...prev.selectedTags, { id: tag.id, name: tag.tag_name, color: tag.color, emoji: tag.emoji }],
+      }
+    })
+  }
+
+  function removeDialogTag(id: string | undefined, name: string) {
+    setDialog(prev => ({
+      ...prev,
+      selectedTags: prev.selectedTags.filter(t => (id ? t.id !== id : t.name !== name)),
+    }))
+  }
+
+  function saveBlock() {
+    if (!dialog.startTime || !dialog.endTime) { toast.error('請填寫開始與結束時間'); return }
+    if (dialog.selectedTags.length === 0)      { toast.error('請至少選擇一個標籤'); return }
+    const newBlock: Block = { startTime: dialog.startTime, endTime: dialog.endTime, tags: dialog.selectedTags }
+    setBlocks(prev => {
+      const next = [...prev]
+      if (dialog.editIdx >= 0) next[dialog.editIdx] = newBlock
+      else next.push(newBlock)
+      return next.sort((a, b) => a.startTime.localeCompare(b.startTime))
+    })
+    setDialog(EMPTY_DIALOG)
+  }
+
+  function deleteBlock() {
+    setBlocks(prev => prev.filter((_, i) => i !== dialog.editIdx))
+    setDialog(EMPTY_DIALOG)
   }
 
   const filteredTags = tags.filter(t => t.tag_name.includes(search))
 
   return (
     <div className="max-w-3xl mx-auto space-y-4">
-      {/* 頂列操作 */}
+      {/* 頂列 */}
       <div className="flex flex-wrap gap-2 items-center justify-between">
         <h1 className="text-lg font-bold">📅 我的行程模板</h1>
         <div className="flex gap-2">
@@ -127,11 +153,13 @@ export default function SchedulePage() {
             {isPublic ? '🔓 公開中' : '🔒 私密'}
           </Button>
           <Button size="sm" variant="outline" onClick={loadGroup}>群組行程</Button>
-          <Button size="sm" className="bg-yellow-500 hover:bg-yellow-600 text-white" onClick={saveTemplate}>儲存模板</Button>
+          <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white" onClick={saveTemplate}>
+            儲存模板
+          </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-[200px_1fr] gap-4">
+      <div className="grid grid-cols-[180px_1fr] gap-4 items-start">
         {/* 左欄：標籤清單 */}
         <div className="space-y-2">
           <Input
@@ -143,13 +171,11 @@ export default function SchedulePage() {
           <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => setShowTag(true)}>
             + 新增標籤
           </Button>
-          <div className="space-y-1 max-h-[480px] overflow-y-auto pr-1">
+          <div className="space-y-1 max-h-[520px] overflow-y-auto pr-1">
             {filteredTags.map(tag => (
               <div
                 key={tag.id}
-                draggable
-                onDragStart={e => e.dataTransfer.setData('tagId', tag.id)}
-                className="flex items-center justify-between rounded-lg border p-2 text-sm cursor-grab hover:shadow-sm transition-shadow"
+                className="flex items-center justify-between rounded-lg border p-2 text-sm hover:shadow-sm transition-shadow"
                 style={{ borderLeftColor: tag.color, borderLeftWidth: 3 }}
               >
                 <span>{tag.emoji} {tag.tag_name}</span>
@@ -161,52 +187,159 @@ export default function SchedulePage() {
           </div>
         </div>
 
-        {/* 右欄：時間軸 */}
-        <Card className="overflow-hidden">
-          <CardHeader className="pb-1 pt-3 px-3">
-            <CardTitle className="text-sm text-muted-foreground">拖拉標籤到時軸，或點擊空格新增</CardTitle>
+        {/* 右欄：時間區段清單 */}
+        <Card>
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm text-muted-foreground">
+              時間區段（依開始時間排序，跨午夜會標示翌日）
+            </CardTitle>
           </CardHeader>
-          <CardContent className="p-0 overflow-y-auto" style={{ maxHeight: 560 }}>
-            <div
-              ref={timelineRef}
-              className="relative"
-              style={{ height: HOURS.length * 4 * CELL_HEIGHT }}
-              onDrop={handleDrop}
-              onDragOver={e => e.preventDefault()}
-              onClick={handleTimelineClick}
-            >
-              {/* 時間格線 */}
-              {HOURS.map(h => (
-                <div key={h} className="absolute w-full" style={{ top: (h - 5) * 4 * CELL_HEIGHT }}>
-                  <div className="flex items-center">
-                    <span className="text-xs text-muted-foreground w-12 pl-2 shrink-0">{String(h).padStart(2,'0')}:00</span>
-                    <div className="flex-1 border-t border-gray-100" />
-                  </div>
-                </div>
-              ))}
+          <CardContent className="px-4 pb-4 space-y-2">
+            {blocks.length === 0 && (
+              <p className="text-sm text-muted-foreground py-4 text-center">尚無時間區段，點下方按鈕新增</p>
+            )}
 
-              {/* 行程色塊 */}
-              {entries.map((entry, i) => {
-                const top    = (timeToMinutes(entry.startTime) - 5 * 60) / 15 * CELL_HEIGHT
-                const height = (timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime)) / 15 * CELL_HEIGHT
-                return (
-                  <div
-                    key={i}
-                    className="absolute left-12 right-2 rounded px-2 py-0.5 text-xs text-white cursor-pointer hover:opacity-90 shadow-sm overflow-hidden"
-                    style={{ top, height: Math.max(height, CELL_HEIGHT), background: entry.color }}
-                    onClick={e => { e.stopPropagation(); setSelected(entry) }}
-                  >
-                    <div className="font-semibold truncate">{entry.tagName}</div>
-                    <div className="opacity-80">{entry.startTime}–{entry.endTime}</div>
-                  </div>
-                )
-              })}
-            </div>
+            {blocks.map((block, idx) => (
+              <div
+                key={idx}
+                className="flex items-start justify-between rounded-xl border border-white/60 bg-white/50 px-3 py-2.5 text-sm hover:bg-white/70 transition-colors"
+              >
+                <div className="flex items-baseline gap-2 flex-1 min-w-0">
+                  {/* 時間 */}
+                  <span className="font-mono text-xs text-muted-foreground shrink-0 tabular-nums">
+                    {block.startTime}–{block.endTime}
+                    {isCrossMidnight(block.startTime, block.endTime) && (
+                      <span className="ml-1 text-amber-600 font-sans">翌日</span>
+                    )}
+                  </span>
+                  {/* 標籤 */}
+                  <span className="text-gray-700 truncate">
+                    {block.tags.map((t, i) => (
+                      <span key={i}>
+                        {i > 0 && <span className="text-gray-300 mx-0.5">、</span>}
+                        <span style={{ color: t.color }}>{t.emoji ? t.emoji + '\u00A0' : ''}</span>
+                        <span>{t.name}</span>
+                      </span>
+                    ))}
+                  </span>
+                </div>
+                <button
+                  onClick={() => openEdit(idx)}
+                  className="ml-2 shrink-0 text-muted-foreground hover:text-gray-700 text-xs px-1"
+                >
+                  ✏️
+                </button>
+              </div>
+            ))}
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full mt-2 border-dashed text-muted-foreground hover:text-gray-700"
+              onClick={openAdd}
+            >
+              + 新增時間區段
+            </Button>
           </CardContent>
         </Card>
       </div>
 
-      {/* 新增標籤 Modal */}
+      {/* 新增/編輯區段 Dialog */}
+      <Dialog open={dialog.open} onOpenChange={open => { if (!open) setDialog(EMPTY_DIALOG) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{dialog.editIdx >= 0 ? '編輯時間區段' : '新增時間區段'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* 時間 */}
+            <div className="flex gap-3">
+              <div className="flex-1 space-y-1">
+                <Label className="text-xs">開始時間</Label>
+                <Input
+                  type="time"
+                  value={dialog.startTime}
+                  onChange={e => setDialog(d => ({ ...d, startTime: e.target.value }))}
+                />
+              </div>
+              <div className="flex-1 space-y-1">
+                <Label className="text-xs">結束時間</Label>
+                <Input
+                  type="time"
+                  value={dialog.endTime}
+                  onChange={e => setDialog(d => ({ ...d, endTime: e.target.value }))}
+                />
+              </div>
+            </div>
+            {dialog.startTime && dialog.endTime && isCrossMidnight(dialog.startTime, dialog.endTime) && (
+              <p className="text-xs text-amber-600">⚠️ 跨午夜區段（翌日 {dialog.endTime} 結束）</p>
+            )}
+
+            {/* 可選標籤 */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">點擊標籤加入</Label>
+              <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+                {tags.map(tag => {
+                  const selected = dialog.selectedTags.some(t => t.id === tag.id)
+                  return (
+                    <button
+                      key={tag.id}
+                      onClick={() => toggleDialogTag(tag)}
+                      className={cn(
+                        'flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-all',
+                        selected
+                          ? 'text-white shadow-sm'
+                          : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                      )}
+                      style={selected ? { background: tag.color, borderColor: tag.color } : {}}
+                    >
+                      {tag.emoji && <span>{tag.emoji}</span>}
+                      <span>{tag.tag_name}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* 已選 */}
+            {dialog.selectedTags.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">已選標籤</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {dialog.selectedTags.map((t, i) => (
+                    <span
+                      key={i}
+                      className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs text-white"
+                      style={{ background: t.color }}
+                    >
+                      {t.emoji && <span>{t.emoji}</span>}
+                      <span>{t.name}</span>
+                      <button
+                        onClick={() => removeDialogTag(t.id, t.name)}
+                        className="ml-0.5 opacity-70 hover:opacity-100"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 操作按鈕 */}
+            <div className="flex gap-2 pt-1">
+              <Button className="flex-1 bg-amber-500 hover:bg-amber-600 text-white" onClick={saveBlock}>
+                儲存
+              </Button>
+              <Button variant="outline" onClick={() => setDialog(EMPTY_DIALOG)}>取消</Button>
+              {dialog.editIdx >= 0 && (
+                <Button variant="destructive" onClick={deleteBlock}>刪除</Button>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 新增標籤 Dialog */}
       <Dialog open={showTag} onOpenChange={setShowTag}>
         <DialogContent className="max-w-xs">
           <DialogHeader><DialogTitle>新增標籤</DialogTitle></DialogHeader>
@@ -227,64 +360,36 @@ export default function SchedulePage() {
               </div>
             </div>
             <div className="flex gap-2 pt-2">
-              <Button className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white" onClick={addTag}>新增</Button>
+              <Button className="flex-1 bg-amber-500 hover:bg-amber-600 text-white" onClick={addTag}>新增</Button>
               <Button variant="outline" onClick={() => setShowTag(false)}>取消</Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* 色塊編輯 */}
-      {selected && (
-        <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
-          <DialogContent className="max-w-xs">
-            <DialogHeader><DialogTitle>{selected.tagName}</DialogTitle></DialogHeader>
-            <div className="space-y-3">
-              <div className="flex gap-2">
-                <div className="space-y-1 flex-1"><Label>開始</Label>
-                  <Input type="time" value={selected.startTime}
-                    onChange={e => setSelected(s => s ? {...s, startTime: e.target.value} : s)} />
-                </div>
-                <div className="space-y-1 flex-1"><Label>結束</Label>
-                  <Input type="time" value={selected.endTime}
-                    onChange={e => setSelected(s => s ? {...s, endTime: e.target.value} : s)} />
-                </div>
-              </div>
-              <div className="space-y-1"><Label>備註</Label>
-                <Input value={selected.note ?? ''} onChange={e => setSelected(s => s ? {...s, note: e.target.value} : s)} placeholder="選填備註" />
-              </div>
-              <div className="flex gap-2">
-                <Button className="flex-1" onClick={() => {
-                  setEntries(prev => prev.map(e => e === selected || (e.startTime === selected.startTime && e.tagName === selected.tagName) ? selected : e))
-                  setSelected(null)
-                }}>儲存</Button>
-                <Button variant="destructive" onClick={() => {
-                  setEntries(prev => prev.filter(e => !(e.startTime === selected.startTime && e.tagName === selected.tagName)))
-                  setSelected(null)
-                }}>刪除</Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-
       {/* 群組行程 Sheet */}
       <Sheet open={showGroup} onOpenChange={setShowGroup}>
         <SheetContent side="right" className="w-80 overflow-y-auto">
           <SheetHeader><SheetTitle>👥 群組公開行程</SheetTitle></SheetHeader>
-          <div className="mt-4 space-y-4">
+          <div className="mt-4 space-y-6">
             {groupData.length === 0
               ? <p className="text-sm text-muted-foreground">目前沒有成員公開行程</p>
               : groupData.map((g, i) => (
                 <div key={i}>
                   <p className="font-semibold text-sm mb-2">🌟 {g.memberName}</p>
-                  {g.entries.map((e, j) => (
-                    <div key={j} className="flex items-center gap-2 text-sm mb-1">
-                      <div className="w-2 h-2 rounded-full shrink-0" style={{ background: e.color }} />
-                      <span>{e.startTime}–{e.endTime}</span>
-                      <span className="text-muted-foreground truncate">{e.tagName}</span>
-                    </div>
-                  ))}
+                  <div className="space-y-1.5">
+                    {g.blocks.map((b, j) => (
+                      <div key={j} className="text-xs flex items-baseline gap-2">
+                        <span className="font-mono text-muted-foreground shrink-0 tabular-nums">
+                          {b.startTime}–{b.endTime}
+                          {isCrossMidnight(b.startTime, b.endTime) && <span className="text-amber-600 ml-1">翌日</span>}
+                        </span>
+                        <span className="truncate text-gray-700">
+                          {b.tags.map((t: BlockTag) => tagLabel(t)).join('、')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))
             }

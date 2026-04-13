@@ -1,0 +1,247 @@
+<nav class="navbar navbar-light bg-white shadow-sm">
+  <div class="container-fluid px-3">
+    <a class="navbar-brand" href="#"><span>🌟 管理員後台</span></a>
+    <div class="d-flex gap-2">
+      <button class="btn btn-sm btn-outline-secondary" onclick="goto('main')">打卡頁</button>
+      <button class="btn btn-sm btn-link text-muted" onclick="doLogout()">登出</button>
+    </div>
+  </div>
+</nav>
+
+<div class="container py-3" style="max-width:900px">
+  <!-- Tab -->
+  <ul class="nav nav-tabs mb-3" id="admin-tabs">
+    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-progress">全員進度</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-penalty">罰款總結</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-achievement">成就排行</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-members">會員管理</a></li>
+  </ul>
+
+  <div class="tab-content">
+
+    <!-- Tab 1: 全員進度 -->
+    <div class="tab-pane fade show active" id="tab-progress">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="mb-0">本月全員進度 <span id="prog-ym" class="text-muted small"></span></h6>
+        <button class="btn btn-sm btn-gold" onclick="loadProgress()">重新整理</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle" id="progress-table">
+          <thead class="table-light">
+            <tr><th>姓名</th><th>階梯</th><th>總分</th><th>達成率</th><th>狀態</th><th>連打天數</th></tr>
+          </thead>
+          <tbody id="progress-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab 2: 罰款總結 -->
+    <div class="tab-pane fade" id="tab-penalty">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="mb-0">本月罰款總結</h6>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary" onclick="loadPenalty()">刷新</button>
+          <button class="btn btn-sm btn-danger" onclick="runSettlement()">執行月結</button>
+        </div>
+      </div>
+      <div id="penalty-content">
+        <div class="text-muted small mb-2">請先執行月結算後查看結果</div>
+      </div>
+    </div>
+
+    <!-- Tab 3: 成就排行 -->
+    <div class="tab-pane fade" id="tab-achievement">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="mb-0">成就排行榜</h6>
+        <button class="btn btn-sm btn-gold" onclick="loadAchievements()">重新整理</button>
+      </div>
+      <div id="achievement-ranking"></div>
+    </div>
+
+    <!-- Tab 4: 會員管理 -->
+    <div class="tab-pane fade" id="tab-members">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="mb-0">會員管理</h6>
+        <button class="btn btn-sm btn-gold" data-bs-toggle="modal" data-bs-target="#member-modal">+ 新增成員</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead class="table-light">
+            <tr><th>ID</th><th>姓名</th><th>加入日期</th><th>階梯</th><th>狀態</th><th>操作</th></tr>
+          </thead>
+          <tbody id="members-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 新增成員 Modal -->
+<div class="modal fade" id="member-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content p-3">
+      <h6 class="modal-title mb-3">新增成員</h6>
+      <div class="mb-2"><input type="text" id="m-name" class="form-control" placeholder="姓名"></div>
+      <div class="mb-2"><input type="text" id="m-phone" class="form-control" maxlength="3" placeholder="手機末三碼"></div>
+      <div class="mb-2"><input type="date" id="m-date" class="form-control"></div>
+      <div class="mb-3">
+        <select id="m-level" class="form-select">
+          <option value="青銅戰士">青銅戰士</option>
+          <option value="白銀戰士">白銀戰士</option>
+          <option value="黃金戰士">黃金戰士</option>
+        </select>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-gold flex-grow-1" onclick="doAddMember()">新增</button>
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+      </div>
+      <div id="member-error" class="alert alert-danger mt-2 d-none"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// 預設今日
+document.getElementById('m-date').value = new Date().toISOString().substring(0, 10);
+
+// Tab 切換時載入對應資料
+document.getElementById('admin-tabs').addEventListener('show.bs.tab', function(e) {
+  var tab = e.target.getAttribute('href');
+  if (tab === '#tab-penalty')     loadPenalty();
+  if (tab === '#tab-achievement') loadAchievements();
+  if (tab === '#tab-members')     loadMembers();
+});
+
+// ─── 初始化（每次切換到此 view 時呼叫）────────────────────────
+window._initView_admin = function(user) {
+  if (!user || !user.isAdmin) {
+    showToast('無管理員權限', 'danger');
+    goto('main');
+    return;
+  }
+  document.querySelector('#view-admin .navbar-brand').innerHTML = '<span>🌟 管理員後台</span>';
+  loadProgress();
+  loadMembers();
+};
+
+// ─── 全員進度 ──────────────────────────────────────────────────
+function loadProgress() {
+  showLoading(true);
+  callAuth('statsGetAllProgress').then(function(res) {
+    showLoading(false);
+    if (!res.ok) { showToast(res.msg, 'danger'); return; }
+    document.getElementById('prog-ym').textContent = res.yearMonth;
+    var body = document.getElementById('progress-body');
+    body.innerHTML = res.rows.map(function(r) {
+      var statusCls = r.passing ? 'text-success' : 'text-danger';
+      var dawnBadge = r.isDawnKing ? ' 🏆' : '';
+      return '<tr>' +
+        '<td class="fw-600">' + r.name + '</td>' +
+        '<td><span class="badge" style="background:var(--primary)">' + r.level + '</span></td>' +
+        '<td>' + r.totalScore + ' / ' + r.maxScore + '</td>' +
+        '<td>' + r.rate + '%</td>' +
+        '<td class="' + statusCls + ' fw-600">' + (r.passing ? '✅ 達標' : '❌ 未達標') + '</td>' +
+        '<td>' + r.maxStreak + ' 天' + dawnBadge + '</td>' +
+      '</tr>';
+    }).join('');
+  }).catch(function() { showLoading(false); showToast('載入失敗', 'danger'); });
+}
+
+// ─── 罰款總結 ──────────────────────────────────────────────────
+function loadPenalty() {
+  callAuth('statsGetPenaltySummary').then(function(res) {
+    if (!res.ok) return;
+    var el = document.getElementById('penalty-content');
+    if (!res.rows.length) {
+      el.innerHTML = '<div class="alert alert-success">本月全員達標，無罰款 🎉</div>';
+      return;
+    }
+    el.innerHTML = '<table class="table table-sm">' +
+      '<thead class="table-light"><tr><th>姓名</th><th>階梯</th><th>達成率</th><th>罰款</th></tr></thead>' +
+      '<tbody>' + res.rows.map(function(r) {
+        return '<tr><td>' + r.name + '</td><td>' + r.level + '</td>' +
+          '<td class="text-danger">' + r.rate + '%</td>' +
+          '<td class="fw-bold text-danger">NT$ ' + r.penalty + '</td></tr>';
+      }).join('') + '</tbody></table>' +
+      '<div class="alert alert-warning">罰款總計：<strong>NT$ ' + res.total + '</strong></div>';
+  });
+}
+
+function runSettlement() {
+  if (!confirm('確定執行本月月結？此操作無法撤銷。')) return;
+  showLoading(true);
+  callAuth('adminRunSettlement', null).then(function(res) {
+    showLoading(false);
+    showToast(res.ok ? '月結完成！' : res.msg, res.ok ? 'success' : 'danger');
+    if (res.ok) loadPenalty();
+  }).catch(function() { showLoading(false); showToast('月結失敗', 'danger'); });
+}
+
+// ─── 成就排行 ──────────────────────────────────────────────────
+function loadAchievements() {
+  callAuth('adminGetAchievementRanking').then(function(res) {
+    if (!res.ok) return;
+    document.getElementById('achievement-ranking').innerHTML =
+      '<table class="table table-sm">' +
+      '<thead class="table-light"><tr><th>排名</th><th>姓名</th><th>成就數</th></tr></thead>' +
+      '<tbody>' + res.ranking.map(function(r, i) {
+        var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+        return '<tr><td>' + medal + '</td><td>' + r.name + '</td><td>' + r.count + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  });
+}
+
+// ─── 會員管理 ──────────────────────────────────────────────────
+function loadMembers() {
+  callAuth('adminGetMembers').then(function(res) {
+    if (!res.ok) return;
+    document.getElementById('members-body').innerHTML = res.members.map(function(m) {
+      return '<tr>' +
+        '<td class="text-muted small">' + m.id + '</td>' +
+        '<td class="fw-600">' + m.name + '</td>' +
+        '<td class="small">' + m.joinDate + '</td>' +
+        '<td><span class="badge" style="background:var(--primary)">' + m.level + '</span></td>' +
+        '<td><span class="badge ' + (m.status === '活躍' ? 'bg-success' : 'bg-secondary') + '">' + m.status + '</span></td>' +
+        '<td>' + (m.status === '活躍' ? '<button class="btn btn-sm btn-outline-danger" onclick="disableMember(\'' + m.id + '\',\'' + m.name + '\')">停用</button>' : '') + '</td>' +
+      '</tr>';
+    }).join('');
+  });
+}
+
+function doAddMember() {
+  var name  = document.getElementById('m-name').value.trim();
+  var phone = document.getElementById('m-phone').value.trim();
+  var date  = document.getElementById('m-date').value;
+  var level = document.getElementById('m-level').value;
+  if (!name || !phone) { showAdminError('請填寫完整資料'); return; }
+  if (!/^\d{3}$/.test(phone)) { showAdminError('手機末三碼須為 3 位數字'); return; }
+
+  showLoading(true);
+  callAuth('adminSaveMember', { name: name, phoneLast3: phone, joinDate: date, level: level }).then(function(res) {
+    showLoading(false);
+    if (!res.ok) { showAdminError(res.msg); return; }
+    bootstrap.Modal.getInstance(document.getElementById('member-modal')).hide();
+    showToast(res.msg, 'success');
+    loadMembers();
+  }).catch(function() { showLoading(false); showAdminError('新增失敗'); });
+}
+
+function disableMember(id, name) {
+  if (!confirm('確定停用 ' + name + '？')) return;
+  callAuth('adminDisableMember', id).then(function(res) {
+    showToast(res.msg, res.ok ? 'success' : 'danger');
+    if (res.ok) loadMembers();
+  });
+}
+
+function showAdminError(msg) {
+  var el = document.getElementById('member-error');
+  el.textContent = msg;
+  el.classList.remove('d-none');
+}
+
+function doLogout() {
+  callAuth('authLogout').then(function() { _setToken(''); goto('login'); });
+}
+</script>

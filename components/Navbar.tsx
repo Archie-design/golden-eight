@@ -25,11 +25,11 @@ export function Navbar({ userName, isAdmin }: NavbarProps) {
   }
 
   return (
-    <nav className="sticky top-0 z-50 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+    <nav className="sticky top-0 z-50 glass-nav">
       <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
         <div className="flex items-center gap-1">
-          <span className="text-lg font-bold text-yellow-600">🌟</span>
-          <span className="font-bold text-gray-800">{userName ?? '黃金八套餐'}</span>
+          <span className="text-lg font-bold text-amber-600">🌟</span>
+          <span className="font-semibold text-amber-900">{userName ?? '黃金八套餐'}</span>
         </div>
 
         <div className="flex items-center gap-1">
@@ -40,8 +40,8 @@ export function Navbar({ userName, isAdmin }: NavbarProps) {
               className={cn(
                 'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
                 pathname.startsWith(link.href)
-                  ? 'bg-yellow-100 text-yellow-800'
-                  : 'text-gray-600 hover:bg-gray-100'
+                  ? 'bg-amber-100/80 text-amber-800 shadow-sm'
+                  : 'text-gray-600 hover:bg-amber-50/70'
               )}
             >
               {link.label}
@@ -53,8 +53,8 @@ export function Navbar({ userName, isAdmin }: NavbarProps) {
               className={cn(
                 'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
                 pathname.startsWith('/admin')
-                  ? 'bg-yellow-100 text-yellow-800'
-                  : 'text-gray-600 hover:bg-gray-100'
+                  ? 'bg-amber-100/80 text-amber-800 shadow-sm'
+                  : 'text-gray-600 hover:bg-amber-50/70'
               )}
             >
               管理

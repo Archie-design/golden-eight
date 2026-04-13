@@ -1,0 +1,285 @@
+<!-- 導覽列 -->
+<nav class="navbar navbar-light bg-white shadow-sm">
+  <div class="container-fluid px-3">
+    <a class="navbar-brand" href="#"><span>🌟 黃金八套餐</span></a>
+    <div class="d-flex gap-2">
+      <button class="btn btn-sm btn-outline-secondary" onclick="goto('dashboard')">儀表板</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="goto('schedule')">行程</button>
+      <button class="btn btn-sm btn-link text-muted" onclick="doLogout()">登出</button>
+    </div>
+  </div>
+</nav>
+
+<div class="container py-3" style="max-width:560px">
+
+  <!-- 資訊列 -->
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <div id="today-date" class="fw-bold fs-5"></div>
+          <div id="sun-info" class="text-muted small mt-1"></div>
+        </div>
+        <div class="text-end">
+          <div id="streak-badge" class="fs-4"></div>
+          <div id="month-rate" class="text-muted small"></div>
+        </div>
+      </div>
+      <!-- 月達成率進度條 -->
+      <div class="progress mt-2">
+        <div id="rate-bar" class="progress-bar progress-bar-gold" role="progressbar" style="width:0%" aria-valuemin="0" aria-valuemax="100">0%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 載入錯誤提示 -->
+  <div id="load-error" class="alert alert-danger d-none">
+    <strong>載入失敗</strong>，請確認您已登入。
+    <button class="btn btn-sm btn-danger ms-2" onclick="loadTodayData()">重試</button>
+    <button class="btn btn-sm btn-outline-danger ms-1" onclick="goto('login')">重新登入</button>
+    <div id="load-error-msg" class="small mt-1 text-muted"></div>
+  </div>
+
+  <!-- 補報提示 -->
+  <div id="makeup-alert" class="alert alert-warning d-none">
+    <strong>可補報昨日！</strong> 今日中午 12:00 前可補報 <span id="makeup-date"></span> 的記錄。
+    <button class="btn btn-sm btn-warning ms-2" onclick="showMakeup()">補報</button>
+  </div>
+
+  <!-- 已打卡提示 -->
+  <div id="done-alert" class="alert alert-success d-none">
+    ✅ 今日已打卡！得分：<strong id="done-score"></strong> 分
+    <span id="done-time" class="text-muted small ms-2"></span>
+  </div>
+
+  <!-- 八項任務 -->
+  <div id="tasks-section">
+    <div class="fw-bold mb-2">今日八項任務</div>
+    <div id="task-list" class="d-flex flex-column gap-2"></div>
+    <div class="mt-3 d-flex align-items-center gap-2">
+      <input type="text" id="note-input" class="form-control form-control-sm" placeholder="備註（選填）">
+      <button class="btn btn-gold px-4" id="submit-btn" onclick="doSubmit(false)">提交打卡</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- 成就彈出 Modal -->
+<div class="modal fade" id="achievement-modal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content text-center p-4">
+      <div style="font-size:3rem" id="ach-badge"></div>
+      <h5 class="mt-2">🏆 成就解鎖！</h5>
+      <p id="ach-name" class="fs-5 fw-bold"></p>
+      <button class="btn btn-gold" data-bs-dismiss="modal">太棒了！</button>
+    </div>
+  </div>
+</div>
+
+<!-- 打卡結果 Modal -->
+<div class="modal fade" id="result-modal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content p-4 text-center">
+      <div class="fs-1">🎉</div>
+      <h5 class="mt-2">打卡成功！</h5>
+      <div class="my-3">
+        <span class="fs-2 fw-bold text-warning" id="res-score"></span>
+        <span class="text-muted"> / 9 分</span>
+      </div>
+      <div class="text-muted small" id="res-breakdown"></div>
+      <div class="mt-3">
+        <div class="fw-bold mb-1 small">本月達成率</div>
+        <div class="progress">
+          <div id="res-rate-bar" class="progress-bar progress-bar-gold" style="width:0%">0%</div>
+        </div>
+      </div>
+      <button class="btn btn-gold mt-3 w-100" data-bs-dismiss="modal">繼續加油！</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const TASKS = [
+  { name:'早睡早起', icon:'🌙', desc:'12 前入睡，早上 7 前起床' },
+  { name:'破曉打拳', icon:'🥊', desc:'日出後 10 分鐘內完成' },
+  { name:'丹氣跑步 15 分鐘', icon:'🏃', desc:'雨天可室內跑步' },
+  { name:'曬太陽', icon:'☀️', desc:'陰雨天不計分' },
+  { name:'工作 8 小時', icon:'💼', desc:'月累計 160 小時以上' },
+  { name:'不吃肉', icon:'🥗', desc:'各素食級別皆可' },
+  { name:'寫觀心書', icon:'📖', desc:'一階可寫覺察日記' },
+  { name:'淨心功法', icon:'🧘', desc:'睡前效果更好' }
+];
+
+var mainChecked = Array(8).fill(false);
+var mainMakeupMode = false;
+var mainMakeupDate = '';
+var mainPageData = null;
+
+// ─── 初始化（每次切換到此 view 時呼叫）────────────────────────
+window._initView_main = function(user) {
+  if (user) {
+    document.querySelector('#view-main .navbar-brand').innerHTML = '<span>🌟 ' + user.name + '</span>';
+  }
+  // 重設狀態
+  mainChecked = Array(8).fill(false);
+  mainMakeupMode = false;
+  mainMakeupDate = '';
+  document.getElementById('load-error').classList.add('d-none');
+  document.getElementById('makeup-alert').classList.add('d-none');
+  document.getElementById('done-alert').classList.add('d-none');
+  document.getElementById('tasks-section').style.display = '';
+  document.getElementById('note-input').value = '';
+  loadTodayData();
+};
+
+function loadTodayData() {
+  document.getElementById('load-error').classList.add('d-none');
+  showLoading(true);
+  callAuth('checkInGetTodayData').then(function(data) {
+    showLoading(false);
+    if (!data.ok) {
+      showLoadError(data.msg);
+      return;
+    }
+    mainPageData = data;
+    renderMainPage(data);
+  }).catch(function(err) {
+    showLoading(false);
+    showLoadError(err ? err.message || String(err) : '伺服器無回應');
+    console.error('checkInGetTodayData 失敗：', err);
+  });
+}
+
+function showLoadError(msg) {
+  var el = document.getElementById('load-error');
+  el.classList.remove('d-none');
+  document.getElementById('load-error-msg').textContent = msg || '';
+}
+
+function renderMainPage(data) {
+  // 日期與日出資訊
+  var d = new Date(data.today + 'T00:00:00+08:00');
+  var days = ['日','一','二','三','四','五','六'];
+  document.getElementById('today-date').textContent = (d.getMonth()+1) + '/' + d.getDate() + ' (' + days[d.getDay()] + ')';
+  document.getElementById('sun-info').textContent = '🌅 日出 ' + data.sunrise + '，建議打拳截止 ' + data.punchDeadline;
+
+  // 連續打拳
+  var streak = data.punchStreak || 0;
+  document.getElementById('streak-badge').textContent = streak > 0 ? '🔥 ' + streak + ' 天' : '';
+  document.getElementById('month-rate').textContent = '本月達成率 ' + data.monthRate + '%';
+  updateProgressBar(document.getElementById('rate-bar'), data.monthRate);
+
+  // 已打卡
+  if (data.todayRecord && data.todayRecord.submitted) {
+    document.getElementById('done-alert').classList.remove('d-none');
+    document.getElementById('done-score').textContent = data.todayRecord.totalScore;
+    document.getElementById('done-time').textContent = '提交時間：' + formatSubmitTime(data.todayRecord.submitTime);
+    document.getElementById('tasks-section').style.display = 'none';
+    return;
+  }
+
+  // 補報提示
+  if (data.canMakeup) {
+    document.getElementById('makeup-alert').classList.remove('d-none');
+    document.getElementById('makeup-date').textContent = data.yesterday;
+  }
+
+  // 渲染任務
+  renderMainTasks(data);
+}
+
+function renderMainTasks(data) {
+  var list = document.getElementById('task-list');
+  list.innerHTML = '';
+  TASKS.forEach(function(task, i) {
+    var div = document.createElement('div');
+    div.className = 'task-card d-flex align-items-center gap-3';
+    div.dataset.idx = i;
+    div.innerHTML =
+      '<div class="task-icon">' + task.icon + '</div>' +
+      '<div class="flex-grow-1">' +
+        '<div class="task-name">' + task.name + '</div>' +
+        '<div class="task-desc">' + getTaskHint(i, data) + '</div>' +
+      '</div>' +
+      '<div class="check-mark">✅</div>';
+    div.addEventListener('click', (function(idx, el) {
+      return function() { toggleMainTask(idx, el); };
+    })(i, div));
+    list.appendChild(div);
+  });
+}
+
+function getTaskHint(idx, data) {
+  if (idx === 1) return '今日日出 ' + data.sunrise + '，建議 ' + data.punchDeadline + ' 前完成';
+  if (idx === 3) return '陰雨天此項若未照到太陽請勿勾選';
+  return TASKS[idx].desc;
+}
+
+function toggleMainTask(idx, el) {
+  mainChecked[idx] = !mainChecked[idx];
+  el.classList.toggle('checked', mainChecked[idx]);
+}
+
+function doSubmit(isMakeup) {
+  mainMakeupMode = isMakeup;
+  var note = document.getElementById('note-input').value.trim();
+  var payload = { tasks: mainChecked, note: note };
+  if (isMakeup) payload.date = mainMakeupDate;
+
+  showLoading(true);
+  callAuth('checkInSubmit', payload).then(function(res) {
+    showLoading(false);
+    if (!res.ok) { showToast(res.msg, 'danger'); return; }
+    showMainResult(res);
+    if (res.newAchievements && res.newAchievements.length > 0) {
+      showAchievementsQueue(res.newAchievements);
+    }
+  }).catch(function() { showLoading(false); showToast('提交失敗', 'danger'); });
+}
+
+function showMainResult(res) {
+  document.getElementById('res-score').textContent = res.totalScore;
+  var bd = '基礎分：' + res.baseScore;
+  if (res.punchBonus) bd += '，連續打拳加分：+' + res.punchBonus;
+  document.getElementById('res-breakdown').textContent = bd;
+  loadTodayData(); // 重新載入（取得新達成率）
+  new bootstrap.Modal(document.getElementById('result-modal')).show();
+}
+
+function showMakeup() {
+  mainMakeupDate = mainPageData.yesterday;
+  mainMakeupMode = true;
+  var alert = document.getElementById('makeup-alert');
+  alert.innerHTML += '<br><small class="text-muted">目前填寫的是 ' + mainMakeupDate + ' 的補報</small>';
+  alert.classList.remove('alert-warning');
+  alert.classList.add('alert-info');
+  document.querySelector('#view-main #tasks-section .fw-bold').textContent = '補報：' + mainMakeupDate + ' 八項任務';
+  var btn = document.getElementById('submit-btn');
+  btn.setAttribute('onclick', 'doSubmit(true)');
+  btn.textContent = '提交補報';
+}
+
+function showAchievementsQueue(list) {
+  var idx = 0;
+  var show = function() {
+    if (idx >= list.length) return;
+    var ach = list[idx++];
+    document.getElementById('ach-badge').textContent = ach.badge;
+    document.getElementById('ach-name').textContent  = ach.name;
+    var modal = new bootstrap.Modal(document.getElementById('achievement-modal'));
+    modal.show();
+    document.getElementById('achievement-modal').addEventListener('hidden.bs.modal', show, { once: true });
+  };
+  show();
+}
+
+function formatSubmitTime(ts) {
+  if (!ts) return '';
+  var d = new Date(ts);
+  return d.getHours() + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
+function doLogout() {
+  callAuth('authLogout').then(function() { _setToken(''); goto('login'); });
+}
+</script>

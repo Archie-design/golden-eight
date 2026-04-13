@@ -40,13 +40,22 @@ export function calcMonthStats(
   records: CheckInRecord[],
   today: string
 ) {
-  const joinDate  = new Date(member.join_date + 'T00:00:00+08:00')
-  const todayDate = new Date(today + 'T00:00:00+08:00')
-  const elapsedDays = Math.max(
+  const yearMonth   = today.substring(0, 7)
+  const monthStart  = new Date(yearMonth + '-01T00:00:00+08:00')
+  const joinDate    = new Date(member.join_date + 'T00:00:00+08:00')
+  const effectiveStart = joinDate > monthStart ? joinDate : monthStart
+
+  // 本月最後一天（UTC+8）
+  const [y, mo] = yearMonth.split('-').map(Number)
+  const lastDay = new Date(y, mo, 0).getDate()
+  const monthEndDate = new Date(`${yearMonth}-${String(lastDay).padStart(2, '0')}T00:00:00+08:00`)
+
+  // 從 effectiveStart 到月底（含）的完整天數 → 月底目標的基準
+  const fullMonthDays = Math.max(
     0,
-    Math.floor((todayDate.getTime() - joinDate.getTime()) / 86400000)
+    Math.floor((monthEndDate.getTime() - effectiveStart.getTime()) / 86400000) + 1
   )
-  const maxScore   = elapsedDays * 8
+  const maxScore   = fullMonthDays * 8
   const totalScore = records.reduce((s, r) => s + r.total_score, 0)
   const rate       = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0
   const threshold  = LEVEL_THRESHOLDS[member.level] ?? 0.6

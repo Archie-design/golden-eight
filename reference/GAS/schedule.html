@@ -1,0 +1,545 @@
+<style>
+/* ─── 三欄佈局 ─── */
+.schedule-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 1rem;
+  height: calc(100vh - 120px);
+}
+.sidebar {
+  overflow-y: auto;
+  padding: .5rem;
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.timeline-wrapper {
+  overflow-y: auto;
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: .75rem .75rem .75rem 0;
+  position: relative;
+}
+/* 拖放高亮 */
+.timeline-container.drag-over { background: rgba(245, 166, 35, .08); }
+/* 拖曳中的標籤 */
+.tag-item.dragging { opacity: .4; }
+/* 時間格 hover */
+.time-row:hover { background: rgba(245,166,35,.06); }
+</style>
+
+<!-- 導覽列 -->
+<nav class="navbar navbar-light bg-white shadow-sm">
+  <div class="container-fluid px-3">
+    <a class="navbar-brand" href="#"><span>🌟 黃金八套餐</span></a>
+    <div class="d-flex gap-2 align-items-center">
+      <button class="btn btn-sm btn-outline-secondary" onclick="goto('main')">打卡</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="goto('dashboard')">儀表板</button>
+      <button class="btn btn-sm btn-link text-muted" onclick="doLogout()">登出</button>
+    </div>
+  </div>
+</nav>
+
+<!-- 頂列工具列 -->
+<div class="bg-white border-bottom px-3 py-2 d-flex align-items-center justify-content-between">
+  <div class="d-flex align-items-center gap-3">
+    <span class="fw-bold">我的每日行程模板</span>
+    <div class="form-check form-switch mb-0">
+      <input class="form-check-input" type="checkbox" id="public-toggle" onchange="togglePublic(this.checked)">
+      <label class="form-check-label small" for="public-toggle" id="public-label">私密</label>
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-sm btn-outline-secondary" onclick="showGroupSchedules()">群組行程</button>
+    <button class="btn btn-sm btn-gold" onclick="saveTemplate()">儲存模板</button>
+  </div>
+</div>
+
+<!-- 主體 -->
+<div class="container-fluid p-2" style="max-width:1100px">
+  <div class="schedule-layout">
+
+    <!-- 左側：標籤庫 -->
+    <div class="sidebar">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="fw-bold small">標籤庫</span>
+        <button class="btn btn-sm btn-gold" onclick="openTagModal()">+ 新增</button>
+      </div>
+      <input type="text" id="tag-search" class="form-control form-control-sm mb-2" placeholder="搜尋標籤...">
+      <div class="small text-muted mb-1">系統標籤</div>
+      <div id="system-tags" class="d-flex flex-column gap-1 mb-2"></div>
+      <div class="small text-muted mb-1">自訂標籤</div>
+      <div id="custom-tags" class="d-flex flex-column gap-1"></div>
+    </div>
+
+    <!-- 右側：時間軸 -->
+    <div class="timeline-wrapper" id="timeline-wrapper">
+      <div class="timeline-container" id="timeline"
+           ondragover="onTimelineDragOver(event)"
+           ondrop="onTimelineDrop(event)"
+           ondragleave="onTimelineDragLeave(event)">
+        <!-- JS 動態生成時間刻度與色塊 -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 新增/編輯標籤 Modal -->
+<div class="modal fade" id="tag-modal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:340px">
+    <div class="modal-content p-4">
+      <h6 class="fw-bold mb-3" id="tag-modal-title">新增標籤</h6>
+      <input type="hidden" id="tag-edit-id">
+      <div class="mb-2">
+        <label class="form-label small fw-bold">名稱</label>
+        <input type="text" id="tag-name" class="form-control" maxlength="20" placeholder="如：冥想">
+      </div>
+      <div class="mb-2">
+        <label class="form-label small fw-bold">顏色</label>
+        <div class="d-flex gap-2 flex-wrap" id="color-picker"></div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-bold">Emoji（選填）</label>
+        <input type="text" id="tag-emoji" class="form-control" maxlength="2" placeholder="例：🧘">
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-gold flex-grow-1" onclick="saveTag()">儲存</button>
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+      </div>
+      <div id="tag-error" class="alert alert-danger mt-2 d-none small"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 編輯行程條目 Modal -->
+<div class="modal fade" id="entry-modal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:340px">
+    <div class="modal-content p-4">
+      <h6 class="fw-bold mb-3" id="entry-modal-title">編輯行程</h6>
+      <input type="hidden" id="entry-edit-idx">
+      <div class="row g-2 mb-2">
+        <div class="col-6">
+          <label class="form-label small fw-bold">開始時間</label>
+          <input type="time" id="entry-start" class="form-control">
+        </div>
+        <div class="col-6">
+          <label class="form-label small fw-bold">結束時間</label>
+          <input type="time" id="entry-end" class="form-control">
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-bold">備註（選填）</label>
+        <input type="text" id="entry-note" class="form-control" maxlength="50">
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-gold flex-grow-1" onclick="updateEntry()">更新</button>
+        <button class="btn btn-outline-danger" onclick="deleteEntry()">刪除</button>
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 群組行程 Modal -->
+<div class="modal fade" id="group-modal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-bold">👥 群組行程（公開分享）</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="group-content">
+        <div class="text-center text-muted py-4">載入中...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── 常數 ────────────────────────────────────────────────────
+var TIMELINE_START = 5 * 60;   // 05:00 in minutes
+var TIMELINE_END   = 23 * 60;  // 23:00 in minutes
+var PX_PER_MIN     = 1.2;      // 1 分鐘 = 1.2 px
+var SNAP_MIN       = 15;       // 15 分鐘吸附
+var COLORS = ['#F44336','#E91E63','#9C27B0','#3F51B5','#2196F3','#009688',
+              '#4CAF50','#FF9800','#795548','#607D8B','#FF5722','#8BC34A'];
+
+// ─── 狀態 ─────────────────────────────────────────────────────
+var scheduleTags     = [];
+var scheduleEntries  = [];
+var scheduleIsPublic = false;
+var scheduleDragTag  = null;
+var scheduleSelectedColor = COLORS[3];
+var scheduleTimelineBuilt = false;
+
+// ─── 初始化（每次切換到此 view 時呼叫）────────────────────────
+window._initView_schedule = function(user) {
+  if (user) {
+    document.querySelector('#view-schedule .navbar-brand').innerHTML = '<span>🌟 ' + user.name + '</span>';
+  }
+  if (!scheduleTimelineBuilt) {
+    buildColorPicker();
+    buildTimeline();
+    scheduleTimelineBuilt = true;
+    // 搜尋標籤事件
+    document.getElementById('tag-search').addEventListener('input', renderTagList);
+  }
+  loadScheduleData();
+};
+
+function loadScheduleData() {
+  showLoading(true);
+  callAuth('scheduleGetData').then(function(res) {
+    showLoading(false);
+    if (!res.ok) { showToast(res.msg, 'danger'); return; }
+    scheduleTags = res.tags || [];
+    var sched = res.schedule || {};
+    var rawEntries = sched.entries || [];
+    scheduleEntries = rawEntries.map(function(e, i) {
+      return {
+        localId: i, tagId: e.tagId, tagName: e.tagName,
+        startTime: e.startTime, endTime: e.endTime,
+        note: e.note || '', color: findTagColor(e.tagId) || '#2196F3'
+      };
+    });
+    scheduleIsPublic = sched.isPublic || false;
+    document.getElementById('public-toggle').checked = scheduleIsPublic;
+    document.getElementById('public-label').textContent = scheduleIsPublic ? '公開' : '私密';
+    renderTagList();
+    renderBlocks();
+  }).catch(function() { showLoading(false); showToast('載入失敗', 'danger'); });
+}
+
+function findTagColor(tagId) {
+  var t = scheduleTags.find(function(t) { return t.id === tagId; });
+  return t ? t.color : '#607D8B';
+}
+
+// ─── 時間軸建立 ───────────────────────────────────────────────
+function buildTimeline() {
+  var container = document.getElementById('timeline');
+  var totalMin  = TIMELINE_END - TIMELINE_START;
+  container.style.height = (totalMin * PX_PER_MIN) + 'px';
+  container.style.position = 'relative';
+
+  for (var m = TIMELINE_START; m <= TIMELINE_END; m += 15) {
+    var isHour = m % 60 === 0;
+    var y = (m - TIMELINE_START) * PX_PER_MIN;
+    var line = document.createElement('div');
+    line.className = 'time-slot-line' + (isHour ? ' hour' : '');
+    line.style.top = y + 'px';
+    container.appendChild(line);
+    if (isHour) {
+      var lbl = document.createElement('div');
+      lbl.className = 'time-label';
+      lbl.style.top = y + 'px';
+      lbl.textContent = minutesToTime(m);
+      container.appendChild(lbl);
+    }
+  }
+}
+
+// ─── 色塊渲染 ─────────────────────────────────────────────────
+function renderBlocks() {
+  document.querySelectorAll('.schedule-block').forEach(function(el) { el.remove(); });
+  var container = document.getElementById('timeline');
+
+  scheduleEntries.forEach(function(entry, idx) {
+    var startMin = timeToMinutes(entry.startTime);
+    var endMin   = timeToMinutes(entry.endTime);
+    if (startMin >= endMin || startMin < TIMELINE_START || endMin > TIMELINE_END) return;
+
+    var top    = (startMin - TIMELINE_START) * PX_PER_MIN;
+    var height = (endMin - startMin) * PX_PER_MIN;
+    var block  = document.createElement('div');
+    block.className = 'schedule-block';
+    block.dataset.idx = idx;
+    block.style.top     = top + 'px';
+    block.style.height  = Math.max(height, 18) + 'px';
+    block.style.background = entry.color;
+    block.style.color   = getContrastColor(entry.color);
+    block.title = entry.tagName + '  ' + entry.startTime + '–' + entry.endTime;
+    block.innerHTML = entry.tagName + '  <small style="opacity:.8">' + entry.startTime + '–' + entry.endTime + '</small>' +
+      '<div class="resize-handle" data-idx="' + idx + '"></div>';
+
+    block.addEventListener('click', (function(i) {
+      return function(e) {
+        if (e.target.classList.contains('resize-handle')) return;
+        openEntryModal(i);
+      };
+    })(idx));
+    block.addEventListener('mousedown', onBlockMouseDown);
+    block.querySelector('.resize-handle').addEventListener('mousedown', onResizeMouseDown);
+    container.appendChild(block);
+  });
+}
+
+// ─── 標籤拖放 ─────────────────────────────────────────────────
+function renderTagList() {
+  var query = document.getElementById('tag-search').value.toLowerCase();
+  var systemEl = document.getElementById('system-tags');
+  var customEl = document.getElementById('custom-tags');
+  systemEl.innerHTML = '';
+  customEl.innerHTML = '';
+
+  scheduleTags.filter(function(t) {
+    return !query || t.name.includes(query) || (t.emoji && t.emoji.includes(query));
+  }).forEach(function(tag) {
+    var el = buildTagItem(tag);
+    (tag.isSystem ? systemEl : customEl).appendChild(el);
+  });
+}
+
+function buildTagItem(tag) {
+  var div = document.createElement('div');
+  div.className = 'tag-item' + (tag.isSystem ? ' tag-system' : '');
+  div.draggable = true;
+  div.dataset.tagId = tag.id;
+  div.innerHTML =
+    '<span class="tag-dot" style="background:' + tag.color + '"></span>' +
+    '<span class="flex-grow-1">' + (tag.emoji ? tag.emoji + ' ' : '') + tag.name + '</span>' +
+    (!tag.isSystem ?
+      '<button class="btn btn-sm p-0 text-muted" onclick="editTag(\'' + tag.id + '\')" style="line-height:1">✏️</button>' +
+      '<button class="btn btn-sm p-0 text-danger" onclick="doDeleteTag(\'' + tag.id + '\')" style="line-height:1">✕</button>'
+      : '');
+
+  div.addEventListener('dragstart', function(e) {
+    scheduleDragTag = tag;
+    div.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'copy';
+  });
+  div.addEventListener('dragend', function() { div.classList.remove('dragging'); });
+  return div;
+}
+
+function onTimelineDragOver(e) {
+  if (!scheduleDragTag) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+  document.getElementById('timeline').classList.add('drag-over');
+}
+function onTimelineDragLeave() {
+  document.getElementById('timeline').classList.remove('drag-over');
+}
+function onTimelineDrop(e) {
+  e.preventDefault();
+  document.getElementById('timeline').classList.remove('drag-over');
+  if (!scheduleDragTag) return;
+  var rect      = document.getElementById('timeline').getBoundingClientRect();
+  var y         = e.clientY - rect.top + document.getElementById('timeline-wrapper').scrollTop;
+  var droppedMin = Math.round((y / PX_PER_MIN + TIMELINE_START) / SNAP_MIN) * SNAP_MIN;
+  var startMin  = Math.max(TIMELINE_START, Math.min(droppedMin, TIMELINE_END - 30));
+  var endMin    = Math.min(startMin + 30, TIMELINE_END);
+  addEntry(scheduleDragTag, minutesToTime(startMin), minutesToTime(endMin));
+  scheduleDragTag = null;
+}
+
+function addEntry(tag, start, end) {
+  scheduleEntries.push({
+    localId: Date.now(), tagId: tag.id, tagName: tag.name,
+    startTime: start, endTime: end, note: '', color: tag.color
+  });
+  renderBlocks();
+}
+
+// ─── 色塊拖移（改時間） ───────────────────────────────────────
+function onBlockMouseDown(e) {
+  if (e.target.classList.contains('resize-handle')) return;
+  e.preventDefault();
+  var block = e.currentTarget;
+  var idx = parseInt(block.dataset.idx, 10);
+  var startY = e.clientY;
+  var origStart = timeToMinutes(scheduleEntries[idx].startTime);
+  var origEnd   = timeToMinutes(scheduleEntries[idx].endTime);
+  var duration  = origEnd - origStart;
+
+  var onMove = function(mv) {
+    var dy  = mv.clientY - startY;
+    var dm  = Math.round((dy / PX_PER_MIN) / SNAP_MIN) * SNAP_MIN;
+    var newStart = Math.max(TIMELINE_START, Math.min(origStart + dm, TIMELINE_END - duration));
+    var newEnd   = newStart + duration;
+    scheduleEntries[idx].startTime = minutesToTime(newStart);
+    scheduleEntries[idx].endTime   = minutesToTime(newEnd);
+    renderBlocks();
+  };
+  var onUp = function() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  };
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// ─── Resize 色塊 ──────────────────────────────────────────────
+function onResizeMouseDown(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  var idx = parseInt(e.currentTarget.dataset.idx, 10);
+  var startY = e.clientY;
+  var origEnd = timeToMinutes(scheduleEntries[idx].endTime);
+
+  var onMove = function(mv) {
+    var dy  = mv.clientY - startY;
+    var dm  = Math.round((dy / PX_PER_MIN) / SNAP_MIN) * SNAP_MIN;
+    var newEnd = Math.min(TIMELINE_END, Math.max(timeToMinutes(scheduleEntries[idx].startTime) + SNAP_MIN, origEnd + dm));
+    scheduleEntries[idx].endTime = minutesToTime(newEnd);
+    renderBlocks();
+  };
+  var onUp = function() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  };
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// ─── 條目 Modal ───────────────────────────────────────────────
+function openEntryModal(idx) {
+  var e = scheduleEntries[idx];
+  document.getElementById('entry-edit-idx').value   = idx;
+  document.getElementById('entry-modal-title').textContent = '編輯：' + e.tagName;
+  document.getElementById('entry-start').value = e.startTime;
+  document.getElementById('entry-end').value   = e.endTime;
+  document.getElementById('entry-note').value  = e.note || '';
+  new bootstrap.Modal(document.getElementById('entry-modal')).show();
+}
+
+function updateEntry() {
+  var idx   = parseInt(document.getElementById('entry-edit-idx').value, 10);
+  var start = document.getElementById('entry-start').value;
+  var end   = document.getElementById('entry-end').value;
+  if (!start || !end || start >= end) { showToast('結束時間必須晚於開始時間', 'danger'); return; }
+  scheduleEntries[idx].startTime = start;
+  scheduleEntries[idx].endTime   = end;
+  scheduleEntries[idx].note      = document.getElementById('entry-note').value.trim();
+  bootstrap.Modal.getInstance(document.getElementById('entry-modal')).hide();
+  renderBlocks();
+}
+
+function deleteEntry() {
+  var idx = parseInt(document.getElementById('entry-edit-idx').value, 10);
+  scheduleEntries.splice(idx, 1);
+  bootstrap.Modal.getInstance(document.getElementById('entry-modal')).hide();
+  renderBlocks();
+}
+
+// ─── 標籤 Modal ───────────────────────────────────────────────
+function buildColorPicker() {
+  var el = document.getElementById('color-picker');
+  COLORS.forEach(function(c) {
+    var dot = document.createElement('div');
+    dot.style.cssText = 'width:26px;height:26px;border-radius:50%;background:' + c + ';cursor:pointer;border:3px solid transparent;transition:border-color .15s';
+    dot.dataset.color = c;
+    dot.addEventListener('click', function() {
+      scheduleSelectedColor = c;
+      document.querySelectorAll('#color-picker div').forEach(function(d) { d.style.borderColor = 'transparent'; });
+      dot.style.borderColor = '#333';
+    });
+    el.appendChild(dot);
+  });
+  if (el.children[3]) el.children[3].style.borderColor = '#333';
+}
+
+function openTagModal(tagId) {
+  document.getElementById('tag-edit-id').value = tagId || '';
+  document.getElementById('tag-modal-title').textContent = tagId ? '編輯標籤' : '新增標籤';
+  document.getElementById('tag-name').value  = '';
+  document.getElementById('tag-emoji').value = '';
+  document.getElementById('tag-error').classList.add('d-none');
+  if (tagId) {
+    var tag = scheduleTags.find(function(t) { return t.id === tagId; });
+    if (tag) {
+      document.getElementById('tag-name').value  = tag.name;
+      document.getElementById('tag-emoji').value = tag.emoji || '';
+      scheduleSelectedColor = tag.color;
+    }
+  }
+  new bootstrap.Modal(document.getElementById('tag-modal')).show();
+}
+
+function editTag(tagId) { openTagModal(tagId); }
+
+function saveTag() {
+  var id    = document.getElementById('tag-edit-id').value;
+  var name  = document.getElementById('tag-name').value.trim();
+  var emoji = document.getElementById('tag-emoji').value.trim();
+  if (!name) { showTagError('請輸入標籤名稱'); return; }
+
+  showLoading(true);
+  callAuth('scheduleSaveTag', { id: id || undefined, name: name, color: scheduleSelectedColor, emoji: emoji }).then(function(res) {
+    showLoading(false);
+    if (!res.ok) { showTagError(res.msg); return; }
+    showToast(res.msg, 'success');
+    bootstrap.Modal.getInstance(document.getElementById('tag-modal')).hide();
+    loadScheduleData();
+  }).catch(function() { showLoading(false); showTagError('儲存失敗'); });
+}
+
+function doDeleteTag(tagId) {
+  if (!confirm('確定刪除此標籤？使用中的行程條目不受影響。')) return;
+  callAuth('scheduleDeleteTag', tagId).then(function(res) {
+    showToast(res.ok ? '已刪除' : res.msg, res.ok ? '' : 'danger');
+    if (res.ok) loadScheduleData();
+  });
+}
+
+function showTagError(msg) {
+  var el = document.getElementById('tag-error');
+  el.textContent = msg;
+  el.classList.remove('d-none');
+}
+
+// ─── 儲存模板 ─────────────────────────────────────────────────
+function saveTemplate() {
+  var payload = {
+    entries: scheduleEntries.map(function(e) {
+      return {
+        tagId: e.tagId, tagName: e.tagName,
+        startTime: e.startTime, endTime: e.endTime, note: e.note
+      };
+    }),
+    isPublic: scheduleIsPublic
+  };
+  showLoading(true);
+  callAuth('scheduleSaveTemplate', payload).then(function(res) {
+    showLoading(false);
+    showToast(res.msg, res.ok ? 'success' : 'danger');
+  }).catch(function() { showLoading(false); showToast('儲存失敗', 'danger'); });
+}
+
+function togglePublic(checked) {
+  scheduleIsPublic = checked;
+  document.getElementById('public-label').textContent = checked ? '公開' : '私密';
+}
+
+// ─── 群組行程 ─────────────────────────────────────────────────
+function showGroupSchedules() {
+  document.getElementById('group-content').innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border text-warning"></div></div>';
+  new bootstrap.Modal(document.getElementById('group-modal')).show();
+  callAuth('scheduleGetPublic').then(function(res) {
+    if (!res.ok) { document.getElementById('group-content').innerHTML = '<div class="text-muted">載入失敗</div>'; return; }
+    if (!res.schedules.length) { document.getElementById('group-content').innerHTML = '<div class="text-muted text-center py-4">目前沒有成員公開行程</div>'; return; }
+    document.getElementById('group-content').innerHTML = res.schedules.map(function(s) {
+      return '<div class="mb-4">' +
+        '<div class="fw-bold mb-2">👤 ' + s.memberName + '</div>' +
+        '<div class="d-flex flex-column gap-1">' +
+        s.entries.map(function(e) {
+          var tag = scheduleTags.find(function(t) { return t.id === e.tagId; });
+          var color = tag ? tag.color : '#607D8B';
+          return '<div class="d-flex align-items-center gap-2">' +
+            '<span class="tag-dot" style="background:' + color + '"></span>' +
+            '<span class="small fw-500">' + e.startTime + '–' + e.endTime + '</span>' +
+            '<span class="small">' + e.tagName + '</span>' +
+            (e.note ? '<span class="small text-muted">(' + e.note + ')</span>' : '') +
+          '</div>';
+        }).join('') +
+        '</div></div>';
+    }).join('<hr>');
+  });
+}
+
+function doLogout() {
+  callAuth('authLogout').then(function() { _setToken(''); goto('login'); });
+}
+</script>

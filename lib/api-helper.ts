@@ -53,12 +53,19 @@ export function getNowHourTaipei(): number {
 
 /** 取得台北昨日日期字串 */
 export function getYesterdayTaipei(): string {
-  const d = new Date()
-  d.setDate(d.getDate() - 1)
-  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(d)
+  // 明確減去 86400 秒，不依賴伺服器本地時區
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' })
+    .format(new Date(Date.now() - 86_400_000))
 }
 
 /** 取得當月 YYYY-MM */
 export function getYearMonth(dateStr?: string): string {
   return (dateStr ?? getTodayTaipei()).substring(0, 7)
+}
+
+/** 取得指定月份最後一天的日期字串 YYYY-MM-DD（處理各月天數差異）*/
+export function getMonthEnd(yearMonth: string): string {
+  const [y, m] = yearMonth.split('-').map(Number)
+  const lastDay = new Date(y, m, 0).getDate()
+  return `${yearMonth}-${String(lastDay).padStart(2, '0')}`
 }

@@ -15,7 +15,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   const { data: member } = await db.from('members').select('name, is_admin').eq('id', payload.sub).single()
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50/60 to-yellow-100/80">
       <Navbar userName={member?.name} isAdmin={member?.is_admin} />
       <main className="mx-auto max-w-4xl px-4 py-6">{children}</main>
       <Toaster position="top-center" richColors />

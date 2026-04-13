@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS checkin_records (
   base_score    INT NOT NULL,                    -- 0-8
   punch_bonus   NUMERIC(3,1) DEFAULT 0,          -- 0 or 0.5
   total_score   NUMERIC(4,1) NOT NULL,           -- 0-8.5
+  punch_streak  INT NOT NULL DEFAULT 0,           -- 連續打拳天數
   note          TEXT,
   submit_time   TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(member_id, date)
@@ -73,9 +74,10 @@ CREATE TABLE IF NOT EXISTS schedule_template (
   id            BIGSERIAL PRIMARY KEY,
   member_id     TEXT NOT NULL REFERENCES members(id),
   tag_id        TEXT REFERENCES tag_library(id),
-  tag_name      TEXT NOT NULL,
+  tag_name      TEXT NOT NULL DEFAULT '',
   start_time    TEXT NOT NULL,                  -- 'HH:MM'
-  end_time      TEXT NOT NULL,
+  end_time      TEXT NOT NULL,                  -- 'HH:MM'（< start_time 表示跨午夜）
+  block_tags    JSONB NOT NULL DEFAULT '[]',    -- [{id,name,color,emoji}]
   note          TEXT,
   is_public     BOOLEAN DEFAULT FALSE,
   updated_at    TIMESTAMPTZ DEFAULT NOW()

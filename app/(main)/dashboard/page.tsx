@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { CalendarGrid } from '@/components/CalendarGrid'
 import { AchievementWall } from '@/components/AchievementBadge'
 import { ProgressBar } from '@/components/ProgressBar'
-import { TASKS, LEVEL_THRESHOLDS } from '@/lib/constants'
+import { TASKS } from '@/lib/constants'
 
 interface DashboardData {
   yearMonth: string
@@ -74,7 +74,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex justify-between text-xs text-muted-foreground mb-1">
-            <span>{data.user.level}　目標：{Math.round(data.maxScore * (LEVEL_THRESHOLDS[data.user.level] ?? 0.6))} 分</span>
+            <span>{data.user.level}</span>
             <span>目標 {data.targetScore} 分</span>
           </div>
           <ProgressBar value={data.rate} />
