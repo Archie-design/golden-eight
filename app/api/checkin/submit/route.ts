@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentMember, getTodayTaipei, getYesterdayTaipei, getNowHourTaipei } from '@/lib/api-helper'
-import { calcBaseScore, calcPunchBonus, calcNewAchievements } from '@/lib/scoring'
+import { calcBaseScore, calcNewAchievements } from '@/lib/scoring'
 import type { CheckInRecord } from '@/types'
 
 export async function POST(request: NextRequest) {
@@ -27,28 +27,27 @@ export async function POST(request: NextRequest) {
 
   // 任務陣列正規化（8 個布林）
   const normalizedTasks: boolean[] = Array.from({ length: 8 }, (_, i) => Boolean(tasks?.[i]))
-  const baseScore = calcBaseScore(normalizedTasks)
+  const baseScore  = calcBaseScore(normalizedTasks)
+  const totalScore = baseScore
 
-  // 昨日紀錄（計算連續打拳加分）
+  // 昨日紀錄（計算連續打拳天數，供成就系統使用）
   const { data: prevRec } = await db
     .from('checkin_records').select('*').eq('member_id', member.id).eq('date', yesterday).maybeSingle()
 
-  const punchBonus  = calcPunchBonus(prevRec as CheckInRecord | null, normalizedTasks[1])
-  const totalScore  = baseScore + punchBonus
   const punchStreak = normalizedTasks[1]
     ? ((prevRec as { punch_streak?: number } | null)?.punch_streak ?? 0) + 1
     : 0
 
   // 寫入打卡紀錄
   const { error: insertError } = await db.from('checkin_records').insert({
-    member_id:   member.id,
-    date:        target,
-    tasks:       normalizedTasks,
-    base_score:  baseScore,
-    punch_bonus: punchBonus,
-    total_score: totalScore,
+    member_id:    member.id,
+    date:         target,
+    tasks:        normalizedTasks,
+    base_score:   baseScore,
+    punch_bonus:  0,
+    total_score:  totalScore,
     punch_streak: punchStreak,
-    note:        note || '',
+    note:         note || '',
   })
   if (insertError) return NextResponse.json({ ok: false, msg: '打卡失敗，請稍後再試' }, { status: 500 })
 
@@ -69,5 +68,5 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  return NextResponse.json({ ok: true, msg: '打卡成功', totalScore, baseScore, punchBonus, punchStreak, newAchievements })
+  return NextResponse.json({ ok: true, msg: '打卡成功', totalScore, baseScore, punchStreak, newAchievements })
 }

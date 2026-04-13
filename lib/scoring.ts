@@ -11,24 +11,14 @@ export function calcBaseScore(tasks: boolean[]): number {
   return tasks.filter(Boolean).length
 }
 
-/** 連續打拳加分：前日也有打拳 → +0.5 */
-export function calcPunchBonus(
-  prevRecord: CheckInRecord | null,
-  todayPunch: boolean
-): number {
-  if (!todayPunch) return 0
-  if (prevRecord && prevRecord.tasks[1]) return 0.5
-  return 0
-}
-
-/** 連續打拳天數 */
+/** 連續打拳天數（加分機制已移除，連續紀錄供成就系統使用） */
 export function calcPunchStreak(
   prevRecord: CheckInRecord | null,
   todayPunch: boolean
 ): number {
   if (!todayPunch) return 0
   if (!prevRecord) return 1
-  return (prevRecord.punch_bonus > 0 || prevRecord.tasks[1]
+  return (prevRecord.tasks[1]
     ? (prevRecord as unknown as { punch_streak?: number }).punch_streak ?? 1
     : 0) + 1
 }
