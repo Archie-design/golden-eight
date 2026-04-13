@@ -2,11 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import {
+  BarChart3, Calendar, TrendingUp, Dumbbell, Trophy,
+} from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { CalendarGrid } from '@/components/CalendarGrid'
 import { AchievementWall } from '@/components/AchievementBadge'
 import { ProgressBar } from '@/components/ProgressBar'
+import { AppIcon } from '@/lib/icons'
 import { TASKS } from '@/lib/constants'
 
 interface DashboardData {
@@ -45,7 +49,13 @@ export default function DashboardPage() {
     if (json.ok) setData(prev => prev ? { ...prev, user: { ...prev.user, nextLevel: level } } : prev)
   }
 
-  if (!data) return <div className="text-center py-16 text-muted-foreground">載入中…</div>
+  if (!data) return (
+    <div className="space-y-4 max-w-2xl mx-auto">
+      <div className="h-44 rounded-xl bg-white/40 animate-pulse" />
+      <div className="h-80 rounded-xl bg-white/40 animate-pulse" />
+      <div className="h-48 rounded-xl bg-white/40 animate-pulse" />
+    </div>
+  )
 
   const maxTaskCount = Math.max(...data.taskCounts, 1)
 
@@ -54,9 +64,14 @@ export default function DashboardPage() {
 
       {/* 本月進度 */}
       <Card>
-        <CardHeader><CardTitle>📊 本月進度 <span className="text-muted-foreground text-sm font-normal">{data.yearMonth}</span></CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="w-5 h-5" /> 本月進度
+            <span className="text-muted-foreground text-sm font-normal">{data.yearMonth}</span>
+          </CardTitle>
+        </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-4 text-center mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center mb-4">
             <div>
               <div className="text-3xl font-bold text-yellow-500">{data.totalScore}</div>
               <div className="text-xs text-muted-foreground">累計得分</div>
@@ -67,7 +82,7 @@ export default function DashboardPage() {
             </div>
             <div>
               <div className="text-3xl font-bold text-red-500">
-                {data.remaining > 0 ? `-${data.remaining}` : '✅'}
+                {data.remaining > 0 ? `-${data.remaining}` : '✓'}
               </div>
               <div className="text-xs text-muted-foreground">距目標差</div>
             </div>
@@ -82,7 +97,10 @@ export default function DashboardPage() {
           {/* 下月階梯選擇 */}
           {data.showNextLevelBtn && (
             <div className="mt-4 pt-4 border-t">
-              <p className="text-sm text-muted-foreground mb-2">📅 每月 25 日後可選擇下月階梯：</p>
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-2">
+                <Calendar className="w-4 h-4 shrink-0" />
+                每月 25 日後可選擇下月階梯：
+              </div>
               <div className="flex gap-2 flex-wrap">
                 {['黃金戰士', '白銀戰士', '青銅戰士'].map(lv => (
                   <Button key={lv} size="sm" variant="outline" onClick={() => setNextLevel(lv)}>{lv}</Button>
@@ -98,7 +116,11 @@ export default function DashboardPage() {
 
       {/* 月曆 */}
       <Card>
-        <CardHeader><CardTitle>📅 本月打卡月曆</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="w-5 h-5" /> 本月打卡月曆
+          </CardTitle>
+        </CardHeader>
         <CardContent>
           <CalendarGrid days={data.calendar} />
         </CardContent>
@@ -106,11 +128,20 @@ export default function DashboardPage() {
 
       {/* 各項任務完成次數 */}
       <Card>
-        <CardHeader><CardTitle>📈 本月各項任務完成次數</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5" /> 本月各項任務完成次數
+          </CardTitle>
+        </CardHeader>
         <CardContent className="space-y-2">
           {TASKS.map((task, i) => (
             <div key={i} className="flex items-center gap-2">
-              <div className="w-24 text-sm shrink-0">{task.icon} {task.name}</div>
+              <div className="w-28 flex items-center gap-1.5 text-sm shrink-0">
+                <span className="text-amber-600">
+                  <AppIcon name={task.icon} className="w-4 h-4" />
+                </span>
+                {task.name}
+              </div>
               <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
                 <div
                   className="h-full bg-yellow-400 rounded-full transition-all"
@@ -125,7 +156,11 @@ export default function DashboardPage() {
 
       {/* 連續打拳 */}
       <Card>
-        <CardHeader><CardTitle>🥊 連續打拳紀錄</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Dumbbell className="w-5 h-5" /> 連續打拳紀錄
+          </CardTitle>
+        </CardHeader>
         <CardContent>
           <div className="flex gap-6 text-center">
             <div className="flex-1">
@@ -142,7 +177,11 @@ export default function DashboardPage() {
 
       {/* 成就牆 */}
       <Card>
-        <CardHeader><CardTitle>🏆 成就牆</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Trophy className="w-5 h-5" /> 成就牆
+          </CardTitle>
+        </CardHeader>
         <CardContent>
           <AchievementWall unlockedCodes={data.achievements.map(a => a.code)} />
         </CardContent>

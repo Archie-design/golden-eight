@@ -3,7 +3,18 @@
     "allow": [
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:github.com)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(npx uipro-cli:*)",
+      "Bash(python3 .claude/skills/ui-ux-pro-max/scripts/search.py \"habit tracker gamification wellness dashboard check-in amber gold glassmorphism\" --design-system -p \"黃金八套餐\" -f markdown)",
+      "Bash(python3 .claude/skills/ui-ux-pro-max/scripts/search.py \"glassmorphism amber gold warm\" --domain style -f markdown)",
+      "Bash(python3 .claude/skills/ui-ux-pro-max/scripts/search.py \"dashboard gamification progress score streak mobile\" --domain ux -f markdown)",
+      "Bash(python3 .claude/skills/ui-ux-pro-max/scripts/search.py \"animation loading skeleton micro-interaction\" --domain ux -f markdown)",
+      "Bash(python3 .claude/skills/ui-ux-pro-max/scripts/search.py \"dashboard gamification habit tracker\" --domain color -f markdown)",
+      "Bash(python3 .claude/skills/ui-ux-pro-max/scripts/search.py \"nextjs shadcn accessibility responsive\" --stack nextjs -f markdown)",
+      "Bash(python3 .claude/skills/ui-ux-pro-max/scripts/search.py \"nextjs shadcn\" --stack shadcn -f markdown)",
+      "Bash(npx next:*)",
+      "Bash(TURBOPACK=false npx next build)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

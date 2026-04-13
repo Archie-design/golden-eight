@@ -128,38 +128,40 @@ export function calcNewAchievements(
   const unlocked = new Set(alreadyUnlocked)
   const newOnes: AchievementTrigger[] = []
 
-  function award(code: string, name: string) {
+  function award(code: string) {
     if (!unlocked.has(code)) {
-      const badge = name.split(' ').at(-1) ?? '🏆'
+      const ach   = ACHIEVEMENT_LIST.find(a => a.code === code)
+      const name  = ach?.name  ?? code
+      const badge = ach?.badge ?? 'Trophy'
       newOnes.push({ code, name, badge })
       unlocked.add(code)
     }
   }
 
   // 第一次打卡
-  if (allRecords.length === 1) award('FIRST_CHECKIN', '萬里起行 🎉')
+  if (allRecords.length === 1) award('FIRST_CHECKIN')
 
   // 今日完美
-  if (todayRecord.base_score === 8) award('DAILY_PERFECT', '大滿貫 🌟')
-  if (todayRecord.total_score >= 8.5) award('DAILY_PERFECT_BONUS', '金色大滿貫 ⭐')
+  if (todayRecord.base_score === 8) award('DAILY_PERFECT')
+  if (todayRecord.total_score >= 8.5) award('DAILY_PERFECT_BONUS')
 
   // 累積打卡天數
   const ciCount = allRecords.length
-  for (const { target, code, name } of [
-    { target: 30,  code: 'CHECKIN_30',  name: '打卡 30 天 📅' },
-    { target: 100, code: 'CHECKIN_100', name: '打卡百日 📅' },
-    { target: 365, code: 'CHECKIN_365', name: '打卡一年 📅' },
+  for (const { target, code } of [
+    { target: 30,  code: 'CHECKIN_30'  },
+    { target: 100, code: 'CHECKIN_100' },
+    { target: 365, code: 'CHECKIN_365' },
   ]) {
-    if (ciCount >= target) award(code, name)
+    if (ciCount >= target) award(code)
   }
 
   // 累積大滿貫次數
   const perfectCount = allRecords.filter(r => r.base_score === 8).length
-  for (const { target, code, name } of [
-    { target: 10, code: 'PERFECT_10', name: '大滿貫 x10 🌟' },
-    { target: 30, code: 'PERFECT_30', name: '大滿貫 x30 🌟' },
+  for (const { target, code } of [
+    { target: 10, code: 'PERFECT_10' },
+    { target: 30, code: 'PERFECT_30' },
   ]) {
-    if (perfectCount >= target) award(code, name)
+    if (perfectCount >= target) award(code)
   }
 
   // 各任務連續天數
@@ -170,7 +172,7 @@ export function calcNewAchievements(
       .filter(a => a.type === 'streak' && (a as { task?: number }).task === taskIdx)
       .forEach(ach => {
         const days = (ach as { days?: number }).days ?? 0
-        if (streak >= days) award(ach.code, ach.name)
+        if (streak >= days) award(ach.code)
       })
   }
 
@@ -189,21 +191,23 @@ export function calcMonthlyAchievements(
   const unlocked = new Set(alreadyUnlocked)
   const newOnes: AchievementTrigger[] = []
 
-  function award(code: string, name: string) {
+  function award(code: string) {
     if (!unlocked.has(code)) {
-      const badge = name.split(' ').at(-1) ?? '🏆'
+      const ach   = ACHIEVEMENT_LIST.find(a => a.code === code)
+      const name  = ach?.name  ?? code
+      const badge = ach?.badge ?? 'Trophy'
       newOnes.push({ code, name, badge })
       unlocked.add(code)
     }
   }
 
-  if (!unlocked.has('MONTH_PASS')) award('MONTH_PASS', '初次通關 🎖️')
-  if (level === '黃金戰士')         award('MONTH_GOLD', '黃金通關 🥇')
-  if (rate >= 100)                  award('MONTH_PERFECT', '完美月 💯')
+  if (!unlocked.has('MONTH_PASS')) award('MONTH_PASS')
+  if (level === '黃金戰士')         award('MONTH_GOLD')
+  if (rate >= 100)                  award('MONTH_PERFECT')
 
   const passCount = alreadyUnlocked.filter(c => c === 'MONTH_PASS').length + 1
-  if (passCount >= 3) award('MONTH_STREAK_3', '三月連勝 🔥')
-  if (passCount >= 6) award('MONTH_STREAK_6', '半年英雄 🏆')
+  if (passCount >= 3) award('MONTH_STREAK_3')
+  if (passCount >= 6) award('MONTH_STREAK_6')
 
   return newOnes
 }

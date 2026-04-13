@@ -46,7 +46,7 @@ export function CalendarGrid({ days }: CalendarGridProps) {
             key={day.date}
             title={day.score !== null ? `${day.date}: ${day.score} 分` : day.date}
             className={cn(
-              'flex aspect-square items-center justify-center rounded text-sm font-medium',
+              'flex aspect-square items-center justify-center rounded text-sm font-medium cursor-default',
               day.color
             )}
           >

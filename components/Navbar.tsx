@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { Star } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NAV_LINKS = [
@@ -28,7 +29,7 @@ export function Navbar({ userName, isAdmin }: NavbarProps) {
     <nav className="sticky top-0 z-50 glass-nav">
       <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
         <div className="flex items-center gap-1">
-          <span className="text-lg font-bold text-amber-600">🌟</span>
+          <Star className="w-5 h-5 text-amber-600 fill-amber-400" />
           <span className="font-semibold text-amber-900">{userName ?? '黃金八套餐'}</span>
         </div>
 

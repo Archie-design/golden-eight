@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils'
 import { ACHIEVEMENT_LIST } from '@/lib/constants'
+import { AppIcon } from '@/lib/icons'
 
 interface AchievementBadgeProps {
   unlockedCodes: string[]
@@ -12,9 +13,6 @@ export function AchievementWall({ unlockedCodes }: AchievementBadgeProps) {
     <div className="flex flex-wrap gap-2">
       {ACHIEVEMENT_LIST.map(ach => {
         const isUnlocked = unlockedSet.has(ach.code)
-        const parts = ach.name.split(' ')
-        const badge = parts.at(-1) ?? '🏆'
-        const label = ach.name.replace(badge, '').trim()
 
         return (
           <div
@@ -27,8 +25,10 @@ export function AchievementWall({ unlockedCodes }: AchievementBadgeProps) {
                 : 'border-gray-100 bg-gray-50 opacity-30 grayscale'
             )}
           >
-            <div className="text-2xl leading-none">{badge}</div>
-            <div className="mt-1 text-[0.6rem] leading-tight text-muted-foreground">{label}</div>
+            <div className="flex items-center justify-center h-6 w-6">
+              <AppIcon name={ach.badge} className="w-6 h-6" />
+            </div>
+            <div className="mt-1 text-[0.6rem] leading-tight text-muted-foreground">{ach.name}</div>
           </div>
         )
       })}

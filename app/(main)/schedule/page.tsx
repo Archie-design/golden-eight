@@ -2,6 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { toast } from 'sonner'
+import {
+  Calendar, Unlock, Lock, Search, Pencil, AlertTriangle, Users, Star,
+} from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -147,10 +150,10 @@ export default function SchedulePage() {
     <div className="max-w-3xl mx-auto space-y-4">
       {/* 頂列 */}
       <div className="flex flex-wrap gap-2 items-center justify-between">
-        <h1 className="text-lg font-bold">📅 我的行程模板</h1>
+        <h1 className="flex items-center gap-2 text-lg font-bold"><Calendar className="w-5 h-5" /> 我的行程模板</h1>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => setIsPublic(v => !v)}>
-            {isPublic ? '🔓 公開中' : '🔒 私密'}
+          <Button size="sm" variant="outline" className="flex items-center gap-1.5" onClick={() => setIsPublic(v => !v)}>
+            {isPublic ? <><Unlock className="w-3.5 h-3.5" /> 公開中</> : <><Lock className="w-3.5 h-3.5" /> 私密</>}
           </Button>
           <Button size="sm" variant="outline" onClick={loadGroup}>群組行程</Button>
           <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white" onClick={saveTemplate}>
@@ -162,12 +165,15 @@ export default function SchedulePage() {
       <div className="grid grid-cols-[180px_1fr] gap-4 items-start">
         {/* 左欄：標籤清單 */}
         <div className="space-y-2">
-          <Input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="🔍 搜尋標籤"
-            className="text-sm h-8"
-          />
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="搜尋標籤"
+              className="text-sm h-8 pl-7"
+            />
+          </div>
           <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => setShowTag(true)}>
             + 新增標籤
           </Button>
@@ -175,7 +181,7 @@ export default function SchedulePage() {
             {filteredTags.map(tag => (
               <div
                 key={tag.id}
-                className="flex items-center justify-between rounded-lg border p-2 text-sm hover:shadow-sm transition-shadow"
+                className="flex items-center justify-between rounded-lg border p-2 text-sm cursor-default hover:shadow-sm transition-shadow"
                 style={{ borderLeftColor: tag.color, borderLeftWidth: 3 }}
               >
                 <span>{tag.emoji} {tag.tag_name}</span>
@@ -225,9 +231,9 @@ export default function SchedulePage() {
                 </div>
                 <button
                   onClick={() => openEdit(idx)}
-                  className="ml-2 shrink-0 text-muted-foreground hover:text-gray-700 text-xs px-1"
+                  className="ml-2 shrink-0 text-muted-foreground hover:text-gray-700 p-0.5"
                 >
-                  ✏️
+                  <Pencil className="w-3.5 h-3.5" />
                 </button>
               </div>
             ))}
@@ -271,7 +277,7 @@ export default function SchedulePage() {
               </div>
             </div>
             {dialog.startTime && dialog.endTime && isCrossMidnight(dialog.startTime, dialog.endTime) && (
-              <p className="text-xs text-amber-600">⚠️ 跨午夜區段（翌日 {dialog.endTime} 結束）</p>
+              <p className="flex items-center gap-1 text-xs text-amber-600"><AlertTriangle className="w-3.5 h-3.5 shrink-0" /> 跨午夜區段（翌日 {dialog.endTime} 結束）</p>
             )}
 
             {/* 可選標籤 */}
@@ -370,13 +376,13 @@ export default function SchedulePage() {
       {/* 群組行程 Sheet */}
       <Sheet open={showGroup} onOpenChange={setShowGroup}>
         <SheetContent side="right" className="w-80 overflow-y-auto">
-          <SheetHeader><SheetTitle>👥 群組公開行程</SheetTitle></SheetHeader>
+          <SheetHeader><SheetTitle className="flex items-center gap-2"><Users className="w-4 h-4" /> 群組公開行程</SheetTitle></SheetHeader>
           <div className="mt-4 space-y-6">
             {groupData.length === 0
               ? <p className="text-sm text-muted-foreground">目前沒有成員公開行程</p>
               : groupData.map((g, i) => (
                 <div key={i}>
-                  <p className="font-semibold text-sm mb-2">🌟 {g.memberName}</p>
+                  <p className="flex items-center gap-1.5 font-semibold text-sm mb-2"><Star className="w-4 h-4 text-amber-500 fill-amber-400" /> {g.memberName}</p>
                   <div className="space-y-1.5">
                     {g.blocks.map((b, j) => (
                       <div key={j} className="text-xs flex items-baseline gap-2">

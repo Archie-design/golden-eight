@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Star } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -65,7 +66,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-orange-500 to-yellow-400 p-4">
       <Card className="w-full max-w-sm shadow-2xl">
         <CardHeader className="text-center pb-2">
-          <div className="text-5xl">🌟</div>
+          <Star className="mx-auto w-12 h-12 text-amber-500 fill-amber-400" />
           <h1 className="text-xl font-bold">黃金八套餐</h1>
           <p className="text-sm text-muted-foreground">定課打卡系統</p>
         </CardHeader>

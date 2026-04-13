@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { toast } from 'sonner'
+import { Star, CheckCircle2, X, Crown, PartyPopper } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -66,7 +67,7 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
-      <h1 className="text-xl font-bold">🌟 管理員後台</h1>
+      <h1 className="flex items-center gap-2 text-xl font-bold"><Star className="w-5 h-5 text-amber-500 fill-amber-400" /> 管理員後台</h1>
 
       <Tabs defaultValue="progress" onValueChange={v => { if (v === 'penalty') loadPenalty() }}>
         <TabsList className="w-full">
@@ -98,11 +99,15 @@ export default function AdminPage() {
                         <td className="text-right">{r.totalScore}/{r.maxScore}</td>
                         <td className="text-right">{r.rate}%</td>
                         <td className="text-center">
-                          <span className={r.passing ? 'text-green-600 font-semibold' : 'text-red-500 font-semibold'}>
-                            {r.passing ? '✅ 達標' : '❌ 未達標'}
+                          <span className={`inline-flex items-center gap-1 font-semibold ${r.passing ? 'text-green-600' : 'text-red-500'}`}>
+                            {r.passing
+                              ? <><CheckCircle2 className="w-4 h-4" /> 達標</>
+                              : <><X className="w-4 h-4" /> 未達標</>}
                           </span>
                         </td>
-                        <td className="text-right">{r.maxStreak} 天{r.isDawnKing ? ' 👑' : ''}</td>
+                        <td className="text-right flex items-center justify-end gap-1">
+                          {r.maxStreak} 天{r.isDawnKing && <Crown className="w-4 h-4 text-yellow-500 inline" />}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -126,7 +131,7 @@ export default function AdminPage() {
               {!penalty ? (
                 <p className="text-sm text-muted-foreground">請先執行月結後查看結果</p>
               ) : penalty.rows.length === 0 ? (
-                <p className="text-green-600 font-semibold">🎉 本月全員達標，無罰款！</p>
+                <p className="flex items-center gap-1.5 text-green-600 font-semibold"><PartyPopper className="w-4 h-4" /> 本月全員達標，無罰款！</p>
               ) : (
                 <>
                   <table className="w-full text-sm mb-3">
