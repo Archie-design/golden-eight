@@ -6,9 +6,10 @@ import { Star } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NAV_LINKS = [
-  { href: '/checkin',   label: '打卡' },
-  { href: '/dashboard', label: '儀表板' },
-  { href: '/schedule',  label: '行程' },
+  { href: '/checkin',     label: '打卡' },
+  { href: '/dashboard',   label: '儀表板' },
+  { href: '/schedule',    label: '行程' },
+  { href: '/leaderboard', label: '排行' },
 ]
 
 interface NavbarProps {

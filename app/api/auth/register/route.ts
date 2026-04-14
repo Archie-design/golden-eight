@@ -1,18 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { createToken } from '@/lib/auth'
+import { RegisterSchema, parseBody } from '@/lib/validation'
 
 export async function POST(request: NextRequest) {
-  const { name, phoneLast3, joinDate, level } = await request.json()
-
-  if (!name || !phoneLast3 || !/^\d{3}$/.test(phoneLast3)) {
-    return NextResponse.json({ ok: false, msg: '請填寫所有必填欄位' }, { status: 400 })
-  }
-
-  const validLevels = ['黃金戰士', '白銀戰士', '青銅戰士']
-  if (!validLevels.includes(level)) {
-    return NextResponse.json({ ok: false, msg: '無效的階梯選項' }, { status: 400 })
-  }
+  const parsed = await parseBody(request, RegisterSchema)
+  if (parsed instanceof NextResponse) return parsed
+  const { name, phoneLast3, joinDate, level } = parsed.data
 
   const db = createServerClient()
 

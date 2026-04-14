@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentMember, getTodayTaipei, getYesterdayTaipei, getNowHourTaipei } from '@/lib/api-helper'
 import { calcBaseScore, calcNewAchievements } from '@/lib/scoring'
+import { CheckInSubmitSchema, parseBody } from '@/lib/validation'
 import type { CheckInRecord } from '@/types'
 
 export async function POST(request: NextRequest) {
@@ -8,7 +9,9 @@ export async function POST(request: NextRequest) {
   if (result instanceof NextResponse) return result
   const { member, db } = result
 
-  const { tasks, note, date: targetDate } = await request.json()
+  const parsed = await parseBody(request, CheckInSubmitSchema)
+  if (parsed instanceof NextResponse) return parsed
+  const { tasks, note, date: targetDate } = parsed.data
   const today     = getTodayTaipei()
   const yesterday = getYesterdayTaipei()
   const nowHour   = getNowHourTaipei()

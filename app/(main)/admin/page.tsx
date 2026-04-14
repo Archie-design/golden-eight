@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { toast } from 'sonner'
-import { Star, CheckCircle2, X, Crown, PartyPopper } from 'lucide-react'
+import { Star, CheckCircle2, X, Crown, PartyPopper, Download, Trophy, Medal } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,14 +12,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-interface Member { id: string; name: string; join_date: string; level: string; status: string }
+interface Member     { id: string; name: string; join_date: string; level: string; status: string }
 interface ProgressRow { id: string; name: string; level: string; totalScore: number; maxScore: number; rate: number; passing: boolean; maxStreak: number; isDawnKing: boolean }
-interface PenaltyRow { name: string; level: string; rate: number; penalty: number }
+interface PenaltyRow  { name: string; level: string; rate: number; penalty: number }
+interface AchStat     { code: string; name: string; count: number; pct: number }
+interface MemberStat  { id: string; name: string; count: number; total: number }
 
 export default function AdminPage() {
-  const [members, setMembers]   = useState<Member[]>([])
-  const [progress, setProgress] = useState<ProgressRow[]>([])
-  const [penalty,  setPenalty]  = useState<{ rows: PenaltyRow[]; total: number } | null>(null)
+  const [members,      setMembers]      = useState<Member[]>([])
+  const [progress,     setProgress]     = useState<ProgressRow[]>([])
+  const [penaltyData,  setPenaltyData]  = useState<{ yearMonth: string; rows: PenaltyRow[]; total: number } | null>(null)
+  const [penaltyYM,    setPenaltyYM]    = useState(() => new Date().toISOString().slice(0, 7))
+  const [achStats,     setAchStats]     = useState<AchStat[]>([])
+  const [memberStats,  setMemberStats]  = useState<MemberStat[]>([])
   const [showAddModal, setShowAddModal] = useState(false)
 
   // 新增成員欄位
@@ -32,10 +37,23 @@ export default function AdminPage() {
     fetch('/api/admin/members').then(r => r.json()).then(j => { if (j.ok) setMembers(j.members) }), [])
   const loadProgress = useCallback(() =>
     fetch('/api/stats/progress').then(r => r.json()).then(j => { if (j.ok) setProgress(j.rows) }), [])
-  const loadPenalty  = useCallback(() =>
-    fetch('/api/admin/penalty').then(r => r.json()).then(j => { if (j.ok) setPenalty({ rows: j.rows, total: j.total }) }), [])
+
+  const loadPenalty = useCallback((ym: string) =>
+    fetch(`/api/admin/penalty?yearMonth=${ym}`)
+      .then(r => r.json())
+      .then(j => { if (j.ok) setPenaltyData({ yearMonth: j.yearMonth, rows: j.rows, total: j.total }) }),
+  [])
+
+  const loadAchievements = useCallback(() =>
+    fetch('/api/admin/achievements').then(r => r.json()).then(j => {
+      if (j.ok) { setAchStats(j.achievementStats); setMemberStats(j.memberStats) }
+    }), [])
 
   useEffect(() => { loadMembers(); loadProgress() }, [loadMembers, loadProgress])
+
+  function handleExportCSV() {
+    window.location.href = `/api/admin/export?yearMonth=${penaltyYM}`
+  }
 
   async function handleAddMember() {
     if (!mName || !/^\d{3}$/.test(mPhone)) { toast.error('請填寫完整資料'); return }
@@ -61,19 +79,25 @@ export default function AdminPage() {
     if (!confirm('確定執行本月月結？此操作無法撤銷。')) return
     const res  = await fetch('/api/admin/settlement', { method: 'POST' })
     const json = await res.json()
-    toast[json.ok ? 'success' : 'error'](json.ok ? json.msg : json.msg)
-    if (json.ok) loadPenalty()
+    toast[json.ok ? 'success' : 'error'](json.msg)
+    if (json.ok) loadPenalty(penaltyYM)
   }
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
-      <h1 className="flex items-center gap-2 text-xl font-bold"><Star className="w-5 h-5 text-amber-500 fill-amber-400" /> 管理員後台</h1>
+      <h1 className="flex items-center gap-2 text-xl font-bold">
+        <Star className="w-5 h-5 text-amber-500 fill-amber-400" /> 管理員後台
+      </h1>
 
-      <Tabs defaultValue="progress" onValueChange={v => { if (v === 'penalty') loadPenalty() }}>
+      <Tabs defaultValue="progress" onValueChange={v => {
+        if (v === 'penalty')      loadPenalty(penaltyYM)
+        if (v === 'achievements') loadAchievements()
+      }}>
         <TabsList className="w-full">
-          <TabsTrigger value="progress" className="flex-1">全員進度</TabsTrigger>
-          <TabsTrigger value="penalty"  className="flex-1">罰款總結</TabsTrigger>
-          <TabsTrigger value="members"  className="flex-1">會員管理</TabsTrigger>
+          <TabsTrigger value="progress"     className="flex-1">全員進度</TabsTrigger>
+          <TabsTrigger value="penalty"      className="flex-1">罰款總結</TabsTrigger>
+          <TabsTrigger value="achievements" className="flex-1">成就統計</TabsTrigger>
+          <TabsTrigger value="members"      className="flex-1">會員管理</TabsTrigger>
         </TabsList>
 
         {/* 全員進度 */}
@@ -100,13 +124,13 @@ export default function AdminPage() {
                         <td className="text-right">{r.rate}%</td>
                         <td className="text-center">
                           <span className={`inline-flex items-center gap-1 font-semibold ${r.passing ? 'text-green-600' : 'text-red-500'}`}>
-                            {r.passing
-                              ? <><CheckCircle2 className="w-4 h-4" /> 達標</>
-                              : <><X className="w-4 h-4" /> 未達標</>}
+                            {r.passing ? <><CheckCircle2 className="w-4 h-4" /> 達標</> : <><X className="w-4 h-4" /> 未達標</>}
                           </span>
                         </td>
-                        <td className="text-right flex items-center justify-end gap-1">
-                          {r.maxStreak} 天{r.isDawnKing && <Crown className="w-4 h-4 text-yellow-500 inline" />}
+                        <td className="text-right">
+                          <span className="inline-flex items-center justify-end gap-1">
+                            {r.maxStreak} 天{r.isDawnKing && <Crown className="w-4 h-4 text-yellow-500" />}
+                          </span>
                         </td>
                       </tr>
                     ))}
@@ -120,27 +144,38 @@ export default function AdminPage() {
         {/* 罰款總結 */}
         <TabsContent value="penalty">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base">本月罰款總結</CardTitle>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={loadPenalty}>刷新</Button>
+            <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-base">罰款總結</CardTitle>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Input
+                  type="month"
+                  value={penaltyYM}
+                  onChange={e => { if (e.target.value) { setPenaltyYM(e.target.value); loadPenalty(e.target.value) } }}
+                  className="h-8 w-36 text-sm"
+                />
+                <Button size="sm" variant="outline" className="flex items-center gap-1" onClick={handleExportCSV}>
+                  <Download className="w-3.5 h-3.5" /> CSV
+                </Button>
                 <Button size="sm" variant="destructive" onClick={handleSettlement}>執行月結</Button>
               </div>
             </CardHeader>
             <CardContent>
-              {!penalty ? (
-                <p className="text-sm text-muted-foreground">請先執行月結後查看結果</p>
-              ) : penalty.rows.length === 0 ? (
-                <p className="flex items-center gap-1.5 text-green-600 font-semibold"><PartyPopper className="w-4 h-4" /> 本月全員達標，無罰款！</p>
+              {!penaltyData ? (
+                <p className="text-sm text-muted-foreground">選擇月份查看，或先執行月結</p>
+              ) : penaltyData.rows.length === 0 ? (
+                <p className="flex items-center gap-1.5 text-green-600 font-semibold">
+                  <PartyPopper className="w-4 h-4" /> {penaltyData.yearMonth} 全員達標，無罰款！
+                </p>
               ) : (
                 <>
+                  <p className="text-xs text-muted-foreground mb-2">{penaltyData.yearMonth}</p>
                   <table className="w-full text-sm mb-3">
                     <thead><tr className="border-b text-muted-foreground">
                       <th className="text-left py-2">姓名</th><th className="text-left">階梯</th>
                       <th className="text-right">達成率</th><th className="text-right">罰款</th>
                     </tr></thead>
                     <tbody>
-                      {penalty.rows.map((r, i) => (
+                      {penaltyData.rows.map((r, i) => (
                         <tr key={i} className="border-b last:border-0">
                           <td className="py-2">{r.name}</td>
                           <td>{r.level}</td>
@@ -151,12 +186,87 @@ export default function AdminPage() {
                     </tbody>
                   </table>
                   <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-3 text-sm font-semibold">
-                    罰款總計：NT$ {penalty.total}
+                    罰款總計：NT$ {penaltyData.total}
                   </div>
                 </>
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* 成就統計 */}
+        <TabsContent value="achievements">
+          <div className="space-y-4">
+            {/* 成員解鎖排行 */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Trophy className="w-4 h-4 text-amber-500" /> 成員解鎖數排行
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {memberStats.map((m, i) => (
+                    <div key={m.id} className="flex items-center gap-3">
+                      <span className="w-5 text-xs text-muted-foreground text-right">{i + 1}</span>
+                      <span className="w-20 text-sm font-medium truncate">{m.name}</span>
+                      <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                        <div
+                          className="h-full bg-amber-400 rounded-full transition-all"
+                          style={{ width: `${Math.round((m.count / m.total) * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-muted-foreground w-16 text-right">
+                        {m.count} / {m.total}
+                      </span>
+                    </div>
+                  ))}
+                  {memberStats.length === 0 && (
+                    <p className="text-sm text-muted-foreground">尚無成就資料</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 稀有成就（解鎖率 ≤ 20% 或未解鎖）*/}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Medal className="w-4 h-4 text-purple-500" /> 稀有成就（解鎖率 ≤ 20%）
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b text-muted-foreground">
+                      <th className="text-left py-2">成就</th>
+                      <th className="text-right">解鎖人數</th>
+                      <th className="text-right">解鎖率</th>
+                    </tr></thead>
+                    <tbody>
+                      {achStats.filter(a => a.pct <= 20).map(a => (
+                        <tr key={a.code} className="border-b last:border-0">
+                          <td className="py-1.5">
+                            <div className="font-medium">{a.name}</div>
+                            <div className="text-xs text-muted-foreground">{a.code}</div>
+                          </td>
+                          <td className="text-right">{a.count}</td>
+                          <td className="text-right">
+                            <span className={a.pct === 0 ? 'text-gray-400' : 'text-purple-600 font-semibold'}>
+                              {a.pct}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      {achStats.filter(a => a.pct <= 20).length === 0 && (
+                        <tr><td colSpan={3} className="py-4 text-center text-muted-foreground text-sm">無稀有成就資料</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* 會員管理 */}

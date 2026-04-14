@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { toast } from 'sonner'
 import {
-  Calendar, Unlock, Lock, Search, Pencil, AlertTriangle, Users, Star,
+  Calendar, Unlock, Lock, Search, Pencil, AlertTriangle, Users, Star, LayoutList, Clock,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -22,6 +22,7 @@ import {
   sortableKeyboardCoordinates, arrayMove,
 } from '@dnd-kit/sortable'
 import { TagPill } from '@/components/schedule/TagPill'
+import { TimelineView } from '@/components/schedule/TimelineView'
 
 interface Tag { id: string; tag_name: string; color: string; emoji?: string; is_system: boolean }
 interface BlockTag { id?: string; name: string; color: string; emoji?: string }
@@ -98,6 +99,7 @@ export default function SchedulePage() {
   const [dialog,           setDialog]          = useState(EMPTY_DIALOG)
   const [activeDragData,   setActiveDragData]  = useState<DragData | null>(null)
   const [activeDropIdx,    setActiveDropIdx]   = useState<number | null>(null)
+  const [timelineMode,     setTimelineMode]    = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -293,6 +295,9 @@ export default function SchedulePage() {
       <div className="flex flex-wrap gap-2 items-center justify-between">
         <h1 className="flex items-center gap-2 text-lg font-bold"><Calendar className="w-5 h-5" /> 我的行程模板</h1>
         <div className="flex gap-2">
+          <Button size="sm" variant="outline" className="flex items-center gap-1.5" onClick={() => setTimelineMode(v => !v)}>
+            {timelineMode ? <><LayoutList className="w-3.5 h-3.5" /> 列表</> : <><Clock className="w-3.5 h-3.5" /> 時間軸</>}
+          </Button>
           <Button size="sm" variant="outline" className="flex items-center gap-1.5" onClick={() => setIsPublic(v => !v)}>
             {isPublic ? <><Unlock className="w-3.5 h-3.5" /> 公開中</> : <><Lock className="w-3.5 h-3.5" /> 私密</>}
           </Button>
@@ -303,6 +308,18 @@ export default function SchedulePage() {
         </div>
       </div>
 
+      {timelineMode ? (
+        <Card>
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm text-muted-foreground">24 小時時間軸（唯讀，切換回列表模式可編輯）</CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <TimelineView blocks={blocks} />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <div className={timelineMode ? 'hidden' : undefined}>
       <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}
@@ -409,6 +426,7 @@ export default function SchedulePage() {
           )}
         </DragOverlay>
       </DndContext>
+      </div>{/* end list-mode wrapper */}
 
       {/* 新增/編輯區段 Dialog */}
       <Dialog open={dialog.open} onOpenChange={open => { if (!open) setDialog(EMPTY_DIALOG) }}>

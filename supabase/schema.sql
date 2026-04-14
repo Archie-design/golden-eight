@@ -13,7 +13,9 @@ CREATE TABLE IF NOT EXISTS members (
   next_level    TEXT,
   is_admin      BOOLEAN DEFAULT FALSE,
   status        TEXT DEFAULT '活躍',             -- 活躍 / 停用
-  line_user_id  TEXT,                            -- 預留 LINE OAuth
+  line_user_id       TEXT,                       -- LINE userId
+  line_display_name  TEXT,                       -- LINE 顯示名稱
+  line_picture_url   TEXT,                       -- LINE 頭像 URL
   created_at    TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(name, phone_last3)
 );

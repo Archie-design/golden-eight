@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentMember } from '@/lib/api-helper'
+import { CreateTagSchema, DeleteTagSchema, parseBody } from '@/lib/validation'
 
 export async function POST(request: NextRequest) {
   const result = await getCurrentMember()
   if (result instanceof NextResponse) return result
   const { member, db } = result
 
-  const { tagName, color, emoji } = await request.json()
-  if (!tagName) return NextResponse.json({ ok: false, msg: '請填寫標籤名稱' }, { status: 400 })
+  const parsed = await parseBody(request, CreateTagSchema)
+  if (parsed instanceof NextResponse) return parsed
+  const { tagName, color, emoji } = parsed.data
 
   const { count } = await db.from('tag_library').select('*', { count: 'exact', head: true }).eq('member_id', member.id)
   const newId = 'U' + member.id + '_' + String((count ?? 0) + 1).padStart(3, '0')
@@ -25,7 +27,9 @@ export async function DELETE(request: NextRequest) {
   if (result instanceof NextResponse) return result
   const { member, db } = result
 
-  const { tagId } = await request.json()
+  const parsed = await parseBody(request, DeleteTagSchema)
+  if (parsed instanceof NextResponse) return parsed
+  const { tagId } = parsed.data
 
   // 不允許刪除系統標籤
   const { data: tag } = await db.from('tag_library').select('is_system, member_id').eq('id', tagId).single()

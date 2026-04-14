@@ -14,7 +14,9 @@ export interface Member {
   next_level?: Level | null
   is_admin: boolean
   status: Status
-  line_user_id?: string | null
+  line_user_id?:      string | null
+  line_display_name?: string | null
+  line_picture_url?:  string | null
   created_at: string
 }
 

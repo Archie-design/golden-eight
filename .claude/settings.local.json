@@ -17,7 +17,8 @@
       "Bash(npx tsc:*)",
       "Bash(xargs cat:*)",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\([k for k in d.get\\('packages',{}\\) if 'dnd' in k or 'drag' in k]\\)\")",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(wc -l /Users/keke/黃金八套餐定課系統/golden-eight/app/api/**/route.ts)"
     ]
   }
 }

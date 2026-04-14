@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getTokenPayload, getTodayTaipei } from '@/lib/api-helper'
+import { getTokenPayload, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
 import { createServerClient } from '@/lib/supabase/server'
 import { calcMonthStats, calcMaxPunchStreak, calcPenalty, calcMonthlyAchievements } from '@/lib/scoring'
 import type { Member, CheckInRecord } from '@/types'
@@ -18,7 +18,7 @@ export async function POST() {
     (members ?? []).map(async (m: Member) => {
       const { data: recs } = await db
         .from('checkin_records').select('*')
-        .eq('member_id', m.id).gte('date', yearMonth + '-01').lte('date', yearMonth + '-31')
+        .eq('member_id', m.id).gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth))
 
       const records   = (recs ?? []) as CheckInRecord[]
       const stats     = calcMonthStats(m, records, today)

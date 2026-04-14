@@ -52,7 +52,12 @@ export async function GET() {
     maxPunchMonth: maxStreak,
     calendar,
     taskCounts,
-    achievements: achievementsRes.data ?? [],
+    achievements:     achievementsRes.data ?? [],
     showNextLevelBtn: day >= 25,
+    line: {
+      bound:       !!member.line_user_id,
+      displayName: member.line_display_name ?? null,
+      pictureUrl:  member.line_picture_url  ?? null,
+    },
   })
 }

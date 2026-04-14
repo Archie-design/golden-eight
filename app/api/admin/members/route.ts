@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTokenPayload } from '@/lib/api-helper'
 import { createServerClient } from '@/lib/supabase/server'
+import { AddMemberSchema, parseBody } from '@/lib/validation'
 
 async function requireAdmin() {
   const payload = await getTokenPayload()
@@ -21,10 +22,9 @@ export async function POST(request: NextRequest) {
   const admin = await requireAdmin()
   if (!admin) return NextResponse.json({ ok: false, msg: '無管理員權限' }, { status: 403 })
 
-  const { name, phoneLast3, joinDate, level } = await request.json()
-  if (!name || !phoneLast3 || !/^\d{3}$/.test(phoneLast3)) {
-    return NextResponse.json({ ok: false, msg: '請填寫完整資料' }, { status: 400 })
-  }
+  const parsed = await parseBody(request, AddMemberSchema)
+  if (parsed instanceof NextResponse) return parsed
+  const { name, phoneLast3, joinDate, level } = parsed.data
 
   const db = createServerClient()
   const { count } = await db.from('members').select('*', { count: 'exact', head: true })
