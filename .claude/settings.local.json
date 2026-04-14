@@ -14,7 +14,10 @@
       "Bash(python3 .claude/skills/ui-ux-pro-max/scripts/search.py \"nextjs shadcn\" --stack shadcn -f markdown)",
       "Bash(npx next:*)",
       "Bash(TURBOPACK=false npx next build)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(xargs cat:*)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\([k for k in d.get\\('packages',{}\\) if 'dnd' in k or 'drag' in k]\\)\")",
+      "Bash(npm install:*)"
     ]
   }
 }

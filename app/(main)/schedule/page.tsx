@@ -12,6 +12,16 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
+import {
+  DndContext, DragOverlay, PointerSensor, KeyboardSensor,
+  useSensor, useSensors, useDroppable,
+  type DragStartEvent, type DragOverEvent, type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext, horizontalListSortingStrategy,
+  sortableKeyboardCoordinates, arrayMove,
+} from '@dnd-kit/sortable'
+import { TagPill } from '@/components/schedule/TagPill'
 
 interface Tag { id: string; tag_name: string; color: string; emoji?: string; is_system: boolean }
 interface BlockTag { id?: string; name: string; color: string; emoji?: string }
@@ -20,6 +30,9 @@ interface PublicSchedule {
   memberName: string
   blocks: { startTime: string; endTime: string; tags: BlockTag[] }[]
 }
+type DragData =
+  | { type: 'library-tag'; tag: Tag }
+  | { type: 'block-tag'; tag: BlockTag; sourceBlockIdx: number; sourceTagIdx: number }
 
 const COLORS = ['#4A90D9','#E17055','#00B894','#FDCB6E','#6C5CE7','#A29BFE','#FD79A8','#55EFC4']
 
@@ -33,18 +46,63 @@ function tagLabel(t: BlockTag) {
 
 const EMPTY_DIALOG = { open: false, editIdx: -1, startTime: '', endTime: '', selectedTags: [] as BlockTag[] }
 
+// ── Droppable wrapper for the tag library (drag here to remove a tag) ───────
+function LibraryDropZone({ children }: { children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: 'library-drop' })
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'space-y-2 rounded-xl transition-colors p-1 -m-1',
+        isOver && 'bg-red-50/60 ring-1 ring-red-200',
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
+// ── Droppable wrapper for each block row ────────────────────────────────────
+function DroppableBlockRow({
+  blockIdx, isOver, children, className, ...props
+}: {
+  blockIdx: number; isOver: boolean; children: React.ReactNode; className?: string
+} & React.HTMLAttributes<HTMLDivElement>) {
+  const { setNodeRef } = useDroppable({ id: `block-drop-${blockIdx}` })
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'flex items-start justify-between rounded-xl border border-white/60 bg-white/50 px-3 py-2.5 text-sm hover:bg-white/70 transition-colors',
+        isOver && 'border-amber-400 bg-amber-50/70 ring-2 ring-amber-300/60',
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  )
+}
+
 export default function SchedulePage() {
-  const [tags,       setTags]      = useState<Tag[]>([])
-  const [blocks,     setBlocks]    = useState<Block[]>([])
-  const [isPublic,   setIsPublic]  = useState(false)
-  const [search,     setSearch]    = useState('')
-  const [showTag,    setShowTag]   = useState(false)
-  const [showGroup,  setShowGroup] = useState(false)
-  const [groupData,  setGroupData] = useState<PublicSchedule[]>([])
-  const [tagName,    setTagName]   = useState('')
-  const [tagColor,   setTagColor]  = useState(COLORS[0])
-  const [tagEmoji,   setTagEmoji]  = useState('')
-  const [dialog,     setDialog]    = useState(EMPTY_DIALOG)
+  const [tags,             setTags]            = useState<Tag[]>([])
+  const [blocks,           setBlocks]          = useState<Block[]>([])
+  const [isPublic,         setIsPublic]        = useState(false)
+  const [search,           setSearch]          = useState('')
+  const [showTag,          setShowTag]         = useState(false)
+  const [showGroup,        setShowGroup]       = useState(false)
+  const [groupData,        setGroupData]       = useState<PublicSchedule[]>([])
+  const [tagName,          setTagName]         = useState('')
+  const [tagColor,         setTagColor]        = useState(COLORS[0])
+  const [tagEmoji,         setTagEmoji]        = useState('')
+  const [dialog,           setDialog]          = useState(EMPTY_DIALOG)
+  const [activeDragData,   setActiveDragData]  = useState<DragData | null>(null)
+  const [activeDropIdx,    setActiveDropIdx]   = useState<number | null>(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
 
   const loadData = useCallback(async () => {
     const res  = await fetch('/api/schedule/data')
@@ -53,6 +111,89 @@ export default function SchedulePage() {
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // ─── 拖拉事件 ──────────────────────────────────────────────
+  function handleDragStart(event: DragStartEvent) {
+    setActiveDragData(event.active.data.current as DragData)
+  }
+
+  function handleDragOver(event: DragOverEvent) {
+    const overId = event.over?.id as string | undefined
+    if (overId?.startsWith('block-drop-')) {
+      setActiveDropIdx(parseInt(overId.replace('block-drop-', ''), 10))
+    } else {
+      setActiveDropIdx(null)
+    }
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const data = event.active.data.current as DragData | undefined
+    const overId = event.over?.id as string | undefined
+    setActiveDragData(null)
+    setActiveDropIdx(null)
+    if (!data || !overId) return
+
+    // ── drop onto library-drop zone → remove tag from its block ─────────
+    if (overId === 'library-drop') {
+      if (data.type === 'block-tag') {
+        setBlocks(prev => prev.map((b, i) =>
+          i === data.sourceBlockIdx
+            ? { ...b, tags: b.tags.filter((_, ti) => ti !== data.sourceTagIdx) }
+            : b
+        ))
+      }
+      return
+    }
+
+    // ── drop onto a block row ────────────────────────────────────────────
+    if (overId.startsWith('block-drop-')) {
+      const targetIdx = parseInt(overId.replace('block-drop-', ''), 10)
+
+      if (data.type === 'library-tag') {
+        const tag = data.tag
+        setBlocks(prev => {
+          const already = prev[targetIdx].tags.some(
+            t => (t.id && t.id === tag.id) || t.name === tag.tag_name
+          )
+          if (already) { toast.info('此區段已有該標籤'); return prev }
+          return prev.map((b, i) =>
+            i === targetIdx
+              ? { ...b, tags: [...b.tags, { id: tag.id, name: tag.tag_name, color: tag.color, emoji: tag.emoji }] }
+              : b
+          )
+        })
+        return
+      }
+
+      if (data.type === 'block-tag') {
+        const { sourceBlockIdx, sourceTagIdx } = data
+        if (sourceBlockIdx === targetIdx) return  // same block — handled by SortableContext onDragEnd below
+        setBlocks(prev => {
+          const next = prev.map(b => ({ ...b, tags: [...b.tags] }))
+          const [moved] = next[sourceBlockIdx].tags.splice(sourceTagIdx, 1)
+          next[targetIdx].tags.push(moved)
+          return next
+        })
+        return
+      }
+    }
+
+    // ── same-block reorder via sortable ──────────────────────────────────
+    if (data.type === 'block-tag') {
+      const overId2 = event.over?.id as string | undefined
+      if (!overId2?.startsWith('block-')) return
+      const parts = overId2.split('-')  // 'block-{bIdx}-tag-{tIdx}'
+      const targetBlockIdx = parseInt(parts[1], 10)
+      const targetTagIdx   = parseInt(parts[3], 10)
+      if (data.sourceBlockIdx === targetBlockIdx) {
+        setBlocks(prev => prev.map((b, i) =>
+          i === targetBlockIdx
+            ? { ...b, tags: arrayMove(b.tags, data.sourceTagIdx, targetTagIdx) }
+            : b
+        ))
+      }
+    }
+  }
 
   // ─── 儲存模板 ──────────────────────────────────────────────
   async function saveTemplate() {
@@ -162,93 +303,112 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-[180px_1fr] gap-4 items-start">
-        {/* 左欄：標籤清單 */}
-        <div className="space-y-2">
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-            <Input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="搜尋標籤"
-              className="text-sm h-8 pl-7"
-            />
-          </div>
-          <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => setShowTag(true)}>
-            + 新增標籤
-          </Button>
-          <div className="space-y-1 max-h-[520px] overflow-y-auto pr-1">
-            {filteredTags.map(tag => (
-              <div
-                key={tag.id}
-                className="flex items-center justify-between rounded-lg border p-2 text-sm cursor-default hover:shadow-sm transition-shadow"
-                style={{ borderLeftColor: tag.color, borderLeftWidth: 3 }}
+      <DndContext
+        sensors={sensors}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="grid grid-cols-[180px_1fr] gap-4 items-start">
+          {/* 左欄：標籤清單（同時是 library-drop 放置區） */}
+          <LibraryDropZone>
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="搜尋標籤"
+                className="text-sm h-8 pl-7"
+              />
+            </div>
+            <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => setShowTag(true)}>
+              + 新增標籤
+            </Button>
+            <div className="space-y-1 max-h-[520px] overflow-y-auto pr-1">
+              {filteredTags.map(tag => (
+                <div
+                  key={tag.id}
+                  className="flex items-center justify-between rounded-lg border p-2 text-sm hover:shadow-sm transition-shadow"
+                  style={{ borderLeftColor: tag.color, borderLeftWidth: 3 }}
+                >
+                  <TagPill id={`lib-${tag.id}`} tag={tag} variant="library" />
+                  {!tag.is_system && (
+                    <button onClick={() => deleteTag(tag)} className="text-muted-foreground hover:text-red-500 text-xs ml-1 shrink-0">×</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </LibraryDropZone>
+
+          {/* 右欄：時間區段清單 */}
+          <Card>
+            <CardHeader className="pb-2 pt-3 px-4">
+              <CardTitle className="text-sm text-muted-foreground">
+                時間區段（依開始時間排序，跨午夜會標示翌日）
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4 space-y-2">
+              {blocks.length === 0 && (
+                <p className="text-sm text-muted-foreground py-4 text-center">尚無時間區段，點下方按鈕新增</p>
+              )}
+
+              {blocks.map((block, idx) => (
+                <DroppableBlockRow key={idx} blockIdx={idx} isOver={activeDropIdx === idx}>
+                  <div className="flex items-start gap-2 flex-1 min-w-0">
+                    {/* 時間 */}
+                    <span className="font-mono text-xs text-muted-foreground shrink-0 tabular-nums mt-1">
+                      {block.startTime}–{block.endTime}
+                      {isCrossMidnight(block.startTime, block.endTime) && (
+                        <span className="ml-1 text-amber-600 font-sans">翌日</span>
+                      )}
+                    </span>
+                    {/* 標籤（可拖拉排序） */}
+                    <SortableContext
+                      items={block.tags.map((_, i) => `block-${idx}-tag-${i}`)}
+                      strategy={horizontalListSortingStrategy}
+                    >
+                      <div className="flex flex-wrap gap-1.5 min-h-[26px]">
+                        {block.tags.map((t, i) => (
+                          <TagPill
+                            key={`block-${idx}-tag-${i}`}
+                            id={`block-${idx}-tag-${i}`}
+                            tag={t}
+                            variant="block"
+                            sourceBlockIdx={idx}
+                            sourceTagIdx={i}
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </div>
+                  <button
+                    onClick={() => openEdit(idx)}
+                    className="ml-2 shrink-0 text-muted-foreground hover:text-gray-700 p-0.5 mt-0.5"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                </DroppableBlockRow>
+              ))}
+
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full mt-2 border-dashed text-muted-foreground hover:text-gray-700"
+                onClick={openAdd}
               >
-                <span>{tag.emoji} {tag.tag_name}</span>
-                {!tag.is_system && (
-                  <button onClick={() => deleteTag(tag)} className="text-muted-foreground hover:text-red-500 text-xs ml-1">×</button>
-                )}
-              </div>
-            ))}
-          </div>
+                + 新增時間區段
+              </Button>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* 右欄：時間區段清單 */}
-        <Card>
-          <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-sm text-muted-foreground">
-              時間區段（依開始時間排序，跨午夜會標示翌日）
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4 space-y-2">
-            {blocks.length === 0 && (
-              <p className="text-sm text-muted-foreground py-4 text-center">尚無時間區段，點下方按鈕新增</p>
-            )}
-
-            {blocks.map((block, idx) => (
-              <div
-                key={idx}
-                className="flex items-start justify-between rounded-xl border border-white/60 bg-white/50 px-3 py-2.5 text-sm hover:bg-white/70 transition-colors"
-              >
-                <div className="flex items-baseline gap-2 flex-1 min-w-0">
-                  {/* 時間 */}
-                  <span className="font-mono text-xs text-muted-foreground shrink-0 tabular-nums">
-                    {block.startTime}–{block.endTime}
-                    {isCrossMidnight(block.startTime, block.endTime) && (
-                      <span className="ml-1 text-amber-600 font-sans">翌日</span>
-                    )}
-                  </span>
-                  {/* 標籤 */}
-                  <span className="text-gray-700 truncate">
-                    {block.tags.map((t, i) => (
-                      <span key={i}>
-                        {i > 0 && <span className="text-gray-300 mx-0.5">、</span>}
-                        <span style={{ color: t.color }}>{t.emoji ? t.emoji + '\u00A0' : ''}</span>
-                        <span>{t.name}</span>
-                      </span>
-                    ))}
-                  </span>
-                </div>
-                <button
-                  onClick={() => openEdit(idx)}
-                  className="ml-2 shrink-0 text-muted-foreground hover:text-gray-700 p-0.5"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
-
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full mt-2 border-dashed text-muted-foreground hover:text-gray-700"
-              onClick={openAdd}
-            >
-              + 新增時間區段
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+        {/* 拖拉浮標 */}
+        <DragOverlay dropAnimation={{ duration: 180, easing: 'ease' }}>
+          {activeDragData && (
+            <TagPill id="overlay" tag={activeDragData.tag} variant="overlay" />
+          )}
+        </DragOverlay>
+      </DndContext>
 
       {/* 新增/編輯區段 Dialog */}
       <Dialog open={dialog.open} onOpenChange={open => { if (!open) setDialog(EMPTY_DIALOG) }}>
