@@ -66,9 +66,11 @@ export async function POST(request: NextRequest) {
   const newAchievements = calcNewAchievements(allRecs, todayFull, alreadyCodes)
 
   if (newAchievements.length > 0) {
-    await db.from('achievements').insert(
+    const { error: achError } = await db.from('achievements').insert(
       newAchievements.map(a => ({ member_id: member.id, code: a.code }))
     )
+    // 寫入失敗不影響打卡結果，但清空新成就清單避免前端誤以為已解鎖
+    if (achError) newAchievements.length = 0
   }
 
   return NextResponse.json({ ok: true, msg: '打卡成功', totalScore, baseScore, punchStreak, newAchievements })

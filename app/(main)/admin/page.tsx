@@ -197,6 +197,31 @@ export default function AdminPage() {
         {/* 成就統計 */}
         <TabsContent value="achievements">
           <div className="space-y-4">
+            {/* 補登按鈕 */}
+            <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+              <div>
+                <p className="text-sm font-medium">補登歷史成就</p>
+                <p className="text-xs text-muted-foreground">對所有既有打卡紀錄重新計算成就，補齊系統上線前遺漏的徽章</p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="shrink-0"
+                onClick={async () => {
+                  const res  = await fetch('/api/admin/backfill-achievements', { method: 'POST' })
+                  const json = await res.json()
+                  if (json.ok) {
+                    toast.success(`補登完成，共新增 ${json.inserted} 筆成就`)
+                    loadAchievements()
+                  } else {
+                    toast.error(json.msg)
+                  }
+                }}
+              >
+                執行補登
+              </Button>
+            </div>
+
             {/* 成員解鎖排行 */}
             <Card>
               <CardHeader>
@@ -228,42 +253,43 @@ export default function AdminPage() {
               </CardContent>
             </Card>
 
-            {/* 稀有成就（解鎖率 ≤ 20% 或未解鎖）*/}
+            {/* 全部成就解鎖狀況 */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Medal className="w-4 h-4 text-purple-500" /> 稀有成就（解鎖率 ≤ 20%）
+                  <Medal className="w-4 h-4 text-purple-500" /> 全部成就（共 {achStats.length} 項，依解鎖率排序）
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead><tr className="border-b text-muted-foreground">
-                      <th className="text-left py-2">成就</th>
-                      <th className="text-right">解鎖人數</th>
-                      <th className="text-right">解鎖率</th>
-                    </tr></thead>
-                    <tbody>
-                      {achStats.filter(a => a.pct <= 20).map(a => (
-                        <tr key={a.code} className="border-b last:border-0">
-                          <td className="py-1.5">
-                            <div className="font-medium">{a.name}</div>
-                            <div className="text-xs text-muted-foreground">{a.code}</div>
-                          </td>
-                          <td className="text-right">{a.count}</td>
-                          <td className="text-right">
-                            <span className={a.pct === 0 ? 'text-gray-400' : 'text-purple-600 font-semibold'}>
-                              {a.pct}%
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                      {achStats.filter(a => a.pct <= 20).length === 0 && (
-                        <tr><td colSpan={3} className="py-4 text-center text-muted-foreground text-sm">無稀有成就資料</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                {achStats.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">載入中…</p>
+                ) : (
+                  <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
+                    {achStats.map(a => (
+                      <div key={a.code} className="flex items-center gap-3">
+                        <div className="w-28 min-w-0 shrink-0">
+                          <div className="text-sm font-medium leading-tight truncate">{a.name}</div>
+                          <div className="text-[10px] text-muted-foreground truncate">{a.code}</div>
+                        </div>
+                        <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{
+                              width: `${a.pct}%`,
+                              background: a.pct >= 80 ? '#22c55e' : a.pct >= 50 ? '#f59e0b' : a.pct > 0 ? '#a855f7' : '#e5e7eb',
+                            }}
+                          />
+                        </div>
+                        <div className="w-16 text-right text-xs tabular-nums shrink-0">
+                          <span className={a.count > 0 ? 'font-semibold text-gray-700' : 'text-gray-400'}>
+                            {a.count} 人
+                          </span>
+                          <span className="text-muted-foreground ml-1">({a.pct}%)</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
