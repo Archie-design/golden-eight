@@ -16,10 +16,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/', request.url))
   }
 
-  // 管理員頁面額外驗證
-  if (pathname.startsWith('/admin') && !payload.isAdmin) {
-    return NextResponse.redirect(new URL('/checkin', request.url))
-  }
+  // 管理員頁面的 is_admin 驗證移至 app/(main)/admin/layout.tsx
+  // 原因：proxy 只能讀 JWT（可能是舊 token），DB 最新狀態由 server layout 查核
 
   return NextResponse.next()
 }
