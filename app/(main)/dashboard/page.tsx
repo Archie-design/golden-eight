@@ -10,9 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { CalendarGrid } from '@/components/CalendarGrid'
 import { AchievementWall } from '@/components/AchievementBadge'
-import { ProgressBar } from '@/components/ProgressBar'
 import { AppIcon } from '@/lib/icons'
-import { TASKS } from '@/lib/constants'
+import { TASKS, LEVEL_THRESHOLDS } from '@/lib/constants'
 
 interface DashboardData {
   yearMonth: string
@@ -37,6 +36,106 @@ interface HistoryPoint {
   totalScore: number | null
   passing:    boolean | null
   groupAvg:   number | null
+}
+
+// ── Daily rate line chart ─────────────────────────────────────────────────
+function DailyRateChart({
+  calendar,
+  threshold,
+}: {
+  calendar: { day: number; score: number | null }[]
+  threshold: number   // 0–1，例如 0.60
+}) {
+  const W = 400, H = 200
+  const PAD = { top: 28, right: 36, bottom: 22, left: 32 }
+  const innerW = W - PAD.left - PAD.right
+  const innerH = H - PAD.top  - PAD.bottom
+  const total  = calendar.length
+
+  const xPos = (day: number) =>
+    PAD.left + ((day - 1) / Math.max(total - 1, 1)) * innerW
+  const yPos = (pct: number) =>
+    PAD.top + (1 - pct / 100) * innerH
+
+  const threshPct = Math.round(threshold * 100)
+  const threshY   = yPos(threshPct)
+  const yTicks    = [0, 25, 50, 75, 100]
+
+  // Build polyline segments — break on null gaps
+  const segments: string[][] = []
+  let cur: string[] = []
+  for (const d of calendar) {
+    if (d.score !== null) {
+      cur.push(`${xPos(d.day)},${yPos(Math.round((d.score / 8) * 100))}`)
+    } else {
+      if (cur.length) { segments.push(cur); cur = [] }
+    }
+  }
+  if (cur.length) segments.push(cur)
+
+  // Dots for submitted days
+  const dots = calendar
+    .filter(d => d.score !== null)
+    .map(d => ({
+      x:    xPos(d.day),
+      y:    yPos(Math.round((d.score! / 8) * 100)),
+      rate: Math.round((d.score! / 8) * 100),
+    }))
+
+  // X-axis labels: 1, 10, 20, last day
+  const labelDays = Array.from(new Set([1, 10, 20, total].filter(d => d >= 1 && d <= total)))
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 220 }}>
+      {/* grid lines + y labels */}
+      {yTicks.map(t => (
+        <g key={t}>
+          <line x1={PAD.left} x2={W - PAD.right} y1={yPos(t)} y2={yPos(t)} stroke="#e5e7eb" strokeWidth={1} />
+          <text x={PAD.left - 4} y={yPos(t) + 4} fontSize={9} fill="#9ca3af" textAnchor="end">{t}</text>
+        </g>
+      ))}
+
+      {/* threshold dashed line */}
+      <line
+        x1={PAD.left} x2={W - PAD.right}
+        y1={threshY}  y2={threshY}
+        stroke="#f97316" strokeWidth={1.5} strokeDasharray="5 3"
+      />
+      <text x={W - PAD.right + 3} y={threshY + 4} fontSize={9} fill="#f97316">{threshPct}%</text>
+
+      {/* polyline segments */}
+      {segments.map((seg, i) => seg.length > 1 && (
+        <polyline
+          key={i}
+          points={seg.join(' ')}
+          fill="none"
+          stroke="#f59e0b"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ))}
+
+      {/* dots + rate labels（奇偶錯位兩排，避免相鄰標籤重疊） */}
+      {dots.map((p, i) => {
+        const labelY = p.y - (i % 2 === 0 ? 10 : 20)
+        const color  = p.rate >= threshPct ? '#fbbf24' : '#ef4444'
+        return (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r={3.5} fill={color} stroke="white" strokeWidth={1.5} />
+            <text x={p.x} y={labelY} fontSize={8} fill={color} textAnchor="middle" fontWeight="600">
+              {p.rate}%
+            </text>
+          </g>
+        )
+      })}
+
+      {/* x-axis day labels */}
+      {labelDays.map(d => (
+        <text key={d} x={xPos(d)} y={H - 4} fontSize={9} fill="#9ca3af" textAnchor="middle">{d}</text>
+      ))}
+    </svg>
+  )
 }
 
 // ── Pure-SVG rate trend chart ──────────────────────────────────────────────
@@ -190,7 +289,10 @@ export default function DashboardPage() {
             <span>{data.user.level}</span>
             <span>目標 {data.targetScore} 分</span>
           </div>
-          <ProgressBar value={data.rate} />
+          <DailyRateChart
+            calendar={data.calendar}
+            threshold={LEVEL_THRESHOLDS[data.user.level] ?? 0.60}
+          />
 
           {/* 下月階梯選擇 */}
           {data.showNextLevelBtn && (
