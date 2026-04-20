@@ -10,6 +10,6 @@ export const AUTH_COOKIE_OPTIONS = {
   path:     '/',
 }
 
-export const AUTH_TOKEN_MAX_AGE = 60 * 60 * 24 * 30  // 30 天
+export const AUTH_TOKEN_MAX_AGE = 60 * 60 * 24 * 7   // 7 天；/api/auth/me 會滑動續期
 
 export const SHORT_STATE_MAX_AGE = 600                // 10 分鐘（OAuth state）
