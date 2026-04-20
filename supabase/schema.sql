@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS members (
   phone_last3     TEXT,                              -- 已棄用（舊資料相容；新資料請用 phone_hash）
   phone_full      TEXT,                              -- 10 位手機號，server-side only
   phone_hash      TEXT,                              -- HMAC(phone) server-side only
+  password_hash   TEXT,                              -- scrypt(password, salt)，server-side only
   failed_attempts INT  NOT NULL DEFAULT 0,           -- 登入失敗計數
   locked_until    TIMESTAMPTZ,                       -- 鎖定截止時間
   token_version   INT  NOT NULL DEFAULT 0,           -- JWT 撤銷版本號

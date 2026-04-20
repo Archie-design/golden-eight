@@ -10,8 +10,14 @@ const PHONE_RE = /^09\d{8}$/
 const PHONE_MSG = '請輸入 10 位數手機號碼（09 開頭）'
 
 export const LoginSchema = z.object({
-  name:  z.string().min(1, '請填寫姓名').max(50).transform(s => s.trim()),
-  phone: z.string().regex(PHONE_RE, PHONE_MSG),
+  name:     z.string().min(1, '請填寫姓名').max(50).transform(s => s.trim()),
+  phone:    z.string().regex(PHONE_RE, PHONE_MSG),
+  password: z.string().optional(),
+})
+
+export const SetPasswordSchema = z.object({
+  password:        z.string().min(8, '密碼至少 8 個字元'),
+  currentPassword: z.string().optional(),
 })
 
 export const RegisterSchema = LoginSchema.extend({

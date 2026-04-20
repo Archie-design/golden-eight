@@ -5,6 +5,7 @@ import { LoginSchema, parseBody } from '@/lib/validation'
 import { hashPhone } from '@/lib/phone'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { AUTH_COOKIE_OPTIONS, AUTH_TOKEN_MAX_AGE } from '@/lib/cookie-options'
+import { verifyPassword } from '@/lib/password'
 
 const MAX_ATTEMPTS = 5
 const LOCK_MINUTES = 15
@@ -15,6 +16,7 @@ type MemberRow = {
   phone_full:       string | null
   phone_last3:      string | null
   phone_hash:       string | null
+  password_hash:    string | null
   is_admin:         boolean
   status:           string
   failed_attempts:  number
@@ -29,7 +31,7 @@ export async function POST(request: NextRequest) {
 
   const parsed = await parseBody(request, LoginSchema)
   if (parsed instanceof NextResponse) return parsed
-  const { name, phone } = parsed.data
+  const { name, phone, password } = parsed.data
 
   const db = createServerClient()
   const phoneHash = hashPhone(phone)
@@ -72,6 +74,23 @@ export async function POST(request: NextRequest) {
       { ok: false, msg: '找不到此成員，請確認姓名與手機號' },
       { status: 401 },
     )
+  }
+
+  // 密碼驗證（有設定密碼才強制）
+  if (hit.password_hash) {
+    if (!password) {
+      return NextResponse.json({ ok: false, msg: '請輸入密碼' }, { status: 401 })
+    }
+    const pwOk = await verifyPassword(password, hit.password_hash)
+    if (!pwOk) {
+      const next = (hit.failed_attempts ?? 0) + 1
+      const update: Record<string, unknown> = { failed_attempts: next }
+      if (next >= MAX_ATTEMPTS) {
+        update.locked_until = new Date(now + LOCK_MINUTES * 60_000).toISOString()
+      }
+      await db.from('members').update(update).eq('id', hit.id)
+      return NextResponse.json({ ok: false, msg: '密碼錯誤' }, { status: 401 })
+    }
   }
 
   // 成功：重置失敗計數；尚無 phone_hash / phone_full（舊帳號）順勢遷移

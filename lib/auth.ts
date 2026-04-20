@@ -4,6 +4,7 @@
 
 import { SignJWT, jwtVerify } from 'jose'
 import { JwtPayload } from '@/types'
+import { AUTH_TOKEN_MAX_AGE } from '@/lib/cookie-options'
 
 const RAW_JWT_SECRET = process.env.JWT_SECRET
 if (!RAW_JWT_SECRET || RAW_JWT_SECRET.length < 32) {
@@ -12,7 +13,6 @@ if (!RAW_JWT_SECRET || RAW_JWT_SECRET.length < 32) {
 const JWT_SECRET = new TextEncoder().encode(RAW_JWT_SECRET)
 const ISSUER   = 'golden-eight'
 const AUDIENCE = 'golden-eight-app'
-const TTL      = '30d'
 
 export async function createToken(payload: JwtPayload): Promise<string> {
   return new SignJWT({ isAdmin: payload.isAdmin, tv: payload.tv })
@@ -21,7 +21,7 @@ export async function createToken(payload: JwtPayload): Promise<string> {
     .setIssuedAt()
     .setIssuer(ISSUER)
     .setAudience(AUDIENCE)
-    .setExpirationTime(TTL)
+    .setExpirationTime(Math.floor(Date.now() / 1000) + AUTH_TOKEN_MAX_AGE)
     .sign(JWT_SECRET)
 }
 

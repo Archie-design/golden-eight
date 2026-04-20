@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getTokenPayload } from '@/lib/api-helper'
+import { getCurrentMember } from '@/lib/api-helper'
 import { createServerClient } from '@/lib/supabase/server'
 import { createToken } from '@/lib/auth'
 import { cookies } from 'next/headers'
@@ -17,7 +17,8 @@ export async function GET(req: NextRequest) {
   // ── Verify CSRF state ──────────────────────────────────────────────────
   const cookieStore  = await cookies()
   const savedState   = cookieStore.get('line_state')?.value
-  const lineContext  = cookieStore.get('line_context')?.value ?? 'bind'
+  const raw          = cookieStore.get('line_context')?.value
+  const lineContext  = raw === 'login' ? 'login' : 'bind'
 
   if (!state || !savedState || state !== savedState) {
     const dest = lineContext === 'login' ? '/?error=line_state' : '/dashboard?error=line_state'
@@ -98,26 +99,29 @@ export async function GET(req: NextRequest) {
   // ══════════════════════════════════════════════════════════════════════
   // BIND context: attach LINE ID to the currently logged-in member
   // ══════════════════════════════════════════════════════════════════════
-  const payload = await getTokenPayload()
-  if (!payload) return NextResponse.redirect(new URL('/?error=unauth', req.url))
+  const authResult = await getCurrentMember()
+  if (authResult instanceof NextResponse) {
+    return clearStatecookies(NextResponse.redirect(new URL('/?error=unauth', req.url)))
+  }
+  const { member, db: bindDb } = authResult
 
   // Check if this LINE ID is already bound to another member
-  const { data: existing } = await db
+  const { data: existing } = await bindDb
     .from('members')
     .select('id')
     .eq('line_user_id', profile.userId)
-    .neq('id', payload.sub)
+    .neq('id', member.id)
     .maybeSingle()
 
   if (existing) {
     return clearStatecookies(NextResponse.redirect(new URL('/dashboard?error=line_taken', req.url)))
   }
 
-  await db.from('members').update({
+  await bindDb.from('members').update({
     line_user_id:      profile.userId,
     line_display_name: profile.displayName,
     line_picture_url:  profile.pictureUrl ?? null,
-  }).eq('id', payload.sub)
+  }).eq('id', member.id)
 
   return clearStatecookies(NextResponse.redirect(new URL('/dashboard?line=bound', req.url)))
 }

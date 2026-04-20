@@ -18,6 +18,10 @@ export interface Member {
   locked_until?: string | null
   /** server-side only — HMAC(phone) 用於登入比對 */
   phone_hash?: string | null
+  /** server-side only — scrypt hash，切勿回傳前端 */
+  password_hash?: string | null
+  /** client-side flag — true 代表已設定密碼（由 API 層計算） */
+  has_password?: boolean
   /** server-side only — JWT 版本，遞增即撤銷所有既有 token */
   token_version?: number
   join_date: string         // 'YYYY-MM-DD'

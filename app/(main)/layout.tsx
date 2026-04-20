@@ -12,7 +12,9 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   if (!payload) redirect('/')
 
   const db = createServerClient()
-  const { data: member } = await db.from('members').select('name, is_admin').eq('id', payload.sub).single()
+  const { data: member } = await db.from('members').select('name, is_admin, password_hash').eq('id', payload.sub).single()
+
+  if (member && !member.password_hash) redirect('/setup-password')
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-100 via-orange-100/70 to-yellow-200/80">

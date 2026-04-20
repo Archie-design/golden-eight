@@ -26,8 +26,9 @@ function LoginPageInner() {
   })
   const [loading, setLoading] = useState(false)
 
-  const [loginName,  setLoginName]  = useState('')
-  const [loginPhone, setLoginPhone] = useState('')
+  const [loginName,     setLoginName]     = useState('')
+  const [loginPhone,    setLoginPhone]    = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
 
   const [regName,  setRegName]  = useState('')
   const [regPhone, setRegPhone] = useState('')
@@ -44,7 +45,7 @@ function LoginPageInner() {
     const res  = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: loginName, phone: loginPhone }),
+      body: JSON.stringify({ name: loginName, phone: loginPhone, password: loginPassword || undefined }),
     })
     const data = await res.json()
     setLoading(false)
@@ -114,6 +115,10 @@ function LoginPageInner() {
                 <Label htmlFor="login-phone">手機號碼</Label>
                 <Input id="login-phone" value={loginPhone} onChange={e => setLoginPhone(e.target.value.replace(/\D/g, ''))} maxLength={10} inputMode="numeric" placeholder="09xxxxxxxx" />
                 <p className="text-xs text-muted-foreground">請輸入完整 10 位數手機號碼</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="login-password">密碼</Label>
+                <Input id="login-password" type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="首次登入可留空" autoComplete="current-password" />
               </div>
               {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
               <Button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-white" disabled={loading}>
