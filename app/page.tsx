@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Star } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -16,19 +16,18 @@ function LoginPageInner() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const [tab, setTab]         = useState<Tab>('login')
-  const [error, setError]     = useState('')
+  const [error, setError] = useState(() => {
+    const err = searchParams.get('error')
+    if (err === 'line_not_bound') return '此 LINE 帳號尚未綁定任何成員，請先用姓名登入後再綁定'
+    if (err === 'line_state')     return 'LINE 驗證失敗，請重試'
+    if (err === 'line_denied')    return '已取消 LINE 登入'
+    if (err === 'line_token' || err === 'line_profile') return 'LINE 授權失敗，請重試'
+    return ''
+  })
   const [loading, setLoading] = useState(false)
 
   const [loginName,  setLoginName]  = useState('')
   const [loginPhone, setLoginPhone] = useState('')
-
-  useEffect(() => {
-    const err = searchParams.get('error')
-    if (err === 'line_not_bound') setError('此 LINE 帳號尚未綁定任何成員，請先用姓名登入後再綁定')
-    if (err === 'line_state')     setError('LINE 驗證失敗，請重試')
-    if (err === 'line_denied')    setError('已取消 LINE 登入')
-    if (err === 'line_token' || err === 'line_profile') setError('LINE 授權失敗，請重試')
-  }, [searchParams])
 
   const [regName,  setRegName]  = useState('')
   const [regPhone, setRegPhone] = useState('')

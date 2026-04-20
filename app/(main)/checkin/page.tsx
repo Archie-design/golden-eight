@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import {
   Sunrise, Flame, CheckCircle2, Trophy,
@@ -34,14 +34,13 @@ export default function CheckInPage() {
   const [achQueue, setAchQueue] = useState<NewAchievement[]>([])
   const [showAch, setShowAch]   = useState(false)
 
-  const loadData = useCallback(async () => {
-    const res  = await fetch('/api/checkin/today')
-    const json = await res.json()
-    if (json.ok) { setData(json); setChecked(Array(8).fill(false)) }
-    else toast.error(json.msg)
-  }, [])
+  function loadData() {
+    fetch('/api/checkin/today')
+      .then(r => r.json())
+      .then(json => { if (json.ok) { setData(json); setChecked(Array(8).fill(false)) } else toast.error(json.msg) })
+  }
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => { loadData() }, [])
 
   function toggleTask(i: number) {
     setChecked(prev => prev.map((v, idx) => idx === i ? !v : v))

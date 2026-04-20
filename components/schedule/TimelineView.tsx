@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 
 interface BlockTag { name: string; color: string; emoji?: string }
@@ -70,10 +70,11 @@ export function TimelineView({ blocks }: { blocks: Block[] }) {
   const [viewStart, setViewStart] = useState(0)
   const [viewEnd,   setViewEnd]   = useState(24)
   const [tooltip,   setTooltip]   = useState<{ block: PlacedBlock; x: number; y: number } | null>(null)
-  const [mounted,   setMounted]   = useState(false)
+
+  // useSyncExternalStore: server snapshot = false, client snapshot = true（解決 SSR 水合不一致）
+  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false)
 
   useEffect(() => {
-    setMounted(true)
     const id = setInterval(() => setNowMin(getNowMin()), 60_000)
     return () => clearInterval(id)
   }, [])

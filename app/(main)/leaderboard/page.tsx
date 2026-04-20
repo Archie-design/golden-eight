@@ -35,20 +35,20 @@ const RANK_STYLES: Record<number, { ring: string; bg: string; icon: React.ReactN
 }
 
 export default function LeaderboardPage() {
-  const [mode, setMode]     = useState<'current' | 'best'>('current')
-  const [rows, setRows]     = useState<LeaderRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [yearMonth, setYearMonth] = useState('')
+  const [mode,        setMode]        = useState<'current' | 'best'>('current')
+  const [rows,        setRows]        = useState<LeaderRow[]>([])
+  const [yearMonth,   setYearMonth]   = useState('')
+  const [fetchedMode, setFetchedMode] = useState<string | null>(null)
+  const loading = fetchedMode !== mode
 
   useEffect(() => {
-    setLoading(true)
     fetch(`/api/stats/leaderboard?mode=${mode}`)
       .then(r => r.json())
       .then(json => {
         if (json.ok) { setRows(json.rows); setYearMonth(json.yearMonth) }
         else toast.error(json.msg)
       })
-      .finally(() => setLoading(false))
+      .finally(() => setFetchedMode(mode))
   }, [mode])
 
   return (

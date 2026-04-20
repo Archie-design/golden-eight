@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import {
   Calendar, Unlock, Lock, Search, Pencil, AlertTriangle, Users, Star, LayoutList, Clock,
@@ -106,13 +106,11 @@ export default function SchedulePage() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
-  const loadData = useCallback(async () => {
-    const res  = await fetch('/api/schedule/data')
-    const json = await res.json()
-    if (json.ok) { setTags(json.tags); setBlocks(json.blocks ?? []); setIsPublic(json.isPublic) }
+  useEffect(() => {
+    fetch('/api/schedule/data')
+      .then(r => r.json())
+      .then(json => { if (json.ok) { setTags(json.tags); setBlocks(json.blocks ?? []); setIsPublic(json.isPublic) } })
   }, [])
-
-  useEffect(() => { loadData() }, [loadData])
 
   // ─── 拖拉事件 ──────────────────────────────────────────────
   function handleDragStart(event: DragStartEvent) {
