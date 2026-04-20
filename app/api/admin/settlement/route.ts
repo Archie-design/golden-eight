@@ -1,61 +1,87 @@
 import { NextResponse } from 'next/server'
-import { getTokenPayload, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
-import { createServerClient } from '@/lib/supabase/server'
+import { requireAdmin, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
 import { calcMonthStats, calcMaxPunchStreak, calcPenalty, calcMonthlyAchievements } from '@/lib/scoring'
 import type { Member, CheckInRecord } from '@/types'
 
 export async function POST() {
-  const payload = await getTokenPayload()
-  if (!payload?.isAdmin) return NextResponse.json({ ok: false, msg: '無管理員權限' }, { status: 403 })
+  const admin = await requireAdmin()
+  if (admin instanceof NextResponse) return admin
+  const { db } = admin
 
-  const db        = createServerClient()
   const today     = getTodayTaipei()
   const yearMonth = today.substring(0, 7)
 
   const { data: members } = await db.from('members').select('*').eq('status', '活躍')
+  if (!members?.length) return NextResponse.json({ ok: true, msg: `月結完成（${yearMonth}）`, results: [] })
 
-  const results = await Promise.all(
-    (members ?? []).map(async (m: Member) => {
-      const { data: recs } = await db
-        .from('checkin_records').select('*')
-        .eq('member_id', m.id).gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth))
+  const memberList = members as Member[]
+  const memberIds  = memberList.map(m => m.id)
 
-      const records   = (recs ?? []) as CheckInRecord[]
-      const stats     = calcMonthStats(m, records, today)
-      const maxStreak = calcMaxPunchStreak(records)
-      const penalty   = calcPenalty(m.level, stats.passing)
-      const isDawnKing = records.length > 0 && records.every(r => r.tasks[1])
+  // 一次撈取全部打卡紀錄 + 所有成就，避免 per-member N+1
+  const [recsRes, achRes] = await Promise.all([
+    db.from('checkin_records').select('*')
+      .in('member_id', memberIds)
+      .gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth)),
+    db.from('achievements').select('member_id, code')
+      .in('member_id', memberIds),
+  ])
 
-      // 寫入月結摘要（upsert）
-      await db.from('monthly_summary').upsert({
-        member_id:   m.id,
-        year_month:  yearMonth,
-        total_score: stats.totalScore,
-        max_score:   stats.maxScore,
-        rate:        stats.rate,
-        passing:     stats.passing,
-        penalty,
-        max_streak:  maxStreak,
-        is_dawn_king: isDawnKing,
-        settled_at:  new Date().toISOString(),
-      }, { onConflict: 'member_id,year_month' })
+  const recsByMember: Record<string, CheckInRecord[]> = {}
+  ;((recsRes.data ?? []) as CheckInRecord[]).forEach(r => {
+    (recsByMember[r.member_id] ??= []).push(r)
+  })
 
-      // 月度成就
-      const { data: existing } = await db.from('achievements').select('code').eq('member_id', m.id)
-      const existingCodes = (existing ?? []).map((a: { code: string }) => a.code)
-      const monthAchs = calcMonthlyAchievements(stats.passing, stats.rate, m.level, existingCodes)
-      if (monthAchs.length > 0) {
-        await db.from('achievements').insert(monthAchs.map(a => ({ member_id: m.id, code: a.code })))
-      }
+  const codesByMember: Record<string, string[]> = {}
+  ;((achRes.data ?? []) as { member_id: string; code: string }[]).forEach(a => {
+    (codesByMember[a.member_id] ??= []).push(a.code)
+  })
 
-      // 進月後更新下月階梯
-      if (m.next_level) {
-        await db.from('members').update({ level: m.next_level, next_level: null }).eq('id', m.id)
-      }
+  // 準備批次寫入資料
+  const summaryRows: Record<string, unknown>[] = []
+  const achInserts:  { member_id: string; code: string }[] = []
+  const levelUpdates: { id: string; level: string }[] = []
+  const results: { name: string; passing: boolean; penalty: number }[] = []
 
-      return { name: m.name, passing: stats.passing, penalty }
+  for (const m of memberList) {
+    const records    = recsByMember[m.id] ?? []
+    const stats      = calcMonthStats(m, records, today)
+    const maxStreak  = calcMaxPunchStreak(records)
+    const penalty    = calcPenalty(m.level, stats.passing)
+    const isDawnKing = records.length > 0 && records.every(r => r.tasks[1])
+
+    summaryRows.push({
+      member_id:    m.id,
+      year_month:   yearMonth,
+      total_score:  stats.totalScore,
+      max_score:    stats.maxScore,
+      rate:         stats.rate,
+      passing:      stats.passing,
+      penalty,
+      max_streak:   maxStreak,
+      is_dawn_king: isDawnKing,
+      settled_at:   new Date().toISOString(),
     })
-  )
+
+    const monthAchs = calcMonthlyAchievements(stats.passing, stats.rate, m.level, codesByMember[m.id] ?? [])
+    for (const a of monthAchs) achInserts.push({ member_id: m.id, code: a.code })
+
+    if (m.next_level) levelUpdates.push({ id: m.id, level: m.next_level })
+    results.push({ name: m.name, passing: stats.passing, penalty })
+  }
+
+  // 批次寫入
+  const { error: upsertErr } = await db.from('monthly_summary').upsert(summaryRows, { onConflict: 'member_id,year_month' })
+  if (upsertErr) console.error('[settlement] upsert failed', upsertErr)
+
+  if (achInserts.length) {
+    const { error: achErr } = await db.from('achievements').insert(achInserts)
+    if (achErr) console.error('[settlement] achievements insert failed', achErr)
+  }
+
+  // 進月階梯更新：逐筆 update（不同 level 值無法一次 SQL 解決）
+  for (const u of levelUpdates) {
+    await db.from('members').update({ level: u.level, next_level: null }).eq('id', u.id)
+  }
 
   return NextResponse.json({ ok: true, msg: `月結完成（${yearMonth}）`, results })
 }

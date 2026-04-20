@@ -39,7 +39,12 @@ export async function GET() {
     punchStreak,
     monthRate:     monthStats.rate,
     todayRecord:   todayRec.data
-      ? { submitted: true, totalScore: (todayRec.data as { total_score: number }).total_score, submitTime: (todayRec.data as { submit_time: string }).submit_time }
+      ? {
+          submitted:  true,
+          totalScore: (todayRec.data as { total_score: number }).total_score,
+          submitTime: (todayRec.data as { submit_time: string }).submit_time,
+          tasks:      (todayRec.data as { tasks: boolean[] }).tasks,
+        }
       : { submitted: false },
     canMakeup,
     yesterday: canMakeup ? yesterday : null,

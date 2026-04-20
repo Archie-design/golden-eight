@@ -1,45 +1,49 @@
 import { NextResponse } from 'next/server'
-import { getTokenPayload, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
-import { createServerClient } from '@/lib/supabase/server'
+import { requireAdmin, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
 import { calcMonthStats, calcMaxPunchStreak } from '@/lib/scoring'
 import type { Member, CheckInRecord } from '@/types'
 
 export async function GET() {
-  const payload = await getTokenPayload()
-  if (!payload?.isAdmin) {
-    return NextResponse.json({ ok: false, msg: '無管理員權限' }, { status: 403 })
-  }
+  const admin = await requireAdmin()
+  if (admin instanceof NextResponse) return admin
+  const { db } = admin
 
-  const db        = createServerClient()
   const today     = getTodayTaipei()
   const yearMonth = today.substring(0, 7)
 
   const { data: members } = await db.from('members').select('*').eq('status', '活躍').order('id')
+  if (!members?.length) return NextResponse.json({ ok: true, yearMonth, rows: [] })
 
-  const rows = await Promise.all(
-    (members ?? []).map(async (m: Member) => {
-      const { data: recs } = await db
-        .from('checkin_records').select('*')
-        .eq('member_id', m.id).gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth))
+  const memberList = members as Member[]
 
-      const stats     = calcMonthStats(m, (recs ?? []) as CheckInRecord[], today)
-      const maxStreak = calcMaxPunchStreak((recs ?? []) as CheckInRecord[])
-      const lastRec   = ((recs ?? []) as CheckInRecord[]).sort((a, b) => b.date.localeCompare(a.date))[0]
-      const isDawnKing = ((recs ?? []) as CheckInRecord[]).every(r => r.tasks[1])
+  // 一次撈取所有成員當月紀錄，避免 per-member N+1
+  const { data: allRecs } = await db
+    .from('checkin_records').select('*')
+    .in('member_id', memberList.map(m => m.id))
+    .gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth))
 
-      return {
-        id:        m.id,
-        name:      m.name,
-        level:     m.level,
-        totalScore: stats.totalScore,
-        maxScore:   stats.maxScore,
-        rate:       stats.rate,
-        passing:    stats.passing,
-        maxStreak,
-        isDawnKing,
-      }
-    })
-  )
+  const recsByMember: Record<string, CheckInRecord[]> = {}
+  ;((allRecs ?? []) as CheckInRecord[]).forEach(r => {
+    (recsByMember[r.member_id] ??= []).push(r)
+  })
+
+  const rows = memberList.map(m => {
+    const recs       = recsByMember[m.id] ?? []
+    const stats      = calcMonthStats(m, recs, today)
+    const maxStreak  = calcMaxPunchStreak(recs)
+    const isDawnKing = recs.length > 0 && recs.every(r => r.tasks[1])
+    return {
+      id:         m.id,
+      name:       m.name,
+      level:      m.level,
+      totalScore: stats.totalScore,
+      maxScore:   stats.maxScore,
+      rate:       stats.rate,
+      passing:    stats.passing,
+      maxStreak,
+      isDawnKing,
+    }
+  })
 
   return NextResponse.json({ ok: true, yearMonth, rows })
 }

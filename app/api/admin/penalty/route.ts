@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getTokenPayload, getTodayTaipei } from '@/lib/api-helper'
-import { createServerClient } from '@/lib/supabase/server'
+import { requireAdmin, getTodayTaipei } from '@/lib/api-helper'
 
 export async function GET(req: NextRequest) {
-  const payload = await getTokenPayload()
-  if (!payload?.isAdmin) return NextResponse.json({ ok: false, msg: '無管理員權限' }, { status: 403 })
+  const admin = await requireAdmin()
+  if (admin instanceof NextResponse) return admin
+  const { db } = admin
 
-  const db        = createServerClient()
   const ymParam   = new URL(req.url).searchParams.get('yearMonth')
   const yearMonth = ymParam && /^\d{4}-\d{2}$/.test(ymParam) ? ymParam : getTodayTaipei().substring(0, 7)
 

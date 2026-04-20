@@ -5,9 +5,13 @@ import { NextResponse } from 'next/server'
 
 export const LEVELS = ['黃金戰士', '白銀戰士', '青銅戰士'] as const
 
+// 台灣手機格式：09 開頭共 10 位數
+const PHONE_RE = /^09\d{8}$/
+const PHONE_MSG = '請輸入 10 位數手機號碼（09 開頭）'
+
 export const LoginSchema = z.object({
-  name:       z.string().min(1, '請填寫姓名').max(50).transform(s => s.trim()),
-  phoneLast3: z.string().regex(/^\d{3}$/, '手機末三碼必須為 3 位數字'),
+  name:  z.string().min(1, '請填寫姓名').max(50).transform(s => s.trim()),
+  phone: z.string().regex(PHONE_RE, PHONE_MSG),
 })
 
 export const RegisterSchema = LoginSchema.extend({
@@ -51,10 +55,10 @@ export const SaveTemplateSchema = z.object({
 })
 
 export const AddMemberSchema = z.object({
-  name:       z.string().min(1).max(50).transform(s => s.trim()),
-  phoneLast3: z.string().regex(/^\d{3}$/),
-  joinDate:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  level:      z.enum(LEVELS),
+  name:     z.string().min(1).max(50).transform(s => s.trim()),
+  phone:    z.string().regex(PHONE_RE, PHONE_MSG),
+  joinDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  level:    z.enum(LEVELS),
 })
 
 // ── Helper: parse request body with schema, return error response on failure ──

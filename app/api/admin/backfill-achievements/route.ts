@@ -1,16 +1,14 @@
 import { NextResponse } from 'next/server'
-import { getTokenPayload } from '@/lib/api-helper'
-import { createServerClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/api-helper'
 import { calcNewAchievements } from '@/lib/scoring'
 import type { Member, CheckInRecord } from '@/types'
 
 // POST /api/admin/backfill-achievements
 // 對所有現有打卡紀錄依時間順序重跑成就計算，補齊遺漏的成就
 export async function POST() {
-  const payload = await getTokenPayload()
-  if (!payload?.isAdmin) return NextResponse.json({ ok: false, msg: '無管理員權限' }, { status: 403 })
-
-  const db = createServerClient()
+  const admin = await requireAdmin()
+  if (admin instanceof NextResponse) return admin
+  const { db } = admin
 
   // 取得所有活躍成員
   const { data: members } = await db

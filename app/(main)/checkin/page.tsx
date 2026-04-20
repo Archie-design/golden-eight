@@ -20,7 +20,7 @@ interface TodayData {
   punchDeadline: string
   punchStreak: number
   monthRate: number
-  todayRecord: { submitted: boolean; totalScore?: number; submitTime?: string }
+  todayRecord: { submitted: boolean; totalScore?: number; submitTime?: string; tasks?: boolean[] }
   canMakeup: boolean
   yesterday: string | null
 }
@@ -155,6 +155,19 @@ export default function CheckInPage() {
                   hour: '2-digit', minute: '2-digit', second: '2-digit',
                   hour12: false,
                 }).format(new Date(data.todayRecord.submitTime))}
+              </div>
+            )}
+            {data.todayRecord.tasks && (
+              <div className="mt-3 space-y-1 text-left">
+                {TASKS.map((task, i) => (
+                  <div key={i} className={cn(
+                    'flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm',
+                    data.todayRecord.tasks![i] ? 'bg-green-100 text-green-800' : 'bg-white/60 text-gray-400'
+                  )}>
+                    <CheckCircle2 className={cn('w-4 h-4 shrink-0', data.todayRecord.tasks![i] ? 'text-green-500' : 'text-gray-300')} />
+                    <span className="font-medium">{task.name}</span>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>

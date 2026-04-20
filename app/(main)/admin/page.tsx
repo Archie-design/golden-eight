@@ -56,11 +56,11 @@ export default function AdminPage() {
   }
 
   async function handleAddMember() {
-    if (!mName || !/^\d{3}$/.test(mPhone)) { toast.error('請填寫完整資料'); return }
+    if (!mName || !/^09\d{8}$/.test(mPhone)) { toast.error('請輸入 10 位數手機號碼'); return }
     const res  = await fetch('/api/admin/members', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: mName, phoneLast3: mPhone, joinDate: mDate, level: mLevel }),
+      body: JSON.stringify({ name: mName, phone: mPhone, joinDate: mDate, level: mLevel }),
     })
     const json = await res.json()
     toast[json.ok ? 'success' : 'error'](json.msg)
@@ -345,7 +345,7 @@ export default function AdminPage() {
           <DialogHeader><DialogTitle>新增成員</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1"><Label>姓名</Label><Input value={mName} onChange={e => setMName(e.target.value)} placeholder="姓名" /></div>
-            <div className="space-y-1"><Label>手機末三碼</Label><Input value={mPhone} onChange={e => setMPhone(e.target.value)} maxLength={3} placeholder="123" /></div>
+            <div className="space-y-1"><Label>手機號碼</Label><Input value={mPhone} onChange={e => setMPhone(e.target.value.replace(/\D/g, ''))} maxLength={10} inputMode="numeric" placeholder="09xxxxxxxx" /></div>
             <div className="space-y-1"><Label>加入日期</Label><Input type="date" value={mDate} onChange={e => setMDate(e.target.value)} /></div>
             <div className="space-y-1">
               <Label>階梯</Label>

@@ -52,7 +52,14 @@ export async function POST(request: NextRequest) {
     punch_streak: punchStreak,
     note:         note || '',
   })
-  if (insertError) return NextResponse.json({ ok: false, msg: '打卡失敗，請稍後再試' }, { status: 500 })
+  if (insertError) {
+    // 23505 = unique_violation → 另一個請求剛搶先寫入，回 409 而非 500
+    if ((insertError as { code?: string }).code === '23505') {
+      return NextResponse.json({ ok: false, msg: `${target} 的打卡記錄已存在` }, { status: 409 })
+    }
+    console.error('[checkin/submit] insert failed', insertError)
+    return NextResponse.json({ ok: false, msg: '打卡失敗，請稍後再試' }, { status: 500 })
+  }
 
   // 成就計算
   const [allRecsRes, unlockedRes] = await Promise.all([

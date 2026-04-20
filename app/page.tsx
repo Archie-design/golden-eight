@@ -38,14 +38,14 @@ function LoginPageInner() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (!loginName || !loginPhone) return setError('請填寫姓名與手機末三碼')
-    if (!/^\d{3}$/.test(loginPhone)) return setError('手機末三碼須為 3 位數字')
+    if (!loginName || !loginPhone) return setError('請填寫姓名與完整手機號')
+    if (!/^09\d{8}$/.test(loginPhone)) return setError('請輸入 10 位數手機號碼（09 開頭）')
 
     setLoading(true)
     const res  = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: loginName, phoneLast3: loginPhone }),
+      body: JSON.stringify({ name: loginName, phone: loginPhone }),
     })
     const data = await res.json()
     setLoading(false)
@@ -67,13 +67,13 @@ function LoginPageInner() {
     e.preventDefault()
     setError('')
     if (!regName || !regPhone) return setError('請填寫所有必填欄位')
-    if (!/^\d{3}$/.test(regPhone)) return setError('手機末三碼須為 3 位數字')
+    if (!/^09\d{8}$/.test(regPhone)) return setError('請輸入 10 位數手機號碼（09 開頭）')
 
     setLoading(true)
     const res  = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: regName, phoneLast3: regPhone, joinDate: regDate, level: regLevel }),
+      body: JSON.stringify({ name: regName, phone: regPhone, joinDate: regDate, level: regLevel }),
     })
     const data = await res.json()
     setLoading(false)
@@ -112,9 +112,9 @@ function LoginPageInner() {
                 <Input id="login-name" value={loginName} onChange={e => setLoginName(e.target.value)} placeholder="請輸入您的姓名" />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="login-phone">手機末三碼</Label>
-                <Input id="login-phone" value={loginPhone} onChange={e => setLoginPhone(e.target.value)} maxLength={3} placeholder="例：789" />
-                <p className="text-xs text-muted-foreground">用於驗證身分，不儲存原始號碼</p>
+                <Label htmlFor="login-phone">手機號碼</Label>
+                <Input id="login-phone" value={loginPhone} onChange={e => setLoginPhone(e.target.value.replace(/\D/g, ''))} maxLength={10} inputMode="numeric" placeholder="09xxxxxxxx" />
+                <p className="text-xs text-muted-foreground">請輸入完整 10 位數手機號碼</p>
               </div>
               {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
               <Button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-white" disabled={loading}>
@@ -150,8 +150,8 @@ function LoginPageInner() {
                 <Input id="reg-name" value={regName} onChange={e => setRegName(e.target.value)} placeholder="請輸入您的姓名" />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="reg-phone">手機末三碼</Label>
-                <Input id="reg-phone" value={regPhone} onChange={e => setRegPhone(e.target.value)} maxLength={3} placeholder="例：789" />
+                <Label htmlFor="reg-phone">手機號碼</Label>
+                <Input id="reg-phone" value={regPhone} onChange={e => setRegPhone(e.target.value.replace(/\D/g, ''))} maxLength={10} inputMode="numeric" placeholder="09xxxxxxxx" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="reg-date">加入日期</Label>

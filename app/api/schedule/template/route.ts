@@ -16,7 +16,6 @@ export async function POST(request: NextRequest) {
   if (blocks && blocks.length > 0) {
     const rows = blocks.map(b => ({
       member_id:  member.id,
-      tag_name:   '',                        // NOT NULL 佔位
       start_time: b.startTime,
       end_time:   b.endTime,
       block_tags: b.tags,
@@ -24,7 +23,10 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString(),
     }))
     const { error } = await db.from('schedule_template').insert(rows)
-    if (error) return NextResponse.json({ ok: false, msg: '儲存失敗：' + error.message }, { status: 500 })
+    if (error) {
+      console.error('[schedule/template] insert failed', error)
+      return NextResponse.json({ ok: false, msg: '儲存失敗，請稍後再試' }, { status: 500 })
+    }
   }
 
   return NextResponse.json({ ok: true, msg: '模板已儲存' })

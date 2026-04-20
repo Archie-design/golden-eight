@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server'
-import { getTokenPayload } from '@/lib/api-helper'
-import { createServerClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/api-helper'
 import { ACHIEVEMENT_LIST } from '@/lib/constants'
 import type { Member } from '@/types'
 
 // GET /api/admin/achievements — unlock counts per achievement + per-member summary
 export async function GET() {
-  const payload = await getTokenPayload()
-  if (!payload?.isAdmin) return NextResponse.json({ ok: false, msg: '無管理員權限' }, { status: 403 })
-
-  const db = createServerClient()
+  const admin = await requireAdmin()
+  if (admin instanceof NextResponse) return admin
+  const { db } = admin
 
   const [{ data: achRows }, { data: members }] = await Promise.all([
     db.from('achievements').select('code, member_id, unlocked_at'),

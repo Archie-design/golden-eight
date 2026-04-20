@@ -37,8 +37,19 @@ export async function DELETE(request: NextRequest) {
   if (tag.is_system) return NextResponse.json({ ok: false, msg: '系統標籤無法刪除' }, { status: 403 })
   if (tag.member_id !== member.id) return NextResponse.json({ ok: false, msg: '無權限刪除此標籤' }, { status: 403 })
 
-  // 一併清除模板中使用的此標籤
-  await db.from('schedule_template').delete().eq('member_id', member.id).eq('tag_id', tagId)
+  // 一併從既有時間區段的 block_tags JSONB 內移除此標籤
+  const { data: rows } = await db
+    .from('schedule_template')
+    .select('id, block_tags')
+    .eq('member_id', member.id)
+
+  for (const r of (rows ?? []) as { id: number; block_tags: { id?: string }[] | null }[]) {
+    const filtered = (r.block_tags ?? []).filter(t => t.id !== tagId)
+    if (filtered.length !== (r.block_tags ?? []).length) {
+      await db.from('schedule_template').update({ block_tags: filtered }).eq('id', r.id)
+    }
+  }
+
   await db.from('tag_library').delete().eq('id', tagId)
 
   return NextResponse.json({ ok: true, msg: '已刪除標籤' })

@@ -17,9 +17,10 @@ export async function getCurrentMember(): Promise<
   }
 
   const db = createServerClient()
+  // 只撈前端需要的欄位；phone_full / phone_last3 / failed_attempts / locked_until 屬 server-only
   const { data: member, error } = await db
     .from('members')
-    .select('*')
+    .select('id, name, join_date, level, next_level, is_admin, status, line_user_id, line_display_name, line_picture_url, created_at')
     .eq('id', payload.sub)
     .eq('status', '活躍')
     .single()
@@ -36,6 +37,32 @@ export async function getTokenPayload() {
   const cookieStore = await cookies()
   const token = cookieStore.get('token')?.value ?? null
   return token ? await verifyToken(token) : null
+}
+
+/**
+ * Admin API 專用：查 DB 確認 is_admin，避免舊 JWT 的 isAdmin 被拔除後仍有效。
+ * 回傳 { member, db } 或 401/403 Response。
+ */
+export async function requireAdmin(): Promise<
+  { member: Member; db: ReturnType<typeof createServerClient> } | NextResponse
+> {
+  const payload = await getTokenPayload()
+  if (!payload) {
+    return NextResponse.json({ ok: false, msg: '請先登入' }, { status: 401 })
+  }
+  const db = createServerClient()
+  const { data: member } = await db
+    .from('members')
+    .select('id, name, join_date, level, next_level, is_admin, status, line_user_id, line_display_name, line_picture_url, created_at')
+    .eq('id', payload.sub)
+    .eq('status', '活躍')
+    .eq('is_admin', true)
+    .maybeSingle()
+
+  if (!member) {
+    return NextResponse.json({ ok: false, msg: '無管理員權限' }, { status: 403 })
+  }
+  return { member: member as Member, db }
 }
 
 /** 取得台北今日日期字串 YYYY-MM-DD */

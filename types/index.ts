@@ -8,7 +8,14 @@ export type Status = '活躍' | '停用'
 export interface Member {
   id: string
   name: string
-  phone_last3: string
+  /** @deprecated 保留相容舊資料，新資料請用 phone_full（server-side only） */
+  phone_last3?: string | null
+  /** server-side only — 切勿回傳給前端 */
+  phone_full?: string | null
+  /** server-side only */
+  failed_attempts?: number
+  /** server-side only */
+  locked_until?: string | null
   join_date: string         // 'YYYY-MM-DD'
   level: Level
   next_level?: Level | null

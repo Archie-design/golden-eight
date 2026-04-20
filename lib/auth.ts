@@ -5,9 +5,11 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { JwtPayload } from '@/types'
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET ?? 'fallback-secret-please-set-env'
-)
+const RAW_JWT_SECRET = process.env.JWT_SECRET
+if (!RAW_JWT_SECRET || RAW_JWT_SECRET.length < 32) {
+  throw new Error('JWT_SECRET 環境變數未設定或長度不足 32 字元')
+}
+const JWT_SECRET = new TextEncoder().encode(RAW_JWT_SECRET)
 const ISSUER   = 'golden-eight'
 const AUDIENCE = 'golden-eight-app'
 const TTL      = '30d'

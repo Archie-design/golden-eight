@@ -1,25 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getTokenPayload, getTodayTaipei } from '@/lib/api-helper'
-import { createServerClient } from '@/lib/supabase/server'
+import { requireAdmin, getTodayTaipei } from '@/lib/api-helper'
 
 // GET /api/admin/export?yearMonth=YYYY-MM  → text/csv
 export async function GET(req: NextRequest) {
-  const payload = await getTokenPayload()
-  if (!payload?.isAdmin) return NextResponse.json({ ok: false, msg: '無管理員權限' }, { status: 403 })
+  const admin = await requireAdmin()
+  if (admin instanceof NextResponse) return admin
+  const { db } = admin
 
   const ymParam   = new URL(req.url).searchParams.get('yearMonth')
   const yearMonth = ymParam && /^\d{4}-\d{2}$/.test(ymParam) ? ymParam : getTodayTaipei().substring(0, 7)
 
-  const db = createServerClient()
-
   const { data: summaries } = await db
     .from('monthly_summary')
-    .select('*, members(name, level, phone_last3)')
+    .select('*, members(id, name, level)')
     .eq('year_month', yearMonth)
     .order('member_id')
 
   type SummaryRow = {
-    members: { name: string; level: string; phone_last3: string }
+    members: { id: string; name: string; level: string }
     total_score: number
     max_score: number
     rate: number
@@ -31,13 +29,13 @@ export async function GET(req: NextRequest) {
 
   const rows: SummaryRow[] = summaries ?? []
 
-  const header = ['姓名', '階梯', '手機末三碼', '總分', '滿分', '達成率(%)', '通過', '罰款(NT$)', '最長連打', '打拳王']
+  const header = ['成員編號', '姓名', '階梯', '總分', '滿分', '達成率(%)', '通過', '罰款(NT$)', '最長連打', '打拳王']
   const lines  = [
     header.join(','),
     ...rows.map(r => [
-      r.members?.name       ?? '',
-      r.members?.level      ?? '',
-      r.members?.phone_last3 ?? '',
+      r.members?.id    ?? '',
+      r.members?.name  ?? '',
+      r.members?.level ?? '',
       r.total_score,
       r.max_score,
       r.rate,
