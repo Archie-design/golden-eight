@@ -44,27 +44,31 @@ function DailyRateChart({
   threshold,
 }: {
   calendar: { day: number; score: number | null }[]
-  threshold: number   // 0–1，例如 0.60
+  threshold: number
 }) {
+  const total = calendar.length
+  const [startDay, setStartDay] = useState(1)
+  const [endDay,   setEndDay]   = useState(total)
+
   const W = 400, H = 200
   const PAD = { top: 28, right: 36, bottom: 22, left: 32 }
   const innerW = W - PAD.left - PAD.right
   const innerH = H - PAD.top  - PAD.bottom
-  const total  = calendar.length
 
-  const xPos = (day: number) =>
-    PAD.left + ((day - 1) / Math.max(total - 1, 1)) * innerW
-  const yPos = (pct: number) =>
-    PAD.top + (1 - pct / 100) * innerH
+  const span   = endDay - startDay
+  const xPos   = (day: number) => PAD.left + ((day - startDay) / Math.max(span, 1)) * innerW
+  const yPos   = (pct: number) => PAD.top  + (1 - pct / 100) * innerH
 
   const threshPct = Math.round(threshold * 100)
   const threshY   = yPos(threshPct)
   const yTicks    = [0, 25, 50, 75, 100]
 
-  // Build polyline segments — break on null gaps
+  const filtered = calendar.filter(d => d.day >= startDay && d.day <= endDay)
+
+  // Polyline segments — break on null gaps
   const segments: string[][] = []
   let cur: string[] = []
-  for (const d of calendar) {
+  for (const d of filtered) {
     if (d.score !== null) {
       cur.push(`${xPos(d.day)},${yPos(Math.round((d.score / 8) * 100))}`)
     } else {
@@ -73,8 +77,7 @@ function DailyRateChart({
   }
   if (cur.length) segments.push(cur)
 
-  // Dots for submitted days
-  const dots = calendar
+  const dots = filtered
     .filter(d => d.score !== null)
     .map(d => ({
       x:    xPos(d.day),
@@ -82,10 +85,45 @@ function DailyRateChart({
       rate: Math.round((d.score! / 8) * 100),
     }))
 
-  // X-axis labels: 1, 10, 20, last day
-  const labelDays = Array.from(new Set([1, 10, 20, total].filter(d => d >= 1 && d <= total)))
+  // X-axis labels: every day when span ≤ 10, else ~5 evenly spaced
+  const xLabelDays: number[] = []
+  if (span <= 10) {
+    for (let d = startDay; d <= endDay; d++) xLabelDays.push(d)
+  } else {
+    const step = Math.ceil(span / 4)
+    for (let d = startDay; d <= endDay; d += step) xLabelDays.push(d)
+    if (xLabelDays[xLabelDays.length - 1] !== endDay) xLabelDays.push(endDay)
+  }
+
+  // Preset range buttons
+  const presets: { label: string; s: number; e: number }[] = [
+    { label: '全月', s: 1, e: total },
+    ...(total > 10 ? [{ label: '1–10', s: 1, e: 10 }] : []),
+    ...(total > 10 ? [{ label: `11–${Math.min(20, total)}`, s: 11, e: Math.min(20, total) }] : []),
+    ...(total > 20 ? [{ label: `21–${total}`, s: 21, e: total }] : []),
+  ]
 
   return (
+    <div>
+      <div className="flex gap-1 mb-2 flex-wrap">
+        {presets.map(p => {
+          const active = p.s === startDay && p.e === endDay
+          return (
+            <button
+              key={p.label}
+              onClick={() => { setStartDay(p.s); setEndDay(p.e) }}
+              className={`text-xs px-2.5 py-0.5 rounded-full border transition-colors ${
+                active
+                  ? 'bg-amber-500 text-white border-amber-500'
+                  : 'bg-white/70 text-gray-500 border-gray-200 hover:border-amber-300 hover:text-amber-600'
+              }`}
+            >
+              {p.label}
+            </button>
+          )
+        })}
+      </div>
+
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 220 }}>
       {/* grid lines + y labels */}
       {yTicks.map(t => (
@@ -116,7 +154,7 @@ function DailyRateChart({
         />
       ))}
 
-      {/* dots + rate labels（奇偶錯位兩排，避免相鄰標籤重疊） */}
+      {/* dots + rate labels（奇偶錯位兩排） */}
       {dots.map((p, i) => {
         const labelY = p.y - (i % 2 === 0 ? 10 : 20)
         const color  = p.rate >= threshPct ? '#fbbf24' : '#ef4444'
@@ -131,10 +169,11 @@ function DailyRateChart({
       })}
 
       {/* x-axis day labels */}
-      {labelDays.map(d => (
+      {xLabelDays.map(d => (
         <text key={d} x={xPos(d)} y={H - 4} fontSize={9} fill="#9ca3af" textAnchor="middle">{d}</text>
       ))}
     </svg>
+    </div>
   )
 }
 

@@ -52,10 +52,10 @@ export const SaveTemplateSchema = z.object({
     startTime: z.string().regex(/^\d{2}:\d{2}$/, '時間格式錯誤'),
     endTime:   z.string().regex(/^\d{2}:\d{2}$/, '時間格式錯誤'),
     tags:      z.array(z.object({
-      id:    z.string().optional(),
+      id:    z.string().nullish(),
       name:  z.string(),
       color: z.string(),
-      emoji: z.string().optional(),
+      emoji: z.string().nullish(),
     })),
   })),
 })
