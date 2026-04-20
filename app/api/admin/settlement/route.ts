@@ -3,13 +3,16 @@ import { requireAdmin, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
 import { calcMonthStats, calcMaxPunchStreak, calcPenalty, calcMonthlyAchievements } from '@/lib/scoring'
 import type { Member, CheckInRecord } from '@/types'
 
-export async function POST() {
+export async function POST(req: Request) {
   const admin = await requireAdmin()
   if (admin instanceof NextResponse) return admin
   const { db } = admin
 
+  const body = await req.json().catch(() => ({})) as { yearMonth?: string }
   const today     = getTodayTaipei()
-  const yearMonth = today.substring(0, 7)
+  const yearMonth = /^\d{4}-\d{2}$/.test(body.yearMonth ?? '')
+    ? body.yearMonth!
+    : today.substring(0, 7)
 
   const { data: members } = await db.from('members').select('*').eq('status', '活躍')
   if (!members?.length) return NextResponse.json({ ok: true, msg: `月結完成（${yearMonth}）`, results: [] })

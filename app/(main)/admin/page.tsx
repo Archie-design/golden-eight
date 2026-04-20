@@ -76,8 +76,12 @@ export default function AdminPage() {
   }
 
   async function handleSettlement() {
-    if (!confirm('確定執行本月月結？此操作無法撤銷。')) return
-    const res  = await fetch('/api/admin/settlement', { method: 'POST' })
+    if (!confirm(`確定執行 ${penaltyYM} 月結？此操作無法撤銷。`)) return
+    const res  = await fetch('/api/admin/settlement', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ yearMonth: penaltyYM }),
+    })
     const json = await res.json()
     toast[json.ok ? 'success' : 'error'](json.msg)
     if (json.ok) loadPenalty(penaltyYM)
