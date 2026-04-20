@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { toast } from 'sonner'
 import {
-  Sunrise, Flame, CheckCircle2, Clipboard, Trophy,
+  Sunrise, Flame, CheckCircle2, Trophy,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -15,26 +15,24 @@ import { TASKS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 
 interface TodayData {
-  today: string
+  today: string        // 打卡邏輯日
+  calendarDay: string  // 實際日曆日（顯示用）
   sunrise: string
   punchStart: string
   punchStreak: number
   monthRate: number
   todayRecord: { submitted: boolean; totalScore?: number; submitTime?: string; tasks?: boolean[] }
-  canMakeup: boolean
-  yesterday: string | null
 }
 
 interface NewAchievement { code: string; name: string; badge: string }
 
 export default function CheckInPage() {
-  const [data, setData]             = useState<TodayData | null>(null)
-  const [checked, setChecked]       = useState<boolean[]>(Array(8).fill(false))
-  const [note, setNote]             = useState('')
-  const [makeupMode, setMakeupMode] = useState(false)
-  const [loading, setLoading]       = useState(false)
-  const [achQueue, setAchQueue]     = useState<NewAchievement[]>([])
-  const [showAch, setShowAch]       = useState(false)
+  const [data, setData]         = useState<TodayData | null>(null)
+  const [checked, setChecked]   = useState<boolean[]>(Array(8).fill(false))
+  const [note, setNote]         = useState('')
+  const [loading, setLoading]   = useState(false)
+  const [achQueue, setAchQueue] = useState<NewAchievement[]>([])
+  const [showAch, setShowAch]   = useState(false)
 
   const loadData = useCallback(async () => {
     const res  = await fetch('/api/checkin/today')
@@ -54,7 +52,7 @@ export default function CheckInPage() {
     const res  = await fetch('/api/checkin/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tasks: checked, note, date: makeupMode ? data?.yesterday : undefined }),
+      body: JSON.stringify({ tasks: checked, note }),
     })
     const json = await res.json()
     setLoading(false)
@@ -82,7 +80,7 @@ export default function CheckInPage() {
     </div>
   )
 
-  const today    = new Date(data.today + 'T00:00:00+08:00')
+  const today    = new Date(data.calendarDay + 'T00:00:00+08:00')
   const dayNames = ['日', '一', '二', '三', '四', '五', '六']
 
   return (
@@ -113,34 +111,6 @@ export default function CheckInPage() {
           <ProgressBar value={data.monthRate} className="mt-3" showLabel={false} />
         </CardContent>
       </Card>
-
-      {/* 補報提示 */}
-      {data.canMakeup && !makeupMode && (
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="font-semibold text-yellow-800">可補報昨日！</span>
-                <span className="text-sm text-yellow-700 ml-2">今日中午 12:00 前可補報 {data.yesterday}</span>
-              </div>
-              <Button size="sm" variant="outline" className="border-yellow-400 text-yellow-800" onClick={() => setMakeupMode(true)}>
-                補報
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {makeupMode && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2 text-sm text-blue-700">
-              <Clipboard className="w-4 h-4 shrink-0" />
-              目前填寫的是 <strong>{data.yesterday}</strong> 的補報
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* 已打卡提示 */}
       {data.todayRecord.submitted ? (
@@ -177,9 +147,7 @@ export default function CheckInPage() {
           {/* 八項任務 */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">
-                {makeupMode ? `補報：${data.yesterday} 八項任務` : '今日八項任務'}
-              </CardTitle>
+              <CardTitle className="text-base">今日八項任務</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {TASKS.map((task, i) => (
@@ -219,7 +187,7 @@ export default function CheckInPage() {
                   disabled={loading}
                   className="shrink-0 bg-yellow-500 hover:bg-yellow-600 text-white"
                 >
-                  {loading ? '提交中…' : makeupMode ? '提交補報' : '提交打卡'}
+                  {loading ? '提交中…' : '提交打卡'}
                 </Button>
               </div>
             </CardContent>

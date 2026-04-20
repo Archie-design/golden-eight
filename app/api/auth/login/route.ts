@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { createToken } from '@/lib/auth'
 import { LoginSchema, parseBody } from '@/lib/validation'
+import { hashPhone } from '@/lib/phone'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { AUTH_COOKIE_OPTIONS, AUTH_TOKEN_MAX_AGE } from '@/lib/cookie-options'
 
 const MAX_ATTEMPTS = 5
 const LOCK_MINUTES = 15
@@ -11,69 +14,78 @@ type MemberRow = {
   name:             string
   phone_full:       string | null
   phone_last3:      string | null
+  phone_hash:       string | null
   is_admin:         boolean
   status:           string
   failed_attempts:  number
   locked_until:     string | null
+  token_version:    number | null
 }
 
 export async function POST(request: NextRequest) {
+  // P1-6 rate limit：每 IP 每分鐘 10 次（成功/失敗皆計）
+  const ipLimit = checkRateLimit(`login:${getClientIp(request)}`, 10, 60_000)
+  if (ipLimit) return ipLimit
+
   const parsed = await parseBody(request, LoginSchema)
   if (parsed instanceof NextResponse) return parsed
   const { name, phone } = parsed.data
 
   const db = createServerClient()
+  const phoneHash = hashPhone(phone)
+  const last3     = phone.slice(-3)
+  const now       = Date.now()
 
-  // 1. 依姓名查出所有可能對象（允許同名）
   const { data: candidates } = await db
     .from('members').select('*')
     .eq('name', name)
     .eq('status', '活躍')
-
   const matches = (candidates ?? []) as MemberRow[]
 
-  // 任一匹配成員在鎖定期內 → 直接拒絕（避免攻擊者枚舉哪個帳號存在）
-  const now    = Date.now()
-  const locked = matches.find(m => m.locked_until && Date.parse(m.locked_until) > now)
-  if (locked) {
-    const remain = Math.ceil((Date.parse(locked.locked_until!) - now) / 60_000)
+  // 先找 hash 相符；舊資料（尚未遷移）以 last3 對比
+  const hit =
+    matches.find(m => m.phone_hash === phoneHash) ??
+    matches.find(m => !m.phone_hash && m.phone_last3 === last3)
+
+  // 命中 → 檢查鎖定
+  if (hit?.locked_until && Date.parse(hit.locked_until) > now) {
+    const remainSec = Math.ceil((Date.parse(hit.locked_until) - now) / 1000)
     return NextResponse.json(
-      { ok: false, msg: `嘗試次數過多，請 ${remain} 分鐘後再試` },
-      { status: 429 }
+      { ok: false, msg: `嘗試次數過多，請 ${Math.ceil(remainSec / 60)} 分鐘後再試` },
+      { status: 429, headers: { 'Retry-After': String(remainSec) } },
     )
   }
 
-  // 2. 在候選中找出手機號相符者
-  const last3 = phone.slice(-3)
-  const hit = matches.find(m =>
-    m.phone_full === phone || (!m.phone_full && m.phone_last3 === last3)
-  )
-
   if (!hit) {
-    // 登入失敗：對所有同名候選累加失敗次數（保守策略）
-    for (const m of matches) {
-      const next   = (m.failed_attempts ?? 0) + 1
+    // P0-1：姓名命中但手機錯誤時，只有「唯一候選」才累加失敗次數到該目標。
+    // 多筆同名時無法判定攻擊者針對誰，不做 DB 鎖定 — 以 rate-limit 擋住。
+    if (matches.length === 1) {
+      const target = matches[0]
+      const next   = (target.failed_attempts ?? 0) + 1
       const update: Record<string, unknown> = { failed_attempts: next }
       if (next >= MAX_ATTEMPTS) {
         update.locked_until = new Date(now + LOCK_MINUTES * 60_000).toISOString()
       }
-      await db.from('members').update(update).eq('id', m.id)
+      await db.from('members').update(update).eq('id', target.id)
     }
-    return NextResponse.json({ ok: false, msg: '找不到此成員，請確認姓名與手機號' }, { status: 401 })
+    return NextResponse.json(
+      { ok: false, msg: '找不到此成員，請確認姓名與手機號' },
+      { status: 401 },
+    )
   }
 
-  // 3. 成功：重置失敗計數；若為舊帳號（尚無 phone_full），順勢遷移
+  // 成功：重置失敗計數；尚無 phone_hash / phone_full（舊帳號）順勢遷移
   const patch: Record<string, unknown> = { failed_attempts: 0, locked_until: null }
+  if (!hit.phone_hash) patch.phone_hash = phoneHash
   if (!hit.phone_full) patch.phone_full = phone
   await db.from('members').update(patch).eq('id', hit.id)
 
-  const token = await createToken({ sub: hit.id, isAdmin: hit.is_admin })
+  const tv = hit.token_version ?? 0
+  const token = await createToken({ sub: hit.id, isAdmin: hit.is_admin, tv })
   const response = NextResponse.json({ ok: true, user: { id: hit.id, name: hit.name } })
   response.cookies.set('token', token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge:   60 * 60 * 24 * 30,
-    path:     '/',
+    ...AUTH_COOKIE_OPTIONS,
+    maxAge: AUTH_TOKEN_MAX_AGE,
   })
   return response
 }

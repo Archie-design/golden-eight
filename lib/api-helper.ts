@@ -17,16 +17,22 @@ export async function getCurrentMember(): Promise<
   }
 
   const db = createServerClient()
-  // 只撈前端需要的欄位；phone_full / phone_last3 / failed_attempts / locked_until 屬 server-only
+  // 含 token_version 比對：遞增 DB 側的 token_version 即可撤銷此前所有 JWT。
+  // 前端用不到的欄位（phone_*、failed_attempts、locked_until）不回傳。
   const { data: member, error } = await db
     .from('members')
-    .select('id, name, join_date, level, next_level, is_admin, status, line_user_id, line_display_name, line_picture_url, created_at')
+    .select('id, name, join_date, level, next_level, is_admin, status, line_user_id, line_display_name, line_picture_url, created_at, token_version')
     .eq('id', payload.sub)
     .eq('status', '活躍')
     .single()
 
   if (error || !member) {
     return NextResponse.json({ ok: false, msg: '帳號不存在或已停用' }, { status: 401 })
+  }
+
+  const dbTv = (member as { token_version?: number }).token_version ?? 0
+  if (payload.tv !== dbTv) {
+    return NextResponse.json({ ok: false, msg: '登入已過期，請重新登入' }, { status: 401 })
   }
 
   return { member: member as Member, db }
@@ -53,7 +59,7 @@ export async function requireAdmin(): Promise<
   const db = createServerClient()
   const { data: member } = await db
     .from('members')
-    .select('id, name, join_date, level, next_level, is_admin, status, line_user_id, line_display_name, line_picture_url, created_at')
+    .select('id, name, join_date, level, next_level, is_admin, status, line_user_id, line_display_name, line_picture_url, created_at, token_version')
     .eq('id', payload.sub)
     .eq('status', '活躍')
     .eq('is_admin', true)
@@ -61,6 +67,10 @@ export async function requireAdmin(): Promise<
 
   if (!member) {
     return NextResponse.json({ ok: false, msg: '無管理員權限' }, { status: 403 })
+  }
+  const dbTv = (member as { token_version?: number }).token_version ?? 0
+  if (payload.tv !== dbTv) {
+    return NextResponse.json({ ok: false, msg: '登入已過期，請重新登入' }, { status: 401 })
   }
   return { member: member as Member, db }
 }
@@ -70,12 +80,14 @@ export function getTodayTaipei(): string {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date())
 }
 
-/** 取得台北現在小時（0-23）*/
+/** 取得台北現在小時（0-23）— 使用 en-US + hour12:false 避免各地區 ICU 差異 */
 export function getNowHourTaipei(): number {
-  return parseInt(
-    new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', hour: 'numeric', hour12: false }).format(new Date()),
-    10
-  )
+  const s = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Taipei', hour: '2-digit', hour12: false,
+  }).format(new Date())
+  // en-US 午夜會輸出 "24"，規一化為 0
+  const h = parseInt(s, 10)
+  return h === 24 ? 0 : h
 }
 
 /** 取得台北昨日日期字串 */
@@ -83,6 +95,22 @@ export function getYesterdayTaipei(): string {
   // 明確減去 86400 秒，不依賴伺服器本地時區
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' })
     .format(new Date(Date.now() - 86_400_000))
+}
+
+/**
+ * 取得台北「打卡邏輯日」字串 YYYY-MM-DD。
+ * 日邊界為中午 12:00：台北時間 12:00 前，仍算前一日的打卡窗口。
+ * 例：4/21 10:00 → "2026-04-20"；4/21 13:00 → "2026-04-21"。
+ */
+export function getCheckinDayTaipei(): string {
+  return getNowHourTaipei() < 12 ? getYesterdayTaipei() : getTodayTaipei()
+}
+
+/** 回傳某日期字串（YYYY-MM-DD）的前一日（日曆日） */
+export function getPrevDayStr(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const t = Date.UTC(y, m - 1, d) - 86_400_000
+  return new Date(t).toISOString().substring(0, 10)
 }
 
 /** 取得當月 YYYY-MM */

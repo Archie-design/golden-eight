@@ -11,22 +11,17 @@ export async function POST(request: NextRequest) {
   if (parsed instanceof NextResponse) return parsed
   const { blocks, isPublic } = parsed.data
 
-  await db.from('schedule_template').delete().eq('member_id', member.id)
+  // P0-2：delete + insert 在 Postgres function 內同一 transaction 完成，
+  // 避免刪除後 insert 失敗導致使用者全部排程遺失。
+  const { error } = await db.rpc('replace_schedule_template', {
+    p_member_id: member.id,
+    p_is_public: isPublic ?? false,
+    p_blocks:    blocks,
+  })
 
-  if (blocks && blocks.length > 0) {
-    const rows = blocks.map(b => ({
-      member_id:  member.id,
-      start_time: b.startTime,
-      end_time:   b.endTime,
-      block_tags: b.tags,
-      is_public:  isPublic ?? false,
-      updated_at: new Date().toISOString(),
-    }))
-    const { error } = await db.from('schedule_template').insert(rows)
-    if (error) {
-      console.error('[schedule/template] insert failed', error)
-      return NextResponse.json({ ok: false, msg: '儲存失敗，請稍後再試' }, { status: 500 })
-    }
+  if (error) {
+    console.error('[schedule/template] replace rpc failed', error)
+    return NextResponse.json({ ok: false, msg: '儲存失敗，請稍後再試' }, { status: 500 })
   }
 
   return NextResponse.json({ ok: true, msg: '模板已儲存' })

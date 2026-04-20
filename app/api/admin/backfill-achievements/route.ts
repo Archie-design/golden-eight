@@ -1,16 +1,18 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-helper'
-import { calcNewAchievements } from '@/lib/scoring'
+import { calcNewAchievementsFromAggregates } from '@/lib/scoring'
 import type { Member, CheckInRecord } from '@/types'
 
+const STREAK_WINDOW = 105
+
 // POST /api/admin/backfill-achievements
-// 對所有現有打卡紀錄依時間順序重跑成就計算，補齊遺漏的成就
+// 對所有現有打卡紀錄依時間順序重跑成就計算，補齊遺漏的成就。
+// 相比舊版（每步都 slice(0, i+1)），此版以增量聚合避免 O(n²)。
 export async function POST() {
   const admin = await requireAdmin()
   if (admin instanceof NextResponse) return admin
   const { db } = admin
 
-  // 取得所有活躍成員
   const { data: members } = await db
     .from('members').select('*').eq('status', '活躍').order('id')
 
@@ -20,32 +22,44 @@ export async function POST() {
   let totalInserted = 0
 
   for (const member of members as Member[]) {
-    // 取得該成員所有打卡紀錄（升序）
     const { data: allRecs } = await db
       .from('checkin_records').select('*')
       .eq('member_id', member.id).order('date')
 
-    // 取得已解鎖成就（避免重複）
     const { data: existing } = await db
       .from('achievements').select('code').eq('member_id', member.id)
 
     const alreadyUnlocked = new Set((existing ?? []).map((a: { code: string }) => a.code))
     const toInsert: { member_id: string; code: string }[] = []
 
-    // 依時間順序模擬逐筆打卡，重算成就
     const sortedRecs = ((allRecs ?? []) as CheckInRecord[])
       .sort((a, b) => a.date.localeCompare(b.date))
 
-    for (let i = 0; i < sortedRecs.length; i++) {
-      const recsUpToNow = sortedRecs.slice(0, i + 1)
-      const todayRec    = sortedRecs[i]
-      const alreadyCodes = [...alreadyUnlocked, ...toInsert.map(t => t.code)]
+    let totalCount = 0
+    let perfectCount = 0
 
-      const newOnes = calcNewAchievements(recsUpToNow, todayRec, alreadyCodes)
+    for (let i = 0; i < sortedRecs.length; i++) {
+      const todayRec = sortedRecs[i]
+      totalCount   += 1
+      perfectCount += todayRec.base_score === 8 ? 1 : 0
+
+      const windowStart = Math.max(0, i - (STREAK_WINDOW - 1))
+      const recent      = sortedRecs.slice(windowStart, i + 1)
+
+      const seen = new Set([
+        ...alreadyUnlocked,
+        ...toInsert.map(t => t.code),
+      ])
+
+      const newOnes = calcNewAchievementsFromAggregates({
+        totalCount,
+        perfectCount,
+        recentSorted:    recent,
+        todayRecord:     todayRec,
+        alreadyUnlocked: Array.from(seen),
+      })
       for (const a of newOnes) {
-        if (!alreadyUnlocked.has(a.code) && !toInsert.some(t => t.code === a.code)) {
-          toInsert.push({ member_id: member.id, code: a.code })
-        }
+        if (!seen.has(a.code)) toInsert.push({ member_id: member.id, code: a.code })
       }
     }
 
@@ -54,6 +68,8 @@ export async function POST() {
       if (!error) {
         totalInserted += toInsert.length
         summary.push({ memberId: member.id, name: member.name, added: toInsert.map(t => t.code) })
+      } else {
+        console.error('[backfill-achievements] insert failed', member.id, error)
       }
     }
   }

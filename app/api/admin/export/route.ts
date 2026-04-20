@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, getTodayTaipei } from '@/lib/api-helper'
+import { csvRow } from '@/lib/csv'
 
 // GET /api/admin/export?yearMonth=YYYY-MM  → text/csv
 export async function GET(req: NextRequest) {
@@ -29,10 +30,11 @@ export async function GET(req: NextRequest) {
 
   const rows: SummaryRow[] = summaries ?? []
 
+  // P1-5：以 csvField 逐欄跳脫，阻擋公式注入（=/+/-/@）及逗號/引號。
   const header = ['成員編號', '姓名', '階梯', '總分', '滿分', '達成率(%)', '通過', '罰款(NT$)', '最長連打', '打拳王']
   const lines  = [
-    header.join(','),
-    ...rows.map(r => [
+    csvRow(header),
+    ...rows.map(r => csvRow([
       r.members?.id    ?? '',
       r.members?.name  ?? '',
       r.members?.level ?? '',
@@ -43,7 +45,7 @@ export async function GET(req: NextRequest) {
       r.penalty,
       r.max_streak,
       r.is_dawn_king ? '是' : '否',
-    ].join(',')),
+    ])),
   ]
 
   const csv = '\uFEFF' + lines.join('\r\n')  // UTF-8 BOM for Excel compatibility

@@ -4,8 +4,9 @@ import { getTodayTaipei, getYearMonth, getMonthEnd } from '@/lib/api-helper'
 import { calcMonthStats } from '@/lib/scoring'
 import type { Member, CheckInRecord } from '@/types'
 
-// POST /api/cron/daily-reminder  (called by Vercel Cron at 22:00 UTC = 06:00 CST)
-// Vercel passes Authorization: Bearer <CRON_SECRET> — verify it to prevent spoofing
+// GET /api/cron/daily-reminder  (called by Vercel Cron at 22:00 UTC = 06:00 CST)
+// Vercel passes Authorization: Bearer <CRON_SECRET> — verify it to prevent spoofing.
+// P1-9：method 與 Vercel Cron 預設一致為 GET；修改排程時務必保持一致。
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET ?? ''}` || !process.env.CRON_SECRET) {

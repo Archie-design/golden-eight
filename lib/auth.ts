@@ -15,7 +15,7 @@ const AUDIENCE = 'golden-eight-app'
 const TTL      = '30d'
 
 export async function createToken(payload: JwtPayload): Promise<string> {
-  return new SignJWT({ isAdmin: payload.isAdmin })
+  return new SignJWT({ isAdmin: payload.isAdmin, tv: payload.tv })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(payload.sub)
     .setIssuedAt()
@@ -34,6 +34,7 @@ export async function verifyToken(token: string): Promise<JwtPayload | null> {
     return {
       sub:     payload.sub as string,
       isAdmin: (payload.isAdmin as boolean) ?? false,
+      tv:      (payload.tv as number) ?? 0,
     }
   } catch {
     return null

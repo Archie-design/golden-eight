@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCurrentMember } from '@/lib/api-helper'
 import { randomBytes } from 'crypto'
+import { AUTH_COOKIE_OPTIONS, SHORT_STATE_MAX_AGE } from '@/lib/cookie-options'
 
 const CHANNEL_ID    = process.env.LINE_CHANNEL_ID    ?? ''
 const CALLBACK_URL  = process.env.LINE_CALLBACK_URL  ?? ''
@@ -28,12 +29,7 @@ export async function GET() {
 
   // Store state in short-lived cookie (10 min) for CSRF verification
   const res = NextResponse.json({ ok: true, url: authUrl })
-  res.cookies.set('line_state', state, {
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge:   600,
-    path:     '/',
-  })
+  res.cookies.set('line_state', state, { ...AUTH_COOKIE_OPTIONS, maxAge: SHORT_STATE_MAX_AGE })
   return res
 }
 

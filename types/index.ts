@@ -16,6 +16,10 @@ export interface Member {
   failed_attempts?: number
   /** server-side only */
   locked_until?: string | null
+  /** server-side only — HMAC(phone) 用於登入比對 */
+  phone_hash?: string | null
+  /** server-side only — JWT 版本，遞增即撤銷所有既有 token */
+  token_version?: number
   join_date: string         // 'YYYY-MM-DD'
   level: Level
   next_level?: Level | null
@@ -30,6 +34,7 @@ export interface Member {
 export interface JwtPayload {
   sub: string               // member id
   isAdmin: boolean
+  tv: number                // token_version — 與 members.token_version 比對
 }
 
 export interface CheckInRecord {

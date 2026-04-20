@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getCurrentMember, getTodayTaipei, getYesterdayTaipei, getNowHourTaipei, getMonthEnd } from '@/lib/api-helper'
-import { getSunriseTime, getPunchStartTime } from '@/lib/sunrise'
+import { getCurrentMember, getCheckinDayTaipei, getTodayTaipei, getPrevDayStr, getMonthEnd } from '@/lib/api-helper'
+import { getSunriseTime, addMinutes } from '@/lib/sunrise'
 import { calcMonthStats } from '@/lib/scoring'
 
 export async function GET() {
@@ -8,37 +8,34 @@ export async function GET() {
   if (result instanceof NextResponse) return result
   const { member, db } = result
 
-  const today     = getTodayTaipei()
-  const yesterday = getYesterdayTaipei()
-  const nowHour   = getNowHourTaipei()
-  const yearMonth = today.substring(0, 7)
+  const today       = getCheckinDayTaipei()   // 打卡邏輯日（中午為邊界）
+  const calendarDay = getTodayTaipei()         // 實際日曆日（顯示用）
+  const prevDay     = getPrevDayStr(today)
+  const yearMonth   = today.substring(0, 7)
 
-  const [todayRec, yesterdayRec, monthRecs] = await Promise.all([
+  const [todayRec, prevRec, monthRecs, sunrise] = await Promise.all([
     db.from('checkin_records').select('*').eq('member_id', member.id).eq('date', today).maybeSingle(),
-    db.from('checkin_records').select('id').eq('member_id', member.id).eq('date', yesterday).maybeSingle(),
+    db.from('checkin_records').select('punch_streak').eq('member_id', member.id).eq('date', prevDay).maybeSingle(),
     db.from('checkin_records').select('*').eq('member_id', member.id).gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth)),
+    // P2-12：只呼叫一次 getSunriseTime，再以 addMinutes 導出建議開始時間
+    getSunriseTime(calendarDay),
   ])
 
   const monthStats = calcMonthStats(member, monthRecs.data ?? [], today)
 
-  // 目前連續打拳天數
   const punchStreak = todayRec.data
     ? (todayRec.data as { punch_streak?: number }).punch_streak ?? 0
-    : (() => {
-        const yrec = yesterdayRec.data as unknown as { punch_streak?: number } | null
-        return yrec ? (yrec.punch_streak ?? 0) : 0
-      })()
-
-  const canMakeup = !yesterdayRec.data && nowHour < 12
+    : (prevRec.data as { punch_streak?: number } | null)?.punch_streak ?? 0
 
   return NextResponse.json({
     ok: true,
     today,
-    sunrise:       await getSunriseTime(today),
-    punchStart:    await getPunchStartTime(today),
+    calendarDay,
+    sunrise,
+    punchStart: addMinutes(sunrise, 12),
     punchStreak,
-    monthRate:     monthStats.rate,
-    todayRecord:   todayRec.data
+    monthRate:  monthStats.rate,
+    todayRecord: todayRec.data
       ? {
           submitted:  true,
           totalScore: (todayRec.data as { total_score: number }).total_score,
@@ -46,7 +43,5 @@ export async function GET() {
           tasks:      (todayRec.data as { tasks: boolean[] }).tasks,
         }
       : { submitted: false },
-    canMakeup,
-    yesterday: canMakeup ? yesterday : null,
   })
 }

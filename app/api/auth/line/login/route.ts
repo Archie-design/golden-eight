@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
+import { AUTH_COOKIE_OPTIONS, SHORT_STATE_MAX_AGE } from '@/lib/cookie-options'
 
 const CHANNEL_ID   = process.env.LINE_CHANNEL_ID   ?? ''
 const CALLBACK_URL = process.env.LINE_CALLBACK_URL ?? ''
@@ -23,18 +24,7 @@ export async function GET() {
   const authUrl = `https://access.line.me/oauth2/v2.1/authorize?${params}`
 
   const res = NextResponse.json({ ok: true, url: authUrl })
-  res.cookies.set('line_state', state, {
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge:   600,
-    path:     '/',
-  })
-  // Mark this as a login attempt (not a bind attempt)
-  res.cookies.set('line_context', 'login', {
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge:   600,
-    path:     '/',
-  })
+  res.cookies.set('line_state',   state,   { ...AUTH_COOKIE_OPTIONS, maxAge: SHORT_STATE_MAX_AGE })
+  res.cookies.set('line_context', 'login', { ...AUTH_COOKIE_OPTIONS, maxAge: SHORT_STATE_MAX_AGE })
   return res
 }

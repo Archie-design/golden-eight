@@ -110,11 +110,18 @@ export interface AchievementTrigger {
   badge: string
 }
 
-export function calcNewAchievements(
-  allRecords: CheckInRecord[],          // 含今日，已排序升序
-  todayRecord: CheckInRecord,
+/**
+ * 依「聚合結果」計算新解鎖成就（審查報告 P2-15 重構）。
+ * 呼叫端僅需提供彙總數字與最近 N 日的紀錄，不必每次 SELECT 全量紀錄。
+ */
+export function calcNewAchievementsFromAggregates(args: {
+  totalCount:   number          // 含今日的總打卡天數
+  perfectCount: number          // 含今日的大滿貫累計次數（base_score = 8）
+  recentSorted: CheckInRecord[] // 最近 N 日（N ≥ 100 即可支援最長 streak 成就），升序
+  todayRecord:  CheckInRecord
   alreadyUnlocked: string[]
-): AchievementTrigger[] {
+}): AchievementTrigger[] {
+  const { totalCount, perfectCount, recentSorted, todayRecord, alreadyUnlocked } = args
   const unlocked = new Set(alreadyUnlocked)
   const newOnes: AchievementTrigger[] = []
 
@@ -128,36 +135,24 @@ export function calcNewAchievements(
     }
   }
 
-  // 第一次打卡
-  if (allRecords.length === 1) award('FIRST_CHECKIN')
+  if (totalCount === 1)                award('FIRST_CHECKIN')
+  if (todayRecord.base_score === 8)    award('DAILY_PERFECT')
+  if (todayRecord.total_score >= 8.5)  award('DAILY_PERFECT_BONUS')
 
-  // 今日完美
-  if (todayRecord.base_score === 8) award('DAILY_PERFECT')
-  if (todayRecord.total_score >= 8.5) award('DAILY_PERFECT_BONUS')
-
-  // 累積打卡天數
-  const ciCount = allRecords.length
   for (const { target, code } of [
     { target: 30,  code: 'CHECKIN_30'  },
     { target: 100, code: 'CHECKIN_100' },
     { target: 365, code: 'CHECKIN_365' },
-  ]) {
-    if (ciCount >= target) award(code)
-  }
+  ]) if (totalCount >= target) award(code)
 
-  // 累積大滿貫次數
-  const perfectCount = allRecords.filter(r => r.base_score === 8).length
   for (const { target, code } of [
     { target: 10, code: 'PERFECT_10' },
     { target: 30, code: 'PERFECT_30' },
-  ]) {
-    if (perfectCount >= target) award(code)
-  }
+  ]) if (perfectCount >= target) award(code)
 
-  // 各任務連續天數
-  const sorted = [...allRecords].sort((a, b) => a.date.localeCompare(b.date))
+  // 各任務連續天數（只需近 100 日即可判斷所有 streak 成就）
   for (let taskIdx = 0; taskIdx < 8; taskIdx++) {
-    const streak = calcTaskStreak(sorted, taskIdx, todayRecord.date)
+    const streak = calcTaskStreak(recentSorted, taskIdx, todayRecord.date)
     ACHIEVEMENT_LIST
       .filter(a => a.type === 'streak' && (a as { task?: number }).task === taskIdx)
       .forEach(ach => {
@@ -167,6 +162,22 @@ export function calcNewAchievements(
   }
 
   return newOnes
+}
+
+/** @deprecated 保留相容：等價於 calcNewAchievementsFromAggregates 的包裝 */
+export function calcNewAchievements(
+  allRecords: CheckInRecord[],
+  todayRecord: CheckInRecord,
+  alreadyUnlocked: string[]
+): AchievementTrigger[] {
+  const sorted = [...allRecords].sort((a, b) => a.date.localeCompare(b.date))
+  return calcNewAchievementsFromAggregates({
+    totalCount:      sorted.length,
+    perfectCount:    sorted.filter(r => r.base_score === 8).length,
+    recentSorted:    sorted,
+    todayRecord,
+    alreadyUnlocked,
+  })
 }
 
 /** 月結後成就（月通關、黃金、完美月、連勝）*/

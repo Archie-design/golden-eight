@@ -23,7 +23,8 @@
       "Bash(pkill -f \"skills add\")",
       "Read(//Users/keke/.claude/skills/**)",
       "Read(//Users/keke/.agents/skills/code-review-expert/**)",
-      "Bash(JWT_SECRET=this-is-at-least-32-characters-long-test-secret npm run build)"
+      "Bash(JWT_SECRET=this-is-at-least-32-characters-long-test-secret npm run build)",
+      "Bash(vercel --version)"
     ]
   }
 }

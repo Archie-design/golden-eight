@@ -78,10 +78,16 @@ export async function POST() {
     if (achErr) console.error('[settlement] achievements insert failed', achErr)
   }
 
-  // 進月階梯更新：逐筆 update（不同 level 值無法一次 SQL 解決）
+  // P2-11：依目標 level 分組，每組一次 update（最多 3 次 round-trip，取代 N 次）
+  const byLevel: Record<string, string[]> = {}
   for (const u of levelUpdates) {
-    await db.from('members').update({ level: u.level, next_level: null }).eq('id', u.id)
+    (byLevel[u.level] ??= []).push(u.id)
   }
+  await Promise.all(
+    Object.entries(byLevel).map(([lvl, ids]) =>
+      db.from('members').update({ level: lvl, next_level: null }).in('id', ids)
+    )
+  )
 
   return NextResponse.json({ ok: true, msg: `月結完成（${yearMonth}）`, results })
 }

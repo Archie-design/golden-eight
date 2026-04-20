@@ -3,6 +3,7 @@ import { getTokenPayload } from '@/lib/api-helper'
 import { createServerClient } from '@/lib/supabase/server'
 import { createToken } from '@/lib/auth'
 import { cookies } from 'next/headers'
+import { AUTH_COOKIE_OPTIONS, AUTH_TOKEN_MAX_AGE } from '@/lib/cookie-options'
 
 const CHANNEL_ID     = process.env.LINE_CHANNEL_ID     ?? ''
 const CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET ?? ''
@@ -87,14 +88,10 @@ export async function GET(req: NextRequest) {
       return clearStatecookies(NextResponse.redirect(new URL('/?error=line_not_bound', req.url)))
     }
 
-    const token = await createToken({ sub: member.id, isAdmin: member.is_admin })
+    const tv    = (member as { token_version?: number }).token_version ?? 0
+    const token = await createToken({ sub: member.id, isAdmin: member.is_admin, tv })
     const res   = NextResponse.redirect(new URL('/checkin', req.url))
-    res.cookies.set('token', token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      maxAge:   60 * 60 * 24 * 30,
-      path:     '/',
-    })
+    res.cookies.set('token', token, { ...AUTH_COOKIE_OPTIONS, maxAge: AUTH_TOKEN_MAX_AGE })
     return clearStatecookies(res)
   }
 

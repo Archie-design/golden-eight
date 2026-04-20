@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-helper'
 import { AddMemberSchema, parseBody } from '@/lib/validation'
+import { hashPhone } from '@/lib/phone'
 
 // 回傳給前端的會員欄位白名單（避免外洩 phone_full / phone_last3）
 const MEMBER_COLUMNS = 'id, name, join_date, level, next_level, is_admin, status, line_display_name, line_picture_url, created_at'
@@ -23,15 +24,16 @@ export async function POST(request: NextRequest) {
   if (parsed instanceof NextResponse) return parsed
   const { name, phone, joinDate, level } = parsed.data
 
-  // 重複檢查（同姓名 + 同 phone_full）
+  // 重複檢查（同姓名 + 同 phone_hash；舊資料退而以 last3）
+  const phoneHash = hashPhone(phone)
+  const last3     = phone.slice(-3)
   const { data: possible } = await db
     .from('members')
-    .select('id, phone_full, phone_last3')
+    .select('id, phone_hash, phone_last3')
     .eq('name', name)
 
-  const last3 = phone.slice(-3)
-  const clash = (possible ?? []).some((m: { phone_full: string | null; phone_last3: string | null }) =>
-    m.phone_full === phone || (!m.phone_full && m.phone_last3 === last3)
+  const clash = (possible ?? []).some((m: { phone_hash: string | null; phone_last3: string | null }) =>
+    m.phone_hash === phoneHash || (!m.phone_hash && m.phone_last3 === last3)
   )
   if (clash) {
     return NextResponse.json({ ok: false, msg: '此姓名與手機號已存在' }, { status: 409 })
@@ -47,6 +49,7 @@ export async function POST(request: NextRequest) {
     id:         idRow as string,
     name,
     phone_full: phone,
+    phone_hash: phoneHash,
     join_date:  joinDate || new Date().toISOString().slice(0, 10),
     level,
   })
