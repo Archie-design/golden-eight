@@ -46,11 +46,11 @@ export async function getSunriseTime(dateStr: string): Promise<string> {
   }
 }
 
-/** 取得破曉打拳截止時間（日出後 10 分鐘） */
-export async function getPunchDeadline(dateStr: string): Promise<string> {
+/** 取得建議開始打拳時間（日出後 12 分鐘） */
+export async function getPunchStartTime(dateStr: string): Promise<string> {
   const sunrise = await getSunriseTime(dateStr)
   const [h, m] = sunrise.split(':').map(Number)
-  const total   = h * 60 + m + 10
+  const total   = h * 60 + m + 12
   return (
     String(Math.floor(total / 60)).padStart(2, '0') + ':' +
     String(total % 60).padStart(2, '0')

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getCurrentMember, getTodayTaipei, getYesterdayTaipei, getNowHourTaipei, getMonthEnd } from '@/lib/api-helper'
-import { getSunriseTime, getPunchDeadline } from '@/lib/sunrise'
+import { getSunriseTime, getPunchStartTime } from '@/lib/sunrise'
 import { calcMonthStats } from '@/lib/scoring'
 
 export async function GET() {
@@ -35,7 +35,7 @@ export async function GET() {
     ok: true,
     today,
     sunrise:       await getSunriseTime(today),
-    punchDeadline: await getPunchDeadline(today),
+    punchStart:    await getPunchStartTime(today),
     punchStreak,
     monthRate:     monthStats.rate,
     todayRecord:   todayRec.data

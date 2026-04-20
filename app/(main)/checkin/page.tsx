@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils'
 interface TodayData {
   today: string
   sunrise: string
-  punchDeadline: string
+  punchStart: string
   punchStreak: number
   monthRate: number
   todayRecord: { submitted: boolean; totalScore?: number; submitTime?: string; tasks?: boolean[] }
@@ -98,7 +98,7 @@ export default function CheckInPage() {
               </div>
               <div className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1">
                 <Sunrise className="w-4 h-4 shrink-0" />
-                日出 {data.sunrise}，建議打拳截止 {data.punchDeadline}
+                本日日出 {data.sunrise}，建議開始打拳時間為 {data.punchStart}
               </div>
             </div>
             <div className="text-right">
@@ -199,7 +199,7 @@ export default function CheckInPage() {
                   <div className="flex-1">
                     <div className="font-medium text-sm">{task.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {i === 1 ? `今日日出 ${data.sunrise}，建議 ${data.punchDeadline} 前完成` : task.desc}
+                      {i === 1 ? `今日日出 ${data.sunrise}，建議 ${data.punchStart} 開始打拳` : task.desc}
                     </div>
                   </div>
                   <CheckCircle2
