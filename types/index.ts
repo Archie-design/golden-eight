@@ -24,7 +24,9 @@ export interface Member {
   has_password?: boolean
   /** server-side only — JWT 版本，遞增即撤銷所有既有 token */
   token_version?: number
-  join_date: string         // 'YYYY-MM-DD'
+  join_date: string         // 'YYYY-MM-DD'，實際加入日曆日
+  /** 起算計分日（新規則）；NULL = 舊會員，fallback 到 join_date */
+  effective_start_date?: string | null
   level: Level
   next_level?: Level | null
   is_admin: boolean

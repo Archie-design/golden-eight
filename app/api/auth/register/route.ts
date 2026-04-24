@@ -5,6 +5,7 @@ import { RegisterSchema, parseBody } from '@/lib/validation'
 import { hashPhone } from '@/lib/phone'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { AUTH_COOKIE_OPTIONS, AUTH_TOKEN_MAX_AGE } from '@/lib/cookie-options'
+import { computeEffectiveStartDate } from '@/lib/api-helper'
 
 export async function POST(request: NextRequest) {
   // P1-6 rate limit：每 IP 每 10 分鐘 5 次註冊
@@ -13,7 +14,8 @@ export async function POST(request: NextRequest) {
 
   const parsed = await parseBody(request, RegisterSchema)
   if (parsed instanceof NextResponse) return parsed
-  const { name, phone, joinDate, level } = parsed.data
+  const { name, phone, level } = parsed.data
+  const { joinDate, effectiveStart } = computeEffectiveStartDate()
 
   const db = createServerClient()
   const phoneHash = hashPhone(phone)
@@ -46,7 +48,8 @@ export async function POST(request: NextRequest) {
       name,
       phone_full: phone,
       phone_hash: phoneHash,
-      join_date:  joinDate || new Date().toISOString().slice(0, 10),
+      join_date:            joinDate,
+      effective_start_date: effectiveStart,
       level,
     })
     .select('id, name, level, is_admin, token_version')

@@ -32,7 +32,6 @@ function LoginPageInner() {
 
   const [regName,  setRegName]  = useState('')
   const [regPhone, setRegPhone] = useState('')
-  const [regDate,  setRegDate]  = useState(new Date().toISOString().slice(0, 10))
   const [regLevel, setRegLevel] = useState('黃金戰士')
 
   async function handleLogin(e: React.FormEvent) {
@@ -73,7 +72,7 @@ function LoginPageInner() {
     const res  = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: regName, phone: regPhone, joinDate: regDate, level: regLevel }),
+      body: JSON.stringify({ name: regName, phone: regPhone, level: regLevel }),
     })
     const data = await res.json()
     setLoading(false)
@@ -156,10 +155,6 @@ function LoginPageInner() {
               <div className="space-y-1.5">
                 <Label htmlFor="reg-phone">手機號碼</Label>
                 <Input id="reg-phone" value={regPhone} onChange={e => setRegPhone(e.target.value.replace(/\D/g, ''))} maxLength={10} inputMode="numeric" placeholder="09xxxxxxxx" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="reg-date">加入日期</Label>
-                <Input id="reg-date" type="date" value={regDate} onChange={e => setRegDate(e.target.value)} />
               </div>
               <div className="space-y-1.5">
                 <Label>挑戰階梯</Label>

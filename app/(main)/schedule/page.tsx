@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import {
   Calendar, Unlock, Lock, Search, Pencil, AlertTriangle, Users, Star, LayoutList, Clock,
+  CheckCircle2, Loader2,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -100,6 +101,11 @@ export default function SchedulePage() {
   const [activeDragData,   setActiveDragData]  = useState<DragData | null>(null)
   const [activeDropIdx,    setActiveDropIdx]   = useState<number | null>(null)
   const [timelineMode,     setTimelineMode]    = useState(false)
+  const [saveStatus,       setSaveStatus]      = useState<'saved' | 'dirty' | 'saving'>('saved')
+  // loadVersion 用於區分「初始載入」和「使用者修改」，避免載入時觸發假儲存
+  const [loadVersion,      setLoadVersion]     = useState(0)
+  const savedLoadVersionRef = useRef(0)
+  const saveTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -109,8 +115,50 @@ export default function SchedulePage() {
   useEffect(() => {
     fetch('/api/schedule/data')
       .then(r => r.json())
-      .then(json => { if (json.ok) { setTags(json.tags); setBlocks(json.blocks ?? []); setIsPublic(json.isPublic) } })
+      .then(json => {
+        if (json.ok) {
+          setTags(json.tags)
+          setBlocks(json.blocks ?? [])
+          setIsPublic(json.isPublic)
+          setLoadVersion(v => v + 1)   // 標記為「載入」而非「使用者修改」
+        }
+      })
   }, [])
+
+  // 自動儲存（debounce 1.5s）— 只在使用者修改後觸發，略過初始載入
+  useEffect(() => {
+    if (loadVersion === 0) return   // 資料尚未載入
+    if (loadVersion > savedLoadVersionRef.current) {
+      // 這次 render 是由資料載入引起的，不是使用者操作
+      savedLoadVersionRef.current = loadVersion
+      setSaveStatus('saved')
+      return
+    }
+    // 使用者修改：標為 dirty，等待 1.5s 後自動儲存
+    setSaveStatus('dirty')
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(async () => {
+      setSaveStatus('saving')
+      const res  = await fetch('/api/schedule/template', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blocks, isPublic }),
+      })
+      const json = await res.json()
+      setSaveStatus(json.ok ? 'saved' : 'dirty')
+      if (!json.ok) toast.error(json.msg)
+    }, 1500)
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
+  }, [blocks, isPublic, loadVersion])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 離頁保護：有未儲存變更時彈出瀏覽器確認
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (saveStatus === 'dirty' || saveStatus === 'saving') e.preventDefault()
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [saveStatus])
 
   // ─── 拖拉事件 ──────────────────────────────────────────────
   function handleDragStart(event: DragStartEvent) {
@@ -195,15 +243,18 @@ export default function SchedulePage() {
     }
   }
 
-  // ─── 儲存模板 ──────────────────────────────────────────────
+  // ─── 手動儲存模板（同時取消待執行的自動儲存計時器）─────────
   async function saveTemplate() {
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null }
+    setSaveStatus('saving')
     const res  = await fetch('/api/schedule/template', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ blocks, isPublic }),
     })
     const json = await res.json()
-    toast[json.ok ? 'success' : 'error'](json.msg)
+    if (json.ok) { setSaveStatus('saved'); toast.success(json.msg) }
+    else         { setSaveStatus('dirty'); toast.error(json.msg)   }
   }
 
   // ─── 標籤管理 ──────────────────────────────────────────────
@@ -300,9 +351,34 @@ export default function SchedulePage() {
             {isPublic ? <><Unlock className="w-3.5 h-3.5" /> 公開中</> : <><Lock className="w-3.5 h-3.5" /> 私密</>}
           </Button>
           <Button size="sm" variant="outline" onClick={loadGroup}>群組行程</Button>
-          <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white" onClick={saveTemplate}>
-            儲存模板
-          </Button>
+          <div className="flex items-center gap-2">
+            {saveStatus === 'saved'  && loadVersion > 0 && (
+              <span className="text-xs text-green-600 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" /> 已儲存
+              </span>
+            )}
+            {saveStatus === 'dirty' && (
+              <span className="text-xs text-amber-600 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse inline-block" /> 未儲存
+              </span>
+            )}
+            {saveStatus === 'saving' && (
+              <span className="text-xs text-gray-400 flex items-center gap-1">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> 儲存中
+              </span>
+            )}
+            <Button
+              size="sm"
+              disabled={saveStatus === 'saving'}
+              className={cn(
+                'bg-amber-500 hover:bg-amber-600 text-white',
+                saveStatus === 'dirty' && 'ring-2 ring-amber-300 ring-offset-1',
+              )}
+              onClick={saveTemplate}
+            >
+              儲存模板
+            </Button>
+          </div>
         </div>
       </div>
 

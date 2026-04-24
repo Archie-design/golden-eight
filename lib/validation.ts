@@ -21,7 +21,6 @@ export const SetPasswordSchema = z.object({
 })
 
 export const RegisterSchema = LoginSchema.extend({
-  joinDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '加入日期格式錯誤').optional(),
   level:    z.enum(LEVELS, { message: '無效的階梯選項' }),
 })
 
@@ -61,10 +60,9 @@ export const SaveTemplateSchema = z.object({
 })
 
 export const AddMemberSchema = z.object({
-  name:     z.string().min(1).max(50).transform(s => s.trim()),
-  phone:    z.string().regex(PHONE_RE, PHONE_MSG),
-  joinDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  level:    z.enum(LEVELS),
+  name:  z.string().min(1).max(50).transform(s => s.trim()),
+  phone: z.string().regex(PHONE_RE, PHONE_MSG),
+  level: z.enum(LEVELS),
 })
 
 // ── Helper: parse request body with schema, return error response on failure ──

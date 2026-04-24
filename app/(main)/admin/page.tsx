@@ -30,7 +30,6 @@ export default function AdminPage() {
   // 新增成員欄位
   const [mName,  setMName]  = useState('')
   const [mPhone, setMPhone] = useState('')
-  const [mDate,  setMDate]  = useState(new Date().toISOString().slice(0, 10))
   const [mLevel, setMLevel] = useState('黃金戰士')
 
   const loadMembers  = useCallback(() =>
@@ -60,7 +59,7 @@ export default function AdminPage() {
     const res  = await fetch('/api/admin/members', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: mName, phone: mPhone, joinDate: mDate, level: mLevel }),
+      body: JSON.stringify({ name: mName, phone: mPhone, level: mLevel }),
     })
     const json = await res.json()
     toast[json.ok ? 'success' : 'error'](json.msg)
@@ -350,7 +349,6 @@ export default function AdminPage() {
           <div className="space-y-3">
             <div className="space-y-1"><Label>姓名</Label><Input value={mName} onChange={e => setMName(e.target.value)} placeholder="姓名" /></div>
             <div className="space-y-1"><Label>手機號碼</Label><Input value={mPhone} onChange={e => setMPhone(e.target.value.replace(/\D/g, ''))} maxLength={10} inputMode="numeric" placeholder="09xxxxxxxx" /></div>
-            <div className="space-y-1"><Label>加入日期</Label><Input type="date" value={mDate} onChange={e => setMDate(e.target.value)} /></div>
             <div className="space-y-1">
               <Label>階梯</Label>
               <Select value={mLevel} onValueChange={v => v && setMLevel(v)}>

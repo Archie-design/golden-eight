@@ -30,6 +30,15 @@ export async function POST(request: NextRequest) {
   const target  = getCheckinDayTaipei()
   const prevDay = getPrevDayStr(target)
 
+  // 起算日驗證：打卡日早於起算日 → 拒絕（避免中午前首日打卡記到前一日、分母漏算）
+  const startStr = member.effective_start_date ?? member.join_date
+  if (target < startStr) {
+    return NextResponse.json(
+      { ok: false, msg: `計分尚未開始，起算日為 ${startStr}` },
+      { status: 409 },
+    )
+  }
+
   // 防重複提交
   const { data: existing } = await db
     .from('checkin_records').select('id').eq('member_id', member.id).eq('date', target).maybeSingle()

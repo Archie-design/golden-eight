@@ -14,7 +14,6 @@ type MemberRow = {
   id:               string
   name:             string
   phone_full:       string | null
-  phone_last3:      string | null
   phone_hash:       string | null
   password_hash:    string | null
   is_admin:         boolean
@@ -35,7 +34,6 @@ export async function POST(request: NextRequest) {
 
   const db = createServerClient()
   const phoneHash = hashPhone(phone)
-  const last3     = phone.slice(-3)
   const now       = Date.now()
 
   const { data: candidates } = await db
@@ -44,10 +42,7 @@ export async function POST(request: NextRequest) {
     .eq('status', '活躍')
   const matches = (candidates ?? []) as MemberRow[]
 
-  // 先找 hash 相符；舊資料（尚未遷移）以 last3 對比
-  const hit =
-    matches.find(m => m.phone_hash === phoneHash) ??
-    matches.find(m => !m.phone_hash && m.phone_last3 === last3)
+  const hit = matches.find(m => m.phone_hash === phoneHash)
 
   // 命中 → 檢查鎖定
   if (hit?.locked_until && Date.parse(hit.locked_until) > now) {
@@ -93,9 +88,8 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 成功：重置失敗計數；尚無 phone_hash / phone_full（舊帳號）順勢遷移
+  // 成功：重置失敗計數；phone_full 尚未補齊的帳號順勢遷移
   const patch: Record<string, unknown> = { failed_attempts: 0, locked_until: null }
-  if (!hit.phone_hash) patch.phone_hash = phoneHash
   if (!hit.phone_full) patch.phone_full = phone
   await db.from('members').update(patch).eq('id', hit.id)
 

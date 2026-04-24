@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/api-helper'
+import { requireAdmin, computeEffectiveStartDate } from '@/lib/api-helper'
 import { AddMemberSchema, parseBody } from '@/lib/validation'
 import { hashPhone } from '@/lib/phone'
 
 // 回傳給前端的會員欄位白名單（避免外洩 phone_full / phone_last3）
-const MEMBER_COLUMNS = 'id, name, join_date, level, next_level, is_admin, status, line_display_name, line_picture_url, created_at'
+const MEMBER_COLUMNS = 'id, name, join_date, effective_start_date, level, next_level, is_admin, status, line_display_name, line_picture_url, created_at'
 
 export async function GET() {
   const admin = await requireAdmin()
@@ -22,7 +22,8 @@ export async function POST(request: NextRequest) {
 
   const parsed = await parseBody(request, AddMemberSchema)
   if (parsed instanceof NextResponse) return parsed
-  const { name, phone, joinDate, level } = parsed.data
+  const { name, phone, level } = parsed.data
+  const { joinDate, effectiveStart } = computeEffectiveStartDate()
 
   // 重複檢查（同姓名 + 同 phone_hash；舊資料退而以 last3）
   const phoneHash = hashPhone(phone)
@@ -50,7 +51,8 @@ export async function POST(request: NextRequest) {
     name,
     phone_full: phone,
     phone_hash: phoneHash,
-    join_date:  joinDate || new Date().toISOString().slice(0, 10),
+    join_date:            joinDate,
+    effective_start_date: effectiveStart,
     level,
   })
 

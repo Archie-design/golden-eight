@@ -1,7 +1,7 @@
 -- ============================================================
 -- 黃金八套餐定課系統 — Supabase Schema（當前真相）
 -- 新環境 bootstrap：執行此檔即可；既有環境依序套用 migrations/*.sql
--- 最後更新：2026-04-20
+-- 最後更新：2026-04-24
 -- ============================================================
 
 -- 1. 成員表
@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS members (
   locked_until    TIMESTAMPTZ,                       -- 鎖定截止時間
   token_version   INT  NOT NULL DEFAULT 0,           -- JWT 撤銷版本號
   join_date       DATE NOT NULL,
+  effective_start_date DATE,                         -- 起算計分日（12:00 前加入 +1，12:00 後 +2；NULL = fallback 至 join_date）
   level           TEXT NOT NULL DEFAULT '黃金戰士',
   next_level      TEXT,
   is_admin        BOOLEAN DEFAULT FALSE,

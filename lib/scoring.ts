@@ -32,8 +32,10 @@ export function calcMonthStats(
 ) {
   const yearMonth   = today.substring(0, 7)
   const monthStart  = new Date(yearMonth + '-01T00:00:00+08:00')
-  const joinDate    = new Date(member.join_date + 'T00:00:00+08:00')
-  const effectiveStart = joinDate > monthStart ? joinDate : monthStart
+  // 優先用 effective_start_date；舊會員（NULL）fallback 到 join_date
+  const startStr    = member.effective_start_date ?? member.join_date
+  const startDate   = new Date(startStr + 'T00:00:00+08:00')
+  const effectiveStart = startDate > monthStart ? startDate : monthStart
 
   // 本月最後一天（UTC+8）
   const [y, mo] = yearMonth.split('-').map(Number)
