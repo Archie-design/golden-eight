@@ -41,6 +41,7 @@ export async function GET() {
           totalScore: (todayRec.data as { total_score: number }).total_score,
           submitTime: (todayRec.data as { submit_time: string }).submit_time,
           tasks:      (todayRec.data as { tasks: boolean[] }).tasks,
+          note:       (todayRec.data as { note?: string }).note ?? '',
         }
       : { submitted: false },
   })

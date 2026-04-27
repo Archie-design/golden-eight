@@ -35,6 +35,22 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_members_phone_full
 CREATE UNIQUE INDEX IF NOT EXISTS idx_members_line_user
   ON members(line_user_id) WHERE line_user_id IS NOT NULL;
 
+-- 1b. 打卡編輯紀錄（誤觸修正稽核）
+CREATE TABLE IF NOT EXISTS checkin_edit_logs (
+  id                   BIGSERIAL PRIMARY KEY,
+  member_id            TEXT NOT NULL REFERENCES members(id),
+  date                 DATE NOT NULL,
+  before_tasks         BOOLEAN[] NOT NULL,
+  after_tasks          BOOLEAN[] NOT NULL,
+  before_score         NUMERIC(3,1) NOT NULL,
+  after_score          NUMERIC(3,1) NOT NULL,
+  achievements_added   TEXT[] NOT NULL DEFAULT '{}',
+  achievements_removed TEXT[] NOT NULL DEFAULT '{}',
+  edited_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_checkin_edit_logs_member_date
+  ON checkin_edit_logs(member_id, date);
+
 -- 2. 打卡紀錄表
 CREATE TABLE IF NOT EXISTS checkin_records (
   id            BIGSERIAL PRIMARY KEY,
@@ -224,3 +240,4 @@ ALTER TABLE achievements       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tag_library        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE schedule_template  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sunrise_cache      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE checkin_edit_logs  ENABLE ROW LEVEL SECURITY;

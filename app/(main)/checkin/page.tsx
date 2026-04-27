@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import {
-  Sunrise, Flame, CheckCircle2, Trophy,
+  Sunrise, Flame, CheckCircle2, Trophy, Pencil,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -21,7 +21,7 @@ interface TodayData {
   punchStart: string
   punchStreak: number
   monthRate: number
-  todayRecord: { submitted: boolean; totalScore?: number; submitTime?: string; tasks?: boolean[] }
+  todayRecord: { submitted: boolean; totalScore?: number; submitTime?: string; tasks?: boolean[]; note?: string }
 }
 
 interface NewAchievement { code: string; name: string; badge: string }
@@ -33,11 +33,25 @@ export default function CheckInPage() {
   const [loading, setLoading]   = useState(false)
   const [achQueue, setAchQueue] = useState<NewAchievement[]>([])
   const [showAch, setShowAch]   = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
 
   function loadData() {
     fetch('/api/checkin/today')
       .then(r => r.json())
-      .then(json => { if (json.ok) { setData(json); setChecked(Array(8).fill(false)) } else toast.error(json.msg) })
+      .then(json => { if (json.ok) { setData(json); setChecked(Array(8).fill(false)); setNote(''); setIsEditing(false) } else toast.error(json.msg) })
+  }
+
+  function startEdit() {
+    if (!data?.todayRecord.submitted) return
+    setChecked(data.todayRecord.tasks ?? Array(8).fill(false))
+    setNote(data.todayRecord.note ?? '')
+    setIsEditing(true)
+  }
+
+  function cancelEdit() {
+    setIsEditing(false)
+    setChecked(Array(8).fill(false))
+    setNote('')
   }
 
   useEffect(() => { loadData() }, [])
@@ -48,8 +62,9 @@ export default function CheckInPage() {
 
   async function handleSubmit() {
     setLoading(true)
+    const method = isEditing ? 'PATCH' : 'POST'
     const res  = await fetch('/api/checkin/submit', {
-      method: 'POST',
+      method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tasks: checked, note }),
     })
@@ -57,6 +72,21 @@ export default function CheckInPage() {
     setLoading(false)
 
     if (!json.ok) { toast.error(json.msg); return }
+
+    if (isEditing) {
+      const removed = (json.achievementsRemoved ?? []) as NewAchievement[]
+      const added   = (json.achievementsAdded ?? []) as NewAchievement[]
+      toast.success(`修改成功！得分：${json.totalScore} 分`)
+      if (removed.length > 0) {
+        toast.warning(`已撤銷 ${removed.length} 項成就：${removed.map(r => r.name).join('、')}`, { duration: 5000 })
+      }
+      if (added.length > 0) {
+        setAchQueue(added)
+        setShowAch(true)
+      }
+      loadData()
+      return
+    }
 
     toast.success(`打卡成功！${json.totalScore} 分`)
     if (json.newAchievements?.length) {
@@ -112,7 +142,7 @@ export default function CheckInPage() {
       </Card>
 
       {/* 已打卡提示 */}
-      {data.todayRecord.submitted ? (
+      {data.todayRecord.submitted && !isEditing ? (
         <Card className="border-green-200 bg-green-50">
           <CardContent className="pt-4 text-center">
             <CheckCircle2 className="mx-auto w-10 h-10 text-green-500" />
@@ -139,6 +169,14 @@ export default function CheckInPage() {
                 ))}
               </div>
             )}
+            <Button
+              onClick={startEdit}
+              variant="outline"
+              size="sm"
+              className="mt-3 border-green-300 text-green-700 hover:bg-green-100"
+            >
+              <Pencil className="w-3.5 h-3.5 mr-1" /> 修改今日
+            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -146,7 +184,9 @@ export default function CheckInPage() {
           {/* 八項任務 */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">今日八項任務</CardTitle>
+              <CardTitle className="text-base">
+                {isEditing ? '修改今日打卡（誤觸回溯）' : '今日八項任務'}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {TASKS.map((task, i) => (
@@ -181,12 +221,22 @@ export default function CheckInPage() {
                   placeholder="備註（選填）"
                   className="text-sm"
                 />
+                {isEditing && (
+                  <Button
+                    onClick={cancelEdit}
+                    disabled={loading}
+                    variant="outline"
+                    className="shrink-0"
+                  >
+                    取消
+                  </Button>
+                )}
                 <Button
                   onClick={handleSubmit}
                   disabled={loading}
                   className="shrink-0 bg-yellow-500 hover:bg-yellow-600 text-white"
                 >
-                  {loading ? '提交中…' : '提交打卡'}
+                  {loading ? (isEditing ? '修改中…' : '提交中…') : (isEditing ? '儲存修改' : '提交打卡')}
                 </Button>
               </div>
             </CardContent>

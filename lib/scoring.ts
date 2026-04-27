@@ -166,6 +166,42 @@ export function calcNewAchievementsFromAggregates(args: {
   return newOnes
 }
 
+/**
+ * 編輯後成就對帳：算出應加入 / 撤銷的成就清單。
+ *
+ * 規則（保守，偏向尊重既有解鎖）：
+ *   add    — 編輯後新達成而尚未解鎖（沿用 calcNewAchievementsFromAggregates）
+ *   remove — 只撤可立即驗證為「已不再成立」的：
+ *     · DAILY_PERFECT       → perfectCount === 0
+ *     · DAILY_PERFECT_BONUS → 105 日內無任何 total_score >= 8.5
+ *     · PERFECT_10 / 30     → perfectCount < 10 / 30
+ *   不撤銷的：FIRST_CHECKIN、CHECKIN_30/100/365（單調遞增）、T*_STREAK_*（視為歷史里程碑，
+ *   即使最近 105 日無資料也保留），月度成就由 settlement 管理不在此處理。
+ */
+export function reconcileAchievementsAfterEdit(args: {
+  totalCount:   number
+  perfectCount: number
+  recentSorted: CheckInRecord[]
+  todayRecord:  CheckInRecord
+  alreadyUnlocked: string[]
+}): { add: AchievementTrigger[]; remove: string[] } {
+  const add = calcNewAchievementsFromAggregates(args)
+  const unlocked = new Set(args.alreadyUnlocked)
+  const remove: string[] = []
+
+  if (unlocked.has('DAILY_PERFECT') && args.perfectCount === 0) {
+    remove.push('DAILY_PERFECT')
+  }
+  if (unlocked.has('DAILY_PERFECT_BONUS')) {
+    const stillBonus = args.recentSorted.some(r => r.total_score >= 8.5)
+    if (!stillBonus) remove.push('DAILY_PERFECT_BONUS')
+  }
+  if (unlocked.has('PERFECT_10') && args.perfectCount < 10) remove.push('PERFECT_10')
+  if (unlocked.has('PERFECT_30') && args.perfectCount < 30) remove.push('PERFECT_30')
+
+  return { add, remove }
+}
+
 /** @deprecated 保留相容：等價於 calcNewAchievementsFromAggregates 的包裝 */
 export function calcNewAchievements(
   allRecords: CheckInRecord[],

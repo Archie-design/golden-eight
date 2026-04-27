@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { toast } from 'sonner'
-import { Star, CheckCircle2, X, Crown, PartyPopper, Download, Trophy, Medal } from 'lucide-react'
+import { Star, CheckCircle2, X, Crown, PartyPopper, Download, Trophy, Medal, KeyRound } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -64,6 +64,13 @@ export default function AdminPage() {
     const json = await res.json()
     toast[json.ok ? 'success' : 'error'](json.msg)
     if (json.ok) { setShowAddModal(false); setMName(''); setMPhone(''); loadMembers() }
+  }
+
+  async function handleResetPassword(id: string, name: string) {
+    if (!confirm(`確定重置 ${name} 的密碼？\n\n該成員所有登入將立即失效，需重新以姓名＋手機登入並設定新密碼。`)) return
+    const res  = await fetch(`/api/admin/members/${id}/reset-password`, { method: 'POST' })
+    const json = await res.json()
+    toast[json.ok ? 'success' : 'error'](json.msg)
   }
 
   async function handleDisable(id: string, name: string) {
@@ -327,9 +334,14 @@ export default function AdminPage() {
                         </td>
                         <td className="text-center">
                           {m.status === '活躍' && (
-                            <Button size="sm" variant="outline" className="text-red-500 border-red-200" onClick={() => handleDisable(m.id, m.name)}>
-                              停用
-                            </Button>
+                            <div className="flex gap-1.5 justify-center">
+                              <Button size="sm" variant="outline" className="text-amber-600 border-amber-200 hover:bg-amber-50" onClick={() => handleResetPassword(m.id, m.name)}>
+                                <KeyRound className="w-3.5 h-3.5 mr-1" /> 重置密碼
+                              </Button>
+                              <Button size="sm" variant="outline" className="text-red-500 border-red-200" onClick={() => handleDisable(m.id, m.name)}>
+                                停用
+                              </Button>
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -367,6 +379,7 @@ export default function AdminPage() {
           </div>
         </DialogContent>
       </Dialog>
+
     </div>
   )
 }
