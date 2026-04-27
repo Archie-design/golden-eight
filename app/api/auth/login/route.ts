@@ -14,6 +14,7 @@ type MemberRow = {
   id:               string
   name:             string
   phone_full:       string | null
+  phone_last3:      string | null
   phone_hash:       string | null
   password_hash:    string | null
   is_admin:         boolean
@@ -42,7 +43,10 @@ export async function POST(request: NextRequest) {
     .eq('status', '活躍')
   const matches = (candidates ?? []) as MemberRow[]
 
-  const hit = matches.find(m => m.phone_hash === phoneHash)
+  // 優先用 phone_hash 比對；舊帳號 phone_hash 為 null 時 fallback 到 phone_last3
+  const hit =
+    matches.find(m => m.phone_hash !== null && m.phone_hash === phoneHash) ??
+    matches.find(m => m.phone_hash === null && m.phone_last3 === phone.slice(-3))
 
   // 命中 → 檢查鎖定
   if (hit?.locked_until && Date.parse(hit.locked_until) > now) {
@@ -88,8 +92,9 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 成功：重置失敗計數；phone_full 尚未補齊的帳號順勢遷移
+  // 成功：重置失敗計數；舊帳號順勢補齊 phone_hash / phone_full
   const patch: Record<string, unknown> = { failed_attempts: 0, locked_until: null }
+  if (!hit.phone_hash) patch.phone_hash = phoneHash
   if (!hit.phone_full) patch.phone_full = phone
   await db.from('members').update(patch).eq('id', hit.id)
 
