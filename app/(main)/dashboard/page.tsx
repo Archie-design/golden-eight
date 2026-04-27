@@ -340,13 +340,14 @@ export default function DashboardPage() {
                 <Calendar className="w-4 h-4 shrink-0" />
                 每月 25 日後可選擇下月階梯：
               </div>
-              <div className="flex gap-2 flex-wrap">
-                {['黃金戰士', '白銀戰士', '青銅戰士'].map(lv => (
-                  <Button key={lv} size="sm" variant="outline" onClick={() => setNextLevel(lv)}>{lv}</Button>
-                ))}
-              </div>
-              {data.user.nextLevel && (
-                <p className="text-xs text-muted-foreground mt-2">目前已選：{data.user.nextLevel}</p>
+              {data.user.nextLevel ? (
+                <p className="text-sm font-medium text-green-700">✓ 下月已選：{data.user.nextLevel}</p>
+              ) : (
+                <div className="flex gap-2 flex-wrap">
+                  {['黃金戰士', '白銀戰士', '青銅戰士'].map(lv => (
+                    <Button key={lv} size="sm" variant="outline" onClick={() => setNextLevel(lv)}>{lv}</Button>
+                  ))}
+                </div>
               )}
             </div>
           )}

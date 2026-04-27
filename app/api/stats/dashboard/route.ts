@@ -42,7 +42,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     yearMonth,
-    user:         member,
+    user:         { level: member.level, nextLevel: member.next_level ?? undefined },
     totalScore:   stats.totalScore,
     maxScore:     stats.maxScore,
     rate:         stats.rate,
