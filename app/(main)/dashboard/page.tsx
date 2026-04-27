@@ -259,8 +259,21 @@ export default function DashboardPage() {
   async function bindLine() {
     const res  = await fetch('/api/auth/line')
     const json = await res.json()
-    if (json.ok) window.location.href = json.url
-    else toast.error(json.msg)
+    if (!json.ok) { toast.error(json.msg); return }
+
+    window.open(json.url, '_blank')
+
+    function onMessage(e: MessageEvent) {
+      if (e.origin !== window.location.origin) return
+      if (e.data?.type !== 'line_bound') return
+      window.removeEventListener('message', onMessage)
+      toast.success('LINE 帳號綁定成功')
+      setData(prev => prev ? {
+        ...prev,
+        line: { bound: true, displayName: e.data.displayName, pictureUrl: e.data.pictureUrl },
+      } : prev)
+    }
+    window.addEventListener('message', onMessage)
   }
 
   async function unbindLine() {

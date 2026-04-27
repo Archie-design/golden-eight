@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   Sunrise, Flame, CheckCircle2, Trophy, Pencil,
@@ -27,6 +28,7 @@ interface TodayData {
 interface NewAchievement { code: string; name: string; badge: string }
 
 export default function CheckInPage() {
+  const searchParams = useSearchParams()
   const [data, setData]         = useState<TodayData | null>(null)
   const [checked, setChecked]   = useState<boolean[]>(Array(8).fill(false))
   const [note, setNote]         = useState('')
@@ -55,6 +57,13 @@ export default function CheckInPage() {
   }
 
   useEffect(() => { loadData() }, [])
+
+  useEffect(() => {
+    if (searchParams.get('from') !== 'line') return
+    if (!(navigator as { standalone?: boolean }).standalone) {
+      toast('提示：下次請直接從主畫面開啟 App，體驗更佳', { duration: 6000 })
+    }
+  }, [searchParams])
 
   function toggleTask(i: number) {
     setChecked(prev => prev.map((v, idx) => idx === i ? !v : v))

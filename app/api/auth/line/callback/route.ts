@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
 
     const tv    = (member as { token_version?: number }).token_version ?? 0
     const token = await createToken({ sub: member.id, isAdmin: member.is_admin, tv })
-    const res   = NextResponse.redirect(new URL('/checkin', req.url))
+    const res   = NextResponse.redirect(new URL('/checkin?from=line', req.url))
     res.cookies.set('token', token, { ...AUTH_COOKIE_OPTIONS, maxAge: AUTH_TOKEN_MAX_AGE })
     return clearStatecookies(res)
   }
@@ -123,5 +123,43 @@ export async function GET(req: NextRequest) {
     line_picture_url:  profile.pictureUrl ?? null,
   }).eq('id', member.id)
 
-  return clearStatecookies(NextResponse.redirect(new URL('/dashboard?line=bound', req.url)))
+  // 回傳 HTML：嘗試 postMessage 給 PWA 父視窗，iOS 無 opener 時顯示手動關閉提示
+  const payload = JSON.stringify({
+    type:        'line_bound',
+    displayName: profile.displayName,
+    pictureUrl:  profile.pictureUrl ?? null,
+  })
+  const html = `<!doctype html><html lang="zh-TW"><head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>綁定成功</title>
+<style>
+  body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;
+       min-height:100dvh;margin:0;background:#fef3c7}
+  .box{text-align:center;padding:2rem}
+  .icon{font-size:3.5rem}
+  .msg{margin:.75rem 0 .25rem;font-size:1.15rem;font-weight:700;color:#92400e}
+  .sub{color:#78716c;font-size:.9rem}
+  button{margin-top:1.25rem;padding:.65rem 1.6rem;background:#f59e0b;color:#fff;
+         border:none;border-radius:.5rem;font-size:1rem;cursor:pointer}
+</style>
+</head><body><div class="box">
+  <div class="icon">✅</div>
+  <p class="msg">LINE 帳號綁定成功！</p>
+  <p class="sub" id="sub">正在關閉視窗…</p>
+  <button id="btn" style="display:none" onclick="window.close()">關閉視窗</button>
+</div><script>
+  var data = ${payload};
+  if (window.opener) {
+    try { window.opener.postMessage(data, location.origin) } catch(e) {}
+    window.close();
+  } else {
+    document.getElementById('sub').textContent = '請關閉此視窗，返回 App。';
+    document.getElementById('btn').style.display = 'inline-block';
+  }
+</script></body></html>`
+
+  const headers = new Headers({ 'Content-Type': 'text/html; charset=utf-8' })
+  headers.append('Set-Cookie', 'line_state=; Max-Age=0; Path=/')
+  headers.append('Set-Cookie', 'line_context=; Max-Age=0; Path=/')
+  return new Response(html, { headers })
 }
