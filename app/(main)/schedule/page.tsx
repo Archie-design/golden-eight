@@ -131,7 +131,7 @@ export default function SchedulePage() {
     if (loadVersion > savedLoadVersionRef.current) {
       // 這次 render 是由資料載入引起的，不是使用者操作
       savedLoadVersionRef.current = loadVersion
-      setSaveStatus('saved')
+      setSaveStatus('saved') // eslint-disable-line react-hooks/set-state-in-effect
       return
     }
     // 使用者修改：標為 dirty，等待 1.5s 後自動儲存
@@ -149,7 +149,7 @@ export default function SchedulePage() {
       if (!json.ok) toast.error(json.msg)
     }, 1500)
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
-  }, [blocks, isPublic, loadVersion])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [blocks, isPublic, loadVersion])
 
   // 離頁保護：有未儲存變更時彈出瀏覽器確認
   useEffect(() => {

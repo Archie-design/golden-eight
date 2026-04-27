@@ -28,7 +28,10 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
-      "Bash(awk -F\"'\" '{print $2}')"
+      "Bash(awk -F\"'\" '{print $2}')",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(m\\) for f in data for m in f.get\\('messages',[]\\)]\")",
+      "Bash(npx eslint *)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }
