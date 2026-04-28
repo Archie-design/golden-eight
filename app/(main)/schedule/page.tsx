@@ -101,6 +101,7 @@ export default function SchedulePage() {
   const [activeDragData,   setActiveDragData]  = useState<DragData | null>(null)
   const [activeDropIdx,    setActiveDropIdx]   = useState<number | null>(null)
   const [timelineMode,     setTimelineMode]    = useState(false)
+  const [showMobileTags,   setShowMobileTags]  = useState(false)
   const [saveStatus,       setSaveStatus]      = useState<'saved' | 'dirty' | 'saving'>('saved')
   // loadVersion 用於區分「初始載入」和「使用者修改」，避免載入時觸發假儲存
   const [loadVersion,      setLoadVersion]     = useState(0)
@@ -343,14 +344,14 @@ export default function SchedulePage() {
       {/* 頂列 */}
       <div className="flex flex-wrap gap-2 items-center justify-between">
         <h1 className="flex items-center gap-2 text-lg font-bold"><Calendar className="w-5 h-5" /> 我的行程模板</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
           <Button size="sm" variant="outline" className="flex items-center gap-1.5" onClick={() => setTimelineMode(v => !v)}>
             {timelineMode ? <><LayoutList className="w-3.5 h-3.5" /> 列表</> : <><Clock className="w-3.5 h-3.5" /> 時間軸</>}
           </Button>
           <Button size="sm" variant="outline" className="flex items-center gap-1.5" onClick={() => setIsPublic(v => !v)}>
             {isPublic ? <><Unlock className="w-3.5 h-3.5" /> 公開中</> : <><Lock className="w-3.5 h-3.5" /> 私密</>}
           </Button>
-          <Button size="sm" variant="outline" onClick={loadGroup}>群組行程</Button>
+          <Button size="sm" variant="outline" className="hidden sm:flex" onClick={loadGroup}>群組行程</Button>
           <div className="flex items-center gap-2">
             {saveStatus === 'saved'  && loadVersion > 0 && (
               <span className="text-xs text-green-600 flex items-center gap-1">
@@ -382,6 +383,18 @@ export default function SchedulePage() {
         </div>
       </div>
 
+      {/* 手機分頁切換（md+ 隱藏，桌機用並排） */}
+      <div className="flex md:hidden rounded-lg border overflow-hidden text-sm font-medium">
+        <button
+          className={cn('flex-1 py-2 transition-colors', !showMobileTags ? 'bg-amber-500 text-white' : 'text-muted-foreground hover:bg-gray-50')}
+          onClick={() => setShowMobileTags(false)}
+        >時間區段</button>
+        <button
+          className={cn('flex-1 py-2 transition-colors', showMobileTags ? 'bg-amber-500 text-white' : 'text-muted-foreground hover:bg-gray-50')}
+          onClick={() => setShowMobileTags(true)}
+        >標籤庫</button>
+      </div>
+
       {timelineMode ? (
         <Card>
           <CardHeader className="pb-2 pt-3 px-4">
@@ -400,8 +413,9 @@ export default function SchedulePage() {
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid grid-cols-[180px_1fr] gap-4 items-start">
-          {/* 左欄：標籤清單（同時是 library-drop 放置區） */}
+        <div className="grid md:grid-cols-[200px_1fr] gap-4 items-start">
+          {/* 左欄：標籤清單（手機隱藏/切換，桌機固定顯示） */}
+          <div className={cn(showMobileTags ? 'block' : 'hidden', 'md:block')}>
           <LibraryDropZone>
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
@@ -430,8 +444,10 @@ export default function SchedulePage() {
               ))}
             </div>
           </LibraryDropZone>
+          </div>
 
-          {/* 右欄：時間區段清單 */}
+          {/* 右欄：時間區段清單（手機上切換時隱藏標籤庫則顯示此欄） */}
+          <div className={cn(!showMobileTags ? 'block' : 'hidden', 'md:block')}>
           <Card>
             <CardHeader className="pb-2 pt-3 px-4">
               <CardTitle className="text-sm text-muted-foreground">
@@ -491,6 +507,7 @@ export default function SchedulePage() {
               </Button>
             </CardContent>
           </Card>
+          </div>{/* end right-col wrapper */}
         </div>
 
         {/* 拖拉浮標 */}
