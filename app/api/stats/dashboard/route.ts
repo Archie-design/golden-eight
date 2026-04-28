@@ -27,7 +27,7 @@ export async function GET() {
     const d    = `${yearMonth}-${String(i + 1).padStart(2, '0')}`
     const rec  = monthRecs.find(r => r.date === d)
     const score = rec ? rec.total_score : null
-    return { date: d, day: i + 1, score, color: getCalendarColor(score) }
+    return { date: d, day: i + 1, score, color: getCalendarColor(score), note: rec?.note ?? '' }
   })
 
   // 各任務累計次數

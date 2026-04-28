@@ -1,3 +1,6 @@
+'use client'
+
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
 interface CalendarDay {
@@ -5,6 +8,7 @@ interface CalendarDay {
   day:   number
   score: number | null
   color: string
+  note?: string
 }
 
 interface CalendarGridProps {
@@ -14,9 +18,16 @@ interface CalendarGridProps {
 const DOW = ['日', '一', '二', '三', '四', '五', '六']
 
 export function CalendarGrid({ days }: CalendarGridProps) {
+  const [selected, setSelected] = useState<CalendarDay | null>(null)
+
   if (!days.length) return null
 
   const firstDow = new Date(days[0].date + 'T00:00:00+08:00').getDay()
+
+  function handleClick(day: CalendarDay) {
+    if (!day.note) { setSelected(null); return }
+    setSelected(prev => prev?.date === day.date ? null : day)
+  }
 
   return (
     <div>
@@ -41,19 +52,37 @@ export function CalendarGrid({ days }: CalendarGridProps) {
         {Array.from({ length: firstDow }).map((_, i) => (
           <div key={'pad' + i} />
         ))}
-        {days.map(day => (
-          <div
-            key={day.date}
-            title={day.score !== null ? `${day.date}: ${day.score} 分` : day.date}
-            className={cn(
-              'flex aspect-square items-center justify-center rounded text-sm font-medium cursor-default',
-              day.color
-            )}
-          >
-            {day.day}
-          </div>
-        ))}
+        {days.map(day => {
+          const hasNote = !!day.note
+          const isSelected = selected?.date === day.date
+          return (
+            <div
+              key={day.date}
+              title={day.score !== null ? `${day.date}: ${day.score} 分` : day.date}
+              onClick={() => handleClick(day)}
+              className={cn(
+                'relative flex aspect-square items-center justify-center rounded text-sm font-medium',
+                day.color,
+                hasNote ? 'cursor-pointer' : 'cursor-default',
+                isSelected && 'ring-2 ring-amber-400 ring-offset-1',
+              )}
+            >
+              {day.day}
+              {hasNote && (
+                <span className="absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-amber-500" />
+              )}
+            </div>
+          )
+        })}
       </div>
+
+      {/* 備註面板 */}
+      {selected && (
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
+          <span className="mr-2 text-xs font-medium text-amber-600">{selected.date}</span>
+          <span className="text-gray-700">{selected.note}</span>
+        </div>
+      )}
     </div>
   )
 }

@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { CalendarGrid } from '@/components/CalendarGrid'
 import { AchievementWall } from '@/components/AchievementBadge'
-import { AppIcon } from '@/lib/icons'
+import { AppIcon, TaskIcon } from '@/lib/icons'
 import { TASKS, LEVEL_THRESHOLDS } from '@/lib/constants'
 
 interface DashboardData {
@@ -23,7 +23,7 @@ interface DashboardData {
   remaining: number
   punchStreak: number
   maxPunchMonth: number
-  calendar: { date: string; day: number; score: number | null; color: string }[]
+  calendar: { date: string; day: number; score: number | null; color: string; note?: string }[]
   taskCounts: number[]
   achievements: { code: string }[]
   showNextLevelBtn: boolean
@@ -390,8 +390,8 @@ export default function DashboardPage() {
           {TASKS.map((task, i) => (
             <div key={i} className="flex items-center gap-2">
               <div className="w-28 flex items-center gap-1.5 text-sm shrink-0">
-                <span className="text-amber-600">
-                  <AppIcon name={task.icon} className="w-4 h-4" />
+                <span>
+                  <TaskIcon image={task.image} name={task.icon} className="w-5 h-5" />
                 </span>
                 {task.name}
               </div>

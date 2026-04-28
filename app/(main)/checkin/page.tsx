@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import {
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { ProgressBar } from '@/components/ProgressBar'
-import { AppIcon } from '@/lib/icons'
+import { AppIcon, TaskIcon } from '@/lib/icons'
 import { TASKS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 
@@ -35,7 +35,9 @@ export default function CheckInPage() {
   const [loading, setLoading]   = useState(false)
   const [achQueue, setAchQueue] = useState<NewAchievement[]>([])
   const [showAch, setShowAch]   = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
+  const [isEditing, setIsEditing]       = useState(false)
+  const [expandedTask, setExpandedTask] = useState<number | null>(null)
+  const expandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function loadData() {
     fetch('/api/checkin/today')
@@ -67,6 +69,12 @@ export default function CheckInPage() {
 
   function toggleTask(i: number) {
     setChecked(prev => prev.map((v, idx) => idx === i ? !v : v))
+  }
+
+  function showIconPopup(i: number) {
+    if (expandTimerRef.current) clearTimeout(expandTimerRef.current)
+    setExpandedTask(i)
+    expandTimerRef.current = setTimeout(() => setExpandedTask(null), 1000)
   }
 
   async function handleSubmit() {
@@ -201,7 +209,7 @@ export default function CheckInPage() {
               {TASKS.map((task, i) => (
                 <button
                   key={i}
-                  onClick={() => toggleTask(i)}
+                  onClick={() => { toggleTask(i); showIconPopup(i) }}
                   className={cn(
                     'w-full flex items-center gap-3 rounded-xl border p-3 text-left transition-all cursor-pointer',
                     checked[i]
@@ -209,8 +217,8 @@ export default function CheckInPage() {
                       : 'border-gray-100 bg-white hover:border-gray-200'
                   )}
                 >
-                  <span className="text-amber-600 shrink-0">
-                    <AppIcon name={task.icon} className="w-6 h-6" />
+                  <span className="shrink-0">
+                    <TaskIcon image={task.image} name={task.icon} className="w-10 h-10" />
                   </span>
                   <div className="flex-1">
                     <div className="font-medium text-sm">{task.name}</div>
@@ -272,6 +280,19 @@ export default function CheckInPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {expandedTask !== null && (
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
+          <div className="rounded-3xl bg-white/80 p-4 shadow-2xl backdrop-blur-sm">
+            <img
+              src={TASKS[expandedTask].image}
+              alt={TASKS[expandedTask].name}
+              className="w-52 h-52"
+              style={{ mixBlendMode: 'multiply' }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
