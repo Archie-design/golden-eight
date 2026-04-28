@@ -124,11 +124,13 @@ export async function GET(req: NextRequest) {
   }).eq('id', member.id)
 
   // 回傳 HTML：嘗試 postMessage 給 PWA 父視窗，iOS 無 opener 時顯示手動關閉提示
-  const payload = JSON.stringify({
+  // D2: JSON.stringify does not escape </script>; replace < > with Unicode escapes
+  // so the inline <script> block cannot be terminated by a LINE display name.
+  const safePayload = JSON.stringify({
     type:        'line_bound',
     displayName: profile.displayName,
     pictureUrl:  profile.pictureUrl ?? null,
-  })
+  }).replace(/</g, '\\u003c').replace(/>/g, '\\u003e')
   const html = `<!doctype html><html lang="zh-TW"><head>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>綁定成功</title>
@@ -148,7 +150,7 @@ export async function GET(req: NextRequest) {
   <p class="sub" id="sub">正在關閉視窗…</p>
   <button id="btn" style="display:none" onclick="window.close()">關閉視窗</button>
 </div><script>
-  var data = ${payload};
+  var data = ${safePayload};
   if (window.opener) {
     try { window.opener.postMessage(data, location.origin) } catch(e) {}
     window.close();

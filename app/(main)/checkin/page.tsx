@@ -252,7 +252,8 @@ export default function CheckInPage() {
                     step="0.5"
                     value={workHours}
                     onChange={e => {
-                      const v = e.target.value
+                      const raw = e.target.value
+                      const v   = raw === '' ? '' : String(Math.max(0, Number(raw)))
                       setWorkHours(v)
                       setChecked(prev => prev.map((old, idx) => idx === 4 ? Number(v) > 0 : old))
                     }}

@@ -32,7 +32,8 @@
       "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(m\\) for f in data for m in f.get\\('messages',[]\\)]\")",
       "Bash(npx eslint *)",
       "Bash(python3 -c ' *)",
-      "Bash(node -e \"const { ImageResponse } = require\\('next/og'\\); console.log\\('next/og available'\\)\")"
+      "Bash(node -e \"const { ImageResponse } = require\\('next/og'\\); console.log\\('next/og available'\\)\")",
+      "Bash(git -C /Users/keke/黃金八套餐定課系統/golden-eight diff 21d04b3..HEAD -- \"app/\\(main\\)/dashboard/page.tsx\")"
     ]
   }
 }

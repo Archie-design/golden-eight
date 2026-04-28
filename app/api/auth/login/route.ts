@@ -14,7 +14,6 @@ type MemberRow = {
   id:               string
   name:             string
   phone_full:       string | null
-  phone_last3:      string | null
   phone_hash:       string | null
   password_hash:    string | null
   is_admin:         boolean
@@ -38,15 +37,15 @@ export async function POST(request: NextRequest) {
   const now       = Date.now()
 
   const { data: candidates } = await db
-    .from('members').select('*')
+    .from('members')
+    .select('id, name, phone_hash, phone_full, password_hash, is_admin, token_version, failed_attempts, locked_until, status')
     .eq('name', name)
     .eq('status', '活躍')
   const matches = (candidates ?? []) as MemberRow[]
 
-  // 優先用 phone_hash 比對；舊帳號 phone_hash 為 null 時 fallback 到 phone_last3
-  const hit =
-    matches.find(m => m.phone_hash !== null && m.phone_hash === phoneHash) ??
-    matches.find(m => m.phone_hash === null && m.phone_last3 === phone.slice(-3))
+  // D1: phone_last3 fallback removed (C-1 regression fix). Accounts with phone_hash=null
+  // require admin to backfill the hash before they can log in again.
+  const hit = matches.find(m => m.phone_hash !== null && m.phone_hash === phoneHash)
 
   // 命中 → 檢查鎖定
   if (hit?.locked_until && Date.parse(hit.locked_until) > now) {

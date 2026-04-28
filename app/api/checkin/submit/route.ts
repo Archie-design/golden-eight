@@ -222,7 +222,11 @@ export async function PATCH(request: NextRequest) {
   const totalCount   = totalCntRes.count   ?? 0
   const perfectCount = perfectCntRes.count ?? 0
   const recent       = (recentRes.data ?? []) as CheckInRecord[]
-  const todayFull    = recent.find(r => r.date === target) as CheckInRecord
+  const todayFull    = recent.find(r => r.date === target)
+  if (!todayFull) {
+    console.error('[checkin/edit] todayFull not found after update', { target })
+    return NextResponse.json({ ok: false, msg: '修改失敗，請稍後再試' }, { status: 500 })
+  }
   const alreadyCodes = (unlockedRes.data ?? []).map((a: { code: string }) => a.code)
 
   const { add, remove } = reconcileAchievementsAfterEdit({
