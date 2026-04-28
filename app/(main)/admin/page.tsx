@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { toast } from 'sonner'
-import { Star, CheckCircle2, X, Crown, PartyPopper, Download, Trophy, Medal, KeyRound } from 'lucide-react'
+import { Star, CheckCircle2, X, Crown, PartyPopper, Download, Trophy, Medal, KeyRound, AlertTriangle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-interface Member     { id: string; name: string; join_date: string; level: string; status: string }
+interface Member     { id: string; name: string; join_date: string; level: string; next_level?: string | null; status: string }
 interface ProgressRow { id: string; name: string; level: string; totalScore: number; maxScore: number; rate: number; passing: boolean; maxStreak: number; isDawnKing: boolean }
 interface PenaltyRow  { name: string; level: string; rate: number; penalty: number }
 interface AchStat     { code: string; name: string; count: number; pct: number }
@@ -98,6 +98,20 @@ export default function AdminPage() {
       <h1 className="flex items-center gap-2 text-xl font-bold">
         <Star className="w-5 h-5 text-amber-500 fill-amber-400" /> 管理員後台
       </h1>
+
+      {new Date().getDate() >= 25 && (() => {
+        const missing = members.filter(m => m.status === '活躍' && !m.next_level)
+        if (!missing.length) return null
+        return (
+          <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-orange-800">尚未選擇隔月階梯（{missing.length} 人）</p>
+              <p className="text-sm text-orange-700 mt-0.5">{missing.map(m => m.name).join('、')}</p>
+            </div>
+          </div>
+        )
+      })()}
 
       <Tabs defaultValue="progress" onValueChange={v => {
         if (v === 'penalty')      loadPenalty(penaltyYM)
