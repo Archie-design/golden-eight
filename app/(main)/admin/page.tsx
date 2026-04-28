@@ -114,8 +114,9 @@ export default function AdminPage() {
       })()}
 
       <Tabs defaultValue="progress" onValueChange={v => {
-        if (v === 'penalty')      loadPenalty(penaltyYM)
-        if (v === 'achievements') loadAchievements()
+        // Lazy-load tab data only on first visit; "重新整理" 按鈕保留手動更新
+        if (v === 'penalty'      && !penaltyData)        loadPenalty(penaltyYM)
+        if (v === 'achievements' && achStats.length === 0) loadAchievements()
       }}>
         <TabsList className="w-full">
           <TabsTrigger value="progress"     className="flex-1">全員進度</TabsTrigger>

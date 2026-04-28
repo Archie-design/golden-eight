@@ -11,13 +11,16 @@ export async function GET(req: NextRequest) {
 
   const { data: rows } = await db
     .from('monthly_summary')
-    .select('*, members(name, level)')
+    .select('rate, penalty, members(name, level)')
     .eq('year_month', yearMonth)
     .eq('passing', false)
 
-  const total = (rows ?? []).reduce((s: number, r: { penalty: number }) => s + (r.penalty ?? 0), 0)
+  type Row = { rate: number; penalty: number; members: { name: string; level: string } | null }
+  const typedRows = (rows ?? []) as unknown as Row[]
 
-  const formatted = (rows ?? []).map((r: { members: { name: string; level: string }; rate: number; penalty: number }) => ({
+  const total = typedRows.reduce((s, r) => s + (r.penalty ?? 0), 0)
+
+  const formatted = typedRows.map(r => ({
     name:    r.members?.name,
     level:   r.members?.level,
     rate:    r.rate,

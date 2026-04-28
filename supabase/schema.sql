@@ -227,6 +227,8 @@ CREATE INDEX IF NOT EXISTS idx_achievements_member ON achievements(member_id);
 CREATE INDEX IF NOT EXISTS idx_achievements_code   ON achievements(code);
 CREATE INDEX IF NOT EXISTS idx_schedule_member     ON schedule_template(member_id);
 CREATE INDEX IF NOT EXISTS idx_tag_member          ON tag_library(member_id);
+CREATE INDEX IF NOT EXISTS idx_members_status_active
+  ON members(status) WHERE status = '活躍';
 
 -- ============================================================
 -- Row Level Security（審查報告 P1-8）

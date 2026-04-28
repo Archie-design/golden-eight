@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-helper'
 import { calcNewAchievementsFromAggregates } from '@/lib/scoring'
+import { RECORD_COLS_STATS } from '@/lib/db-columns'
 import type { Member, CheckInRecord } from '@/types'
 
 const STREAK_WINDOW = 105
@@ -14,7 +15,7 @@ export async function POST() {
   const { db } = admin
 
   const { data: members } = await db
-    .from('members').select('*').eq('status', '活躍').order('id')
+    .from('members').select('id, name').eq('status', '活躍').order('id')
 
   if (!members?.length) return NextResponse.json({ ok: true, inserted: 0, detail: [] })
 
@@ -23,7 +24,7 @@ export async function POST() {
 
   for (const member of members as Member[]) {
     const { data: allRecs } = await db
-      .from('checkin_records').select('*')
+      .from('checkin_records').select(RECORD_COLS_STATS)
       .eq('member_id', member.id).order('date')
 
     const { data: existing } = await db

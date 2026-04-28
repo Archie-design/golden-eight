@@ -4,6 +4,7 @@ import { calcBaseScore, calcNewAchievementsFromAggregates, reconcileAchievements
 import { CheckInSubmitSchema, parseBody } from '@/lib/validation'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { ACHIEVEMENT_LIST } from '@/lib/constants'
+import { RECORD_COLS_STATS } from '@/lib/db-columns'
 import type { CheckInRecord } from '@/types'
 
 // 計算 streak 成就所需的最小查詢窗（最長 streak 目標為 100 天）
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
       .select('id', { count: 'exact', head: true })
       .eq('member_id', member.id)
       .eq('base_score', 8),
-    db.from('checkin_records').select('*')
+    db.from('checkin_records').select(RECORD_COLS_STATS)
       .eq('member_id', member.id)
       .gte('date', windowStart)
       .lte('date', target)
@@ -163,7 +164,7 @@ export async function PATCH(request: NextRequest) {
 
   // 必須有既有記錄
   const { data: existingRow } = await db
-    .from('checkin_records').select('*')
+    .from('checkin_records').select(RECORD_COLS_STATS)
     .eq('member_id', member.id).eq('date', target).maybeSingle()
   const existing = existingRow as CheckInRecord | null
   if (!existing) {
@@ -214,7 +215,7 @@ export async function PATCH(request: NextRequest) {
       .select('id', { count: 'exact', head: true }).eq('member_id', member.id),
     db.from('checkin_records')
       .select('id', { count: 'exact', head: true }).eq('member_id', member.id).eq('base_score', 8),
-    db.from('checkin_records').select('*')
+    db.from('checkin_records').select(RECORD_COLS_STATS)
       .eq('member_id', member.id).gte('date', windowStart).lte('date', target).order('date'),
     db.from('achievements').select('code').eq('member_id', member.id),
   ])

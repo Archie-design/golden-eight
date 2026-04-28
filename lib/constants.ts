@@ -3,14 +3,14 @@
 // ============================================================
 
 export const TASKS = [
-  { name: '早睡早起',        icon: 'Moon',      image: '/icons/tasks/task-1.png', desc: '12 前入睡，早上 7 前起床' },
-  { name: '破曉打拳',        icon: 'Dumbbell',  image: '/icons/tasks/task-2.png', desc: '日出後 10 分鐘內完成' },
-  { name: '丹氣跑步 15 分鐘', icon: 'Activity', image: '/icons/tasks/task-3.png', desc: '雨天可室內跑步' },
-  { name: '曬太陽',           icon: 'Sun',       image: '/icons/tasks/task-4.png', desc: '陰雨天不計分' },
-  { name: '工作 8 小時',     icon: 'Briefcase', image: '/icons/tasks/task-5.png', desc: '月累計 160 小時以上' },
-  { name: '不吃肉',           icon: 'Leaf',      image: '/icons/tasks/task-6.png', desc: '各素食級別皆可' },
-  { name: '寫觀心書',         icon: 'BookOpen',  image: '/icons/tasks/task-7.png', desc: '一階可寫覺察日記' },
-  { name: '淨心功法',         icon: 'Wind',      image: '/icons/tasks/task-8.png', desc: '睡前效果更好' },
+  { name: '早睡早起',        icon: 'Moon',      image: '/icons/tasks/task-1.jpg', desc: '12 前入睡，早上 7 前起床' },
+  { name: '破曉打拳',        icon: 'Dumbbell',  image: '/icons/tasks/task-2.jpg', desc: '日出後 10 分鐘內完成' },
+  { name: '丹氣跑步 15 分鐘', icon: 'Activity', image: '/icons/tasks/task-3.jpg', desc: '雨天可室內跑步' },
+  { name: '曬太陽',           icon: 'Sun',       image: '/icons/tasks/task-4.jpg', desc: '陰雨天不計分' },
+  { name: '工作 8 小時',     icon: 'Briefcase', image: '/icons/tasks/task-5.jpg', desc: '月累計 160 小時以上' },
+  { name: '不吃肉',           icon: 'Leaf',      image: '/icons/tasks/task-6.jpg', desc: '各素食級別皆可' },
+  { name: '寫觀心書',         icon: 'BookOpen',  image: '/icons/tasks/task-7.jpg', desc: '一階可寫覺察日記' },
+  { name: '淨心功法',         icon: 'Wind',      image: '/icons/tasks/task-8.jpg', desc: '睡前效果更好' },
 ] as const
 
 export const LEVEL_THRESHOLDS: Record<string, number> = {

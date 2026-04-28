@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { CalendarGrid } from '@/components/CalendarGrid'
 import { AchievementWall } from '@/components/AchievementBadge'
-import { AppIcon, TaskIcon } from '@/lib/icons'
+import { TaskIcon } from '@/lib/icons'
 import { TASKS, LEVEL_THRESHOLDS } from '@/lib/constants'
 import { DailyRateChart } from '@/components/DailyRateChart'
 
@@ -113,12 +113,17 @@ export default function DashboardPage() {
   }, [searchParams])
 
   useEffect(() => {
-    fetch('/api/stats/dashboard')
-      .then(r => r.json())
-      .then(json => { if (json.ok) setData(json); else toast.error(json.msg) })
-    fetch('/api/stats/history')
-      .then(r => r.json())
-      .then(json => { if (json.ok) setHistory(json.history) })
+    const ac = new AbortController()
+    Promise.all([
+      fetch('/api/stats/dashboard', { signal: ac.signal }).then(r => r.json()),
+      fetch('/api/stats/history',   { signal: ac.signal }).then(r => r.json()),
+    ]).then(([dash, hist]) => {
+      if (dash.ok) setData(dash); else toast.error(dash.msg)
+      if (hist.ok) setHistory(hist.history)
+    }).catch(e => {
+      if (e.name !== 'AbortError') console.error('[dashboard] fetch failed', e)
+    })
+    return () => ac.abort()
   }, [])
 
   async function bindLine() {

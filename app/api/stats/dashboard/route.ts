@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getCurrentMember, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
-import { calcMonthStats, calcMaxPunchStreak } from '@/lib/scoring'
+import { calcMonthStats, calcMaxPunchStreakFromSorted } from '@/lib/scoring'
 import { getCalendarColor } from '@/lib/constants'
 import { getWorkingDaysInMonth } from '@/lib/working-days'
+import { RECORD_COLS_STATS } from '@/lib/db-columns'
 import type { CheckInRecord } from '@/types'
 
 export async function GET() {
@@ -14,14 +15,14 @@ export async function GET() {
   const yearMonth = today.substring(0, 7)
   const day       = parseInt(today.split('-')[2], 10)
   const [monthRecsRes, achievementsRes, workingDays] = await Promise.all([
-    db.from('checkin_records').select('*').eq('member_id', member.id).gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth)).order('date'),
-    db.from('achievements').select('*').eq('member_id', member.id),
+    db.from('checkin_records').select(RECORD_COLS_STATS).eq('member_id', member.id).gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth)).order('date'),
+    db.from('achievements').select('code, unlocked_at').eq('member_id', member.id),
     getWorkingDaysInMonth(yearMonth, db),
   ])
 
   const monthRecs = (monthRecsRes.data ?? []) as CheckInRecord[]
   const stats     = calcMonthStats(member, monthRecs, today)
-  const maxStreak = calcMaxPunchStreak(monthRecs)
+  const maxStreak = calcMaxPunchStreakFromSorted(monthRecs)
 
   // 月曆格
   const daysInMonth = new Date(parseInt(yearMonth.split('-')[0]), parseInt(yearMonth.split('-')[1]), 0).getDate()

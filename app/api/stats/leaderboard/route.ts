@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getTokenPayload, getTodayTaipei, getYearMonth, getMonthEnd } from '@/lib/api-helper'
 import { createServerClient } from '@/lib/supabase/server'
-import { calcMonthStats, calcMaxPunchStreak } from '@/lib/scoring'
+import { calcMonthStats, calcMaxPunchStreakFromSorted } from '@/lib/scoring'
+import { MEMBER_COLS_STATS, RECORD_COLS_STATS } from '@/lib/db-columns'
 import type { Member, CheckInRecord } from '@/types'
 
 // GET /api/stats/leaderboard?mode=current|best
@@ -17,7 +18,7 @@ export async function GET(req: Request) {
   const ym    = getYearMonth(today)
 
   const { data: members } = await db
-    .from('members').select('*').eq('status', '活躍').order('id')
+    .from('members').select(MEMBER_COLS_STATS).eq('status', '活躍').order('id')
 
   if (!members?.length) return NextResponse.json({ ok: true, mode, rows: [] })
 
@@ -43,9 +44,10 @@ export async function GET(req: Request) {
   if (mode === 'current') {
     // ── Current-month leaderboard (calculated live) ───────────────────────
     const { data: allRecs } = await db
-      .from('checkin_records').select('*')
+      .from('checkin_records').select(RECORD_COLS_STATS)
       .in('member_id', members.map((m: Member) => m.id))
       .gte('date', ym + '-01').lte('date', getMonthEnd(ym))
+      .order('date')
 
     const recsByMember: Record<string, CheckInRecord[]> = {}
     ;(allRecs ?? []).forEach((r: CheckInRecord) => {
@@ -56,7 +58,7 @@ export async function GET(req: Request) {
     // Find dawn king: member with highest maxStreak this month
     const streaks = members.map((m: Member) => ({
       id: m.id,
-      streak: calcMaxPunchStreak(recsByMember[m.id] ?? []),
+      streak: calcMaxPunchStreakFromSorted(recsByMember[m.id] ?? []),
     }))
     const maxStreak = Math.max(...streaks.map(s => s.streak), 0)
     const dawnKingIds = new Set(
@@ -66,7 +68,7 @@ export async function GET(req: Request) {
     rows = members.map((m: Member) => {
       const recs      = recsByMember[m.id] ?? []
       const stats     = calcMonthStats(m, recs, today)
-      const maxS      = calcMaxPunchStreak(recs)
+      const maxS      = calcMaxPunchStreakFromSorted(recs)
       return {
         id:               m.id,
         name:             m.name,
@@ -84,7 +86,8 @@ export async function GET(req: Request) {
   } else {
     // ── Historical best (from monthly_summary) ────────────────────────────
     const { data: summaries } = await db
-      .from('monthly_summary').select('*')
+      .from('monthly_summary')
+      .select('member_id, rate, total_score, year_month, max_streak, is_dawn_king')
       .in('member_id', members.map((m: Member) => m.id))
 
     const bestByMember: Record<string, { rate: number; totalScore: number; yearMonth: string; maxStreak: number; isDawnKing: boolean }> = {}

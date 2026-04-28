@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
   if (lineContext === 'login') {
     const { data: member } = await db
       .from('members')
-      .select('*')
+      .select('id, is_admin, token_version')
       .eq('line_user_id', profile.userId)
       .eq('status', '活躍')
       .maybeSingle()

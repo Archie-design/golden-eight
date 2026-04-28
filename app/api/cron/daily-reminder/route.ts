@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { getTodayTaipei, getYearMonth, getMonthEnd } from '@/lib/api-helper'
 import { calcMonthStats } from '@/lib/scoring'
+import { MEMBER_COLS_STATS, RECORD_COLS_STATS } from '@/lib/db-columns'
 import type { Member, CheckInRecord } from '@/types'
 
 // GET /api/cron/daily-reminder  (called by Vercel Cron at 22:00 UTC = 06:00 CST)
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
 
   // Fetch active members who have NOT checked in today
   const { data: members } = await db
-    .from('members').select('*').eq('status', '活躍')
+    .from('members').select(MEMBER_COLS_STATS).eq('status', '活躍')
 
   const { data: todayRecs } = await db
     .from('checkin_records').select('member_id').eq('date', today)
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
 
   // For each missing member, compute their current month stats to include in the message
   const { data: monthRecs } = await db
-    .from('checkin_records').select('*')
+    .from('checkin_records').select(RECORD_COLS_STATS)
     .in('member_id', missing.map((m: Member) => m.id))
     .gte('date', ym + '-01').lte('date', getMonthEnd(ym))
 

@@ -1,6 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+
+const W = 400, H = 200
+const PAD = { top: 28, right: 36, bottom: 22, left: 32 }
+const INNER_W = W - PAD.left - PAD.right
+const INNER_H = H - PAD.top  - PAD.bottom
+const Y_TICKS = [0, 25, 50, 75, 100]
 
 export function DailyRateChart({
   calendar,
@@ -13,57 +19,54 @@ export function DailyRateChart({
   const [startDay, setStartDay] = useState(1)
   const [endDay,   setEndDay]   = useState(total)
 
-  const W = 400, H = 200
-  const PAD = { top: 28, right: 36, bottom: 22, left: 32 }
-  const innerW = W - PAD.left - PAD.right
-  const innerH = H - PAD.top  - PAD.bottom
+  // 純座標計算：startDay/endDay/calendar/threshold 不變時不重算
+  const { segments, dots, xLabelDays, threshPct, threshY, xPos } = useMemo(() => {
+    const span = endDay - startDay
+    const xPos = (day: number) => PAD.left + ((day - startDay) / Math.max(span, 1)) * INNER_W
+    const yPos = (pct: number) => PAD.top  + (1 - pct / 100) * INNER_H
 
-  const span   = endDay - startDay
-  const xPos   = (day: number) => PAD.left + ((day - startDay) / Math.max(span, 1)) * innerW
-  const yPos   = (pct: number) => PAD.top  + (1 - pct / 100) * innerH
+    const threshPct = Math.round(threshold * 100)
+    const threshY   = yPos(threshPct)
 
-  const threshPct = Math.round(threshold * 100)
-  const threshY   = yPos(threshPct)
-  const yTicks    = [0, 25, 50, 75, 100]
+    const filtered = calendar.filter(d => d.day >= startDay && d.day <= endDay)
 
-  const filtered = calendar.filter(d => d.day >= startDay && d.day <= endDay)
-
-  // Polyline segments — break on null gaps
-  const segments: string[][] = []
-  let cur: string[] = []
-  for (const d of filtered) {
-    if (d.score !== null) {
-      cur.push(`${xPos(d.day)},${yPos(Math.round((d.score / 8) * 100))}`)
-    } else {
-      if (cur.length) { segments.push(cur); cur = [] }
+    const segments: string[][] = []
+    let cur: string[] = []
+    for (const d of filtered) {
+      if (d.score !== null) {
+        cur.push(`${xPos(d.day)},${yPos(Math.round((d.score / 8) * 100))}`)
+      } else {
+        if (cur.length) { segments.push(cur); cur = [] }
+      }
     }
-  }
-  if (cur.length) segments.push(cur)
+    if (cur.length) segments.push(cur)
 
-  const dots = filtered
-    .filter(d => d.score !== null)
-    .map(d => ({
-      x:    xPos(d.day),
-      y:    yPos(Math.round((d.score! / 8) * 100)),
-      rate: Math.round((d.score! / 8) * 100),
-    }))
+    const dots = filtered
+      .filter(d => d.score !== null)
+      .map(d => ({
+        x:    xPos(d.day),
+        y:    yPos(Math.round((d.score! / 8) * 100)),
+        rate: Math.round((d.score! / 8) * 100),
+      }))
 
-  // X-axis labels: every day when span ≤ 10, else ~5 evenly spaced
-  const xLabelDays: number[] = []
-  if (span <= 10) {
-    for (let d = startDay; d <= endDay; d++) xLabelDays.push(d)
-  } else {
-    const step = Math.ceil(span / 4)
-    for (let d = startDay; d <= endDay; d += step) xLabelDays.push(d)
-    if (xLabelDays[xLabelDays.length - 1] !== endDay) xLabelDays.push(endDay)
-  }
+    const xLabelDays: number[] = []
+    if (span <= 10) {
+      for (let d = startDay; d <= endDay; d++) xLabelDays.push(d)
+    } else {
+      const step = Math.ceil(span / 4)
+      for (let d = startDay; d <= endDay; d += step) xLabelDays.push(d)
+      if (xLabelDays[xLabelDays.length - 1] !== endDay) xLabelDays.push(endDay)
+    }
 
-  const presets: { label: string; s: number; e: number }[] = [
+    return { segments, dots, xLabelDays, threshPct, threshY, xPos }
+  }, [calendar, startDay, endDay, threshold])
+
+  const presets: { label: string; s: number; e: number }[] = useMemo(() => [
     { label: '全月', s: 1, e: total },
     ...(total > 10 ? [{ label: '1–10', s: 1, e: 10 }] : []),
     ...(total > 10 ? [{ label: `11–${Math.min(20, total)}`, s: 11, e: Math.min(20, total) }] : []),
     ...(total > 20 ? [{ label: `21–${total}`, s: 21, e: total }] : []),
-  ]
+  ], [total])
 
   return (
     <div>
@@ -87,12 +90,15 @@ export function DailyRateChart({
       </div>
 
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 220 }}>
-        {yTicks.map(t => (
-          <g key={t}>
-            <line x1={PAD.left} x2={W - PAD.right} y1={yPos(t)} y2={yPos(t)} stroke="#e5e7eb" strokeWidth={1} />
-            <text x={PAD.left - 4} y={yPos(t) + 4} fontSize={9} fill="#9ca3af" textAnchor="end">{t}</text>
-          </g>
-        ))}
+        {Y_TICKS.map(t => {
+          const y = PAD.top + (1 - t / 100) * INNER_H
+          return (
+            <g key={t}>
+              <line x1={PAD.left} x2={W - PAD.right} y1={y} y2={y} stroke="#e5e7eb" strokeWidth={1} />
+              <text x={PAD.left - 4} y={y + 4} fontSize={9} fill="#9ca3af" textAnchor="end">{t}</text>
+            </g>
+          )
+        })}
 
         <line
           x1={PAD.left} x2={W - PAD.right}

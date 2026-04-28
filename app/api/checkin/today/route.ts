@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getCurrentMember, getCheckinDayTaipei, getTodayTaipei, getPrevDayStr, getMonthEnd } from '@/lib/api-helper'
 import { getSunriseTime, addMinutes } from '@/lib/sunrise'
 import { calcMonthStats } from '@/lib/scoring'
+import { RECORD_COLS_STATS } from '@/lib/db-columns'
 
 export async function GET() {
   const result = await getCurrentMember()
@@ -14,9 +15,11 @@ export async function GET() {
   const yearMonth   = today.substring(0, 7)
 
   const [todayRec, prevRec, monthRecs, sunrise] = await Promise.all([
-    db.from('checkin_records').select('*').eq('member_id', member.id).eq('date', today).maybeSingle(),
+    db.from('checkin_records')
+      .select('total_score, submit_time, tasks, note, work_hours, punch_streak')
+      .eq('member_id', member.id).eq('date', today).maybeSingle(),
     db.from('checkin_records').select('punch_streak').eq('member_id', member.id).eq('date', prevDay).maybeSingle(),
-    db.from('checkin_records').select('*').eq('member_id', member.id).gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth)),
+    db.from('checkin_records').select(RECORD_COLS_STATS).eq('member_id', member.id).gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth)),
     // P2-12：只呼叫一次 getSunriseTime，再以 addMinutes 導出建議開始時間
     getSunriseTime(calendarDay),
   ])

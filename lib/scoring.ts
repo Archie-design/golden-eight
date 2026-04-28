@@ -83,8 +83,11 @@ export function calcTaskStreak(
 
 // ─── 月最長連續打拳天數 ────────────────────────────────────────
 
-export function calcMaxPunchStreak(records: CheckInRecord[]): number {
-  const sorted = [...records].sort((a, b) => a.date.localeCompare(b.date))
+/**
+ * 計算最長連續打拳天數。
+ * @param records 已依 date 升序排序的紀錄；若不確定請改呼叫 calcMaxPunchStreak（會自動排序）。
+ */
+export function calcMaxPunchStreakFromSorted(sorted: CheckInRecord[]): number {
   let max = 0, cur = 0
   for (let i = 0; i < sorted.length; i++) {
     if (sorted[i].tasks[1]) {
@@ -95,6 +98,12 @@ export function calcMaxPunchStreak(records: CheckInRecord[]): number {
     }
   }
   return max
+}
+
+/** Backward-compatible：呼叫端不確定排序時使用，內部會排序一次 */
+export function calcMaxPunchStreak(records: CheckInRecord[]): number {
+  const sorted = [...records].sort((a, b) => a.date.localeCompare(b.date))
+  return calcMaxPunchStreakFromSorted(sorted)
 }
 
 // ─── 工作時數補扣計算 ───────────────────────────────────────────

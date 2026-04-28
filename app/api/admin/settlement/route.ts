@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
-import { calcMonthStats, calcMaxPunchStreak, calcPenalty, calcMonthlyAchievements, calcWorkHoursDeduction } from '@/lib/scoring'
+import { calcMonthStats, calcMaxPunchStreakFromSorted, calcPenalty, calcMonthlyAchievements, calcWorkHoursDeduction } from '@/lib/scoring'
 import { getWorkingDaysInMonth } from '@/lib/working-days'
 import { LEVEL_THRESHOLDS } from '@/lib/constants'
+import { MEMBER_COLS_SETTLEMENT, RECORD_COLS_SETTLEMENT } from '@/lib/db-columns'
 import type { Member, CheckInRecord } from '@/types'
 
 export async function POST(req: Request) {
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
     ? body.yearMonth!
     : today.substring(0, 7)
 
-  const { data: members } = await db.from('members').select('*').eq('status', '活躍')
+  const { data: members } = await db.from('members').select(MEMBER_COLS_SETTLEMENT).eq('status', '活躍')
   if (!members?.length) return NextResponse.json({ ok: true, msg: `月結完成（${yearMonth}）`, results: [] })
 
   const memberList = members as Member[]
@@ -24,9 +25,10 @@ export async function POST(req: Request) {
 
   // 一次撈取全部打卡紀錄 + 所有成就 + 工作日數，避免 per-member N+1
   const [recsRes, achRes, workingDays] = await Promise.all([
-    db.from('checkin_records').select('*')
+    db.from('checkin_records').select(RECORD_COLS_SETTLEMENT)
       .in('member_id', memberIds)
-      .gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth)),
+      .gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth))
+      .order('date'),
     db.from('achievements').select('member_id, code')
       .in('member_id', memberIds),
     getWorkingDaysInMonth(yearMonth, db),
@@ -51,7 +53,7 @@ export async function POST(req: Request) {
   for (const m of memberList) {
     const records    = recsByMember[m.id] ?? []
     const stats      = calcMonthStats(m, records, today)
-    const maxStreak  = calcMaxPunchStreak(records)
+    const maxStreak  = calcMaxPunchStreakFromSorted(records)
     const isDawnKing = records.length > 0 && records.every(r => r.tasks[1])
 
     // 工時補扣

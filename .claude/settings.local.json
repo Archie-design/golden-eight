@@ -33,7 +33,15 @@
       "Bash(npx eslint *)",
       "Bash(python3 -c ' *)",
       "Bash(node -e \"const { ImageResponse } = require\\('next/og'\\); console.log\\('next/og available'\\)\")",
-      "Bash(git -C /Users/keke/黃金八套餐定課系統/golden-eight diff 21d04b3..HEAD -- \"app/\\(main\\)/dashboard/page.tsx\")"
+      "Bash(git -C /Users/keke/黃金八套餐定課系統/golden-eight diff 21d04b3..HEAD -- \"app/\\(main\\)/dashboard/page.tsx\")",
+      "Bash(sips -h)",
+      "Bash(sips --help)",
+      "Bash(sips -s format webp -h)",
+      "Bash(sips --formats)",
+      "Bash(mkdir -p _backup)",
+      "Bash(cp task-*.png _backup/)",
+      "Bash(sips -z 512 512 -s format jpeg -s formatOptions 85 task-__TRACKED_VAR__.png --out task-__TRACKED_VAR__.jpg)",
+      "Bash(git rm *)"
     ]
   }
 }
