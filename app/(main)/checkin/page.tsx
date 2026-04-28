@@ -22,7 +22,7 @@ interface TodayData {
   punchStart: string
   punchStreak: number
   monthRate: number
-  todayRecord: { submitted: boolean; totalScore?: number; submitTime?: string; tasks?: boolean[]; note?: string }
+  todayRecord: { submitted: boolean; totalScore?: number; submitTime?: string; tasks?: boolean[]; note?: string; work_hours?: number | null }
 }
 
 interface NewAchievement { code: string; name: string; badge: string }
@@ -36,19 +36,31 @@ export default function CheckInPage() {
   const [achQueue, setAchQueue] = useState<NewAchievement[]>([])
   const [showAch, setShowAch]   = useState(false)
   const [isEditing, setIsEditing]       = useState(false)
+  const [workHours, setWorkHours]       = useState<string>('')
   const [expandedTask, setExpandedTask] = useState<number | null>(null)
   const expandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function loadData() {
     fetch('/api/checkin/today')
       .then(r => r.json())
-      .then(json => { if (json.ok) { setData(json); setChecked(Array(8).fill(false)); setNote(''); setIsEditing(false) } else toast.error(json.msg) })
+      .then(json => {
+        if (json.ok) {
+          setData(json)
+          setChecked(Array(8).fill(false))
+          setNote('')
+          setWorkHours('')
+          setIsEditing(false)
+        } else {
+          toast.error(json.msg)
+        }
+      })
   }
 
   function startEdit() {
     if (!data?.todayRecord.submitted) return
     setChecked(data.todayRecord.tasks ?? Array(8).fill(false))
     setNote(data.todayRecord.note ?? '')
+    setWorkHours(data.todayRecord.work_hours != null ? String(data.todayRecord.work_hours) : '')
     setIsEditing(true)
   }
 
@@ -56,6 +68,7 @@ export default function CheckInPage() {
     setIsEditing(false)
     setChecked(Array(8).fill(false))
     setNote('')
+    setWorkHours('')
   }
 
   useEffect(() => { loadData() }, [])
@@ -74,7 +87,7 @@ export default function CheckInPage() {
   function showIconPopup(i: number) {
     if (expandTimerRef.current) clearTimeout(expandTimerRef.current)
     setExpandedTask(i)
-    expandTimerRef.current = setTimeout(() => setExpandedTask(null), 1000)
+    expandTimerRef.current = setTimeout(() => setExpandedTask(null), 800)
   }
 
   async function handleSubmit() {
@@ -83,7 +96,11 @@ export default function CheckInPage() {
     const res  = await fetch('/api/checkin/submit', {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tasks: checked, note }),
+      body: JSON.stringify({
+        tasks: checked,
+        note,
+        ...(workHours !== '' ? { work_hours: Number(workHours) } : {}),
+      }),
     })
     const json = await res.json()
     setLoading(false)
@@ -182,6 +199,9 @@ export default function CheckInPage() {
                   )}>
                     <CheckCircle2 className={cn('w-4 h-4 shrink-0', data.todayRecord.tasks![i] ? 'text-green-500' : 'text-gray-300')} />
                     <span className="font-medium">{task.name}</span>
+                    {i === 4 && data.todayRecord.work_hours != null && (
+                      <span className="ml-auto text-xs opacity-70">{data.todayRecord.work_hours} 小時</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -206,7 +226,43 @@ export default function CheckInPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {TASKS.map((task, i) => (
+              {TASKS.map((task, i) => i === 4 ? (
+                // 工作 8 小時：數字輸入取代勾選
+                <div
+                  key={i}
+                  onClick={() => showIconPopup(i)}
+                  className={cn(
+                    'w-full flex items-center gap-3 rounded-xl border p-3 transition-all',
+                    checked[i]
+                      ? 'border-yellow-400 bg-yellow-50 shadow-sm'
+                      : 'border-gray-100 bg-white'
+                  )}
+                >
+                  <span className="shrink-0">
+                    <TaskIcon image={task.image} name={task.icon} className="w-10 h-10" />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm">{task.name}</div>
+                    <div className="text-xs text-muted-foreground">{task.desc}</div>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    max="24"
+                    step="0.5"
+                    value={workHours}
+                    onChange={e => {
+                      const v = e.target.value
+                      setWorkHours(v)
+                      setChecked(prev => prev.map((old, idx) => idx === 4 ? Number(v) > 0 : old))
+                    }}
+                    onClick={e => e.stopPropagation()}
+                    placeholder="0"
+                    className="w-16 shrink-0 rounded-lg border border-gray-200 px-2 py-1 text-center text-sm focus:border-yellow-400 focus:outline-none"
+                  />
+                  <span className="shrink-0 text-xs text-muted-foreground">小時</span>
+                </div>
+              ) : (
                 <button
                   key={i}
                   onClick={() => { toggleTask(i); showIconPopup(i) }}

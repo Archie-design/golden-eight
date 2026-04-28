@@ -51,6 +51,7 @@ export interface CheckInRecord {
   base_score: number        // 0-8
   punch_bonus: number       // 0 or 0.5
   total_score: number       // 0-8.5
+  work_hours?: number | null
   note?: string
   submit_time: string
 }
@@ -66,6 +67,7 @@ export interface MonthlySummary {
   penalty: number           // NT$
   max_streak: number
   is_dawn_king: boolean
+  work_hours_deduction: number
   settled_at?: string | null
 }
 

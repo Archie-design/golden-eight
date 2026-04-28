@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getCurrentMember, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
 import { calcMonthStats, calcMaxPunchStreak } from '@/lib/scoring'
 import { getCalendarColor } from '@/lib/constants'
+import { getWorkingDaysInMonth } from '@/lib/working-days'
 import type { CheckInRecord } from '@/types'
 
 export async function GET() {
@@ -12,9 +13,10 @@ export async function GET() {
   const today     = getTodayTaipei()
   const yearMonth = today.substring(0, 7)
   const day       = parseInt(today.split('-')[2], 10)
-  const [monthRecsRes, achievementsRes] = await Promise.all([
+  const [monthRecsRes, achievementsRes, workingDays] = await Promise.all([
     db.from('checkin_records').select('*').eq('member_id', member.id).gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth)).order('date'),
     db.from('achievements').select('*').eq('member_id', member.id),
+    getWorkingDaysInMonth(yearMonth, db),
   ])
 
   const monthRecs = (monthRecsRes.data ?? []) as CheckInRecord[]
@@ -32,6 +34,10 @@ export async function GET() {
 
   // 各任務累計次數
   const taskCounts = Array.from({ length: 8 }, (_, i) => monthRecs.filter(r => r.tasks[i]).length)
+
+  // 工作時數進度
+  const monthWorkHours    = monthRecs.reduce((s, r) => s + ((r as CheckInRecord & { work_hours?: number | null }).work_hours ?? 0), 0)
+  const requiredWorkHours = workingDays * 8
 
   // 目前連續打拳天數
   const lastRec = monthRecs.at(-1)
@@ -52,6 +58,9 @@ export async function GET() {
     maxPunchMonth: maxStreak,
     calendar,
     taskCounts,
+    monthWorkHours,
+    requiredWorkHours,
+    workingDays,
     achievements:     achievementsRes.data ?? [],
     showNextLevelBtn: day >= 25,
     line: {

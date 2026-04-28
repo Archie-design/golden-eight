@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
-import { calcMonthStats, calcMaxPunchStreak, calcPenalty, calcMonthlyAchievements } from '@/lib/scoring'
+import { calcMonthStats, calcMaxPunchStreak, calcPenalty, calcMonthlyAchievements, calcWorkHoursDeduction } from '@/lib/scoring'
+import { getWorkingDaysInMonth } from '@/lib/working-days'
+import { LEVEL_THRESHOLDS } from '@/lib/constants'
 import type { Member, CheckInRecord } from '@/types'
 
 export async function POST(req: Request) {
@@ -20,13 +22,14 @@ export async function POST(req: Request) {
   const memberList = members as Member[]
   const memberIds  = memberList.map(m => m.id)
 
-  // 一次撈取全部打卡紀錄 + 所有成就，避免 per-member N+1
-  const [recsRes, achRes] = await Promise.all([
+  // 一次撈取全部打卡紀錄 + 所有成就 + 工作日數，避免 per-member N+1
+  const [recsRes, achRes, workingDays] = await Promise.all([
     db.from('checkin_records').select('*')
       .in('member_id', memberIds)
       .gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth)),
     db.from('achievements').select('member_id, code')
       .in('member_id', memberIds),
+    getWorkingDaysInMonth(yearMonth, db),
   ])
 
   const recsByMember: Record<string, CheckInRecord[]> = {}
@@ -49,27 +52,39 @@ export async function POST(req: Request) {
     const records    = recsByMember[m.id] ?? []
     const stats      = calcMonthStats(m, records, today)
     const maxStreak  = calcMaxPunchStreak(records)
-    const penalty    = calcPenalty(m.level, stats.passing)
     const isDawnKing = records.length > 0 && records.every(r => r.tasks[1])
 
+    // 工時補扣
+    const totalWorkHours = records.reduce((s, r) => s + ((r as CheckInRecord & { work_hours?: number | null }).work_hours ?? 0), 0)
+    const whDeduction    = calcWorkHoursDeduction(totalWorkHours, workingDays)
+
+    // 套用補扣後重算 rate / passing
+    const adjustedTotal  = stats.totalScore - whDeduction
+    const threshold      = LEVEL_THRESHOLDS[m.level] ?? 0.6
+    const adjustedRate   = stats.maxScore > 0 ? Math.round((adjustedTotal / stats.maxScore) * 100) : 0
+    const adjustedPassing = adjustedRate >= threshold * 100
+
+    const penalty = calcPenalty(m.level, adjustedPassing)
+
     summaryRows.push({
-      member_id:    m.id,
-      year_month:   yearMonth,
-      total_score:  stats.totalScore,
-      max_score:    stats.maxScore,
-      rate:         stats.rate,
-      passing:      stats.passing,
+      member_id:             m.id,
+      year_month:            yearMonth,
+      total_score:           adjustedTotal,
+      max_score:             stats.maxScore,
+      rate:                  adjustedRate,
+      passing:               adjustedPassing,
       penalty,
-      max_streak:   maxStreak,
-      is_dawn_king: isDawnKing,
-      settled_at:   new Date().toISOString(),
+      max_streak:            maxStreak,
+      is_dawn_king:          isDawnKing,
+      work_hours_deduction:  whDeduction,
+      settled_at:            new Date().toISOString(),
     })
 
-    const monthAchs = calcMonthlyAchievements(stats.passing, stats.rate, m.level, codesByMember[m.id] ?? [])
+    const monthAchs = calcMonthlyAchievements(adjustedPassing, adjustedRate, m.level, codesByMember[m.id] ?? [])
     for (const a of monthAchs) achInserts.push({ member_id: m.id, code: a.code })
 
     if (m.next_level) levelUpdates.push({ id: m.id, level: m.next_level })
-    results.push({ name: m.name, passing: stats.passing, penalty })
+    results.push({ name: m.name, passing: adjustedPassing, penalty })
   }
 
   // 批次寫入

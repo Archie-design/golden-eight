@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "黃金八",
+    title: "黃金八套餐",
   },
   formatDetection: { telephone: false },
 };

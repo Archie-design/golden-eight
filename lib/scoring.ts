@@ -97,6 +97,18 @@ export function calcMaxPunchStreak(records: CheckInRecord[]): number {
   return max
 }
 
+// ─── 工作時數補扣計算 ───────────────────────────────────────────
+
+/** 當月總工時不足（工作日×8小時）時，每少 8 小時扣 1 分 */
+export function calcWorkHoursDeduction(
+  totalWorkHours: number,
+  workingDays: number
+): number {
+  const required = workingDays * 8
+  const shortfall = Math.max(0, required - totalWorkHours)
+  return Math.ceil(shortfall / 8)
+}
+
 // ─── 月結罰款計算 ──────────────────────────────────────────────
 
 export function calcPenalty(level: string, passing: boolean): number {

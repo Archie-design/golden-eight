@@ -25,6 +25,9 @@ interface DashboardData {
   maxPunchMonth: number
   calendar: { date: string; day: number; score: number | null; color: string; note?: string }[]
   taskCounts: number[]
+  monthWorkHours: number
+  requiredWorkHours: number
+  workingDays: number
   achievements: { code: string }[]
   showNextLevelBtn: boolean
   line: { bound: boolean; displayName: string | null; pictureUrl: string | null }
@@ -388,20 +391,27 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent className="space-y-2">
           {TASKS.map((task, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div className="w-28 flex items-center gap-1.5 text-sm shrink-0">
-                <span>
-                  <TaskIcon image={task.image} name={task.icon} className="w-5 h-5" />
-                </span>
-                {task.name}
+            <div key={i}>
+              <div className="flex items-center gap-2">
+                <div className="w-28 flex items-center gap-1.5 text-sm shrink-0">
+                  <span>
+                    <TaskIcon image={task.image} name={task.icon} className="w-5 h-5" />
+                  </span>
+                  {task.name}
+                </div>
+                <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="h-full bg-yellow-400 rounded-full transition-all"
+                    style={{ width: `${Math.round((data.taskCounts[i] / maxTaskCount) * 100)}%` }}
+                  />
+                </div>
+                <div className="w-6 text-right text-sm text-muted-foreground">{data.taskCounts[i]}</div>
               </div>
-              <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
-                <div
-                  className="h-full bg-yellow-400 rounded-full transition-all"
-                  style={{ width: `${Math.round((data.taskCounts[i] / maxTaskCount) * 100)}%` }}
-                />
-              </div>
-              <div className="w-6 text-right text-sm text-muted-foreground">{data.taskCounts[i]}</div>
+              {i === 4 && (
+                <div className="ml-[7.5rem] mt-0.5 text-xs text-muted-foreground">
+                  本月工時：{data.monthWorkHours} / {data.requiredWorkHours} 小時（{data.workingDays} 工作日）
+                </div>
+              )}
             </div>
           ))}
         </CardContent>

@@ -42,6 +42,7 @@ export async function GET() {
           submitTime: (todayRec.data as { submit_time: string }).submit_time,
           tasks:      (todayRec.data as { tasks: boolean[] }).tasks,
           note:       (todayRec.data as { note?: string }).note ?? '',
+          work_hours: (todayRec.data as { work_hours?: number | null }).work_hours ?? null,
         }
       : { submitted: false },
   })

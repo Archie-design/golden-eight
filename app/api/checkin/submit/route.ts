@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
   const parsed = await parseBody(request, CheckInSubmitSchema)
   if (parsed instanceof NextResponse) return parsed
-  const { tasks, note } = parsed.data
+  const { tasks, note, work_hours } = parsed.data
 
   const target  = getCheckinDayTaipei()
   const prevDay = getPrevDayStr(target)
@@ -46,6 +46,10 @@ export async function POST(request: NextRequest) {
   if (existing) return NextResponse.json({ ok: false, msg: `${target} 的打卡記錄已存在` }, { status: 409 })
 
   const normalizedTasks: boolean[] = Array.from({ length: 8 }, (_, i) => Boolean(tasks?.[i]))
+  // tasks[4] 由工時決定：有填工時且 > 0 才算完成
+  if (typeof work_hours === 'number') {
+    normalizedTasks[4] = work_hours > 0
+  }
   const baseScore  = calcBaseScore(normalizedTasks)
   const totalScore = baseScore
 
@@ -65,6 +69,7 @@ export async function POST(request: NextRequest) {
     total_score:  totalScore,
     punch_streak: punchStreak,
     note:         note || '',
+    work_hours:   typeof work_hours === 'number' ? work_hours : null,
   })
   if (insertError) {
     if ((insertError as { code?: string }).code === '23505') {
@@ -143,7 +148,7 @@ export async function PATCH(request: NextRequest) {
 
   const parsed = await parseBody(request, CheckInSubmitSchema)
   if (parsed instanceof NextResponse) return parsed
-  const { tasks, note } = parsed.data
+  const { tasks, note, work_hours } = parsed.data
 
   const target  = getCheckinDayTaipei()
   const prevDay = getPrevDayStr(target)
@@ -169,6 +174,10 @@ export async function PATCH(request: NextRequest) {
   }
 
   const normalizedTasks: boolean[] = Array.from({ length: 8 }, (_, i) => Boolean(tasks?.[i]))
+  // tasks[4] 由工時決定
+  if (typeof work_hours === 'number') {
+    normalizedTasks[4] = work_hours > 0
+  }
   const baseScore  = calcBaseScore(normalizedTasks)
   const totalScore = baseScore
 
@@ -180,12 +189,17 @@ export async function PATCH(request: NextRequest) {
   const prevStreak = prevRec?.tasks?.[1] ? (prevRec.punch_streak ?? 0) : 0
   const punchStreak = normalizedTasks[1] ? prevStreak + 1 : 0
 
+  const updatedWorkHours = typeof work_hours === 'number'
+    ? work_hours
+    : (existing as CheckInRecord & { work_hours?: number | null }).work_hours ?? null
+
   const { error: updateError } = await db.from('checkin_records').update({
     tasks:        normalizedTasks,
     base_score:   baseScore,
     total_score:  totalScore,
     punch_streak: punchStreak,
     note:         note ?? existing.note ?? '',
+    work_hours:   updatedWorkHours,
   }).eq('member_id', member.id).eq('date', target)
 
   if (updateError) {

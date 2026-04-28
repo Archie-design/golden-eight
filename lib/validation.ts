@@ -25,9 +25,10 @@ export const RegisterSchema = LoginSchema.extend({
 })
 
 export const CheckInSubmitSchema = z.object({
-  date:  z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  tasks: z.array(z.boolean()).length(8, '任務陣列必須為 8 個布林值'),
-  note:  z.string().max(500).optional(),
+  date:       z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  tasks:      z.array(z.boolean()).length(8, '任務陣列必須為 8 個布林值'),
+  note:       z.string().max(500).optional(),
+  work_hours: z.number().min(0).max(24).optional(),
 })
 
 export const NextLevelSchema = z.object({
