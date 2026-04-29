@@ -113,7 +113,11 @@ def parse_excel(path: Path) -> dict:
             continue
 
         name = NAME_NORMALIZE.get(name_raw.strip(), name_raw.strip())
-        date_str = ts.date().isoformat()
+        ts_taipei = ts.replace(tzinfo=TZ_TAIPEI)
+        if ts_taipei.hour < 12:
+            date_str = (ts_taipei.date() - timedelta(days=1)).isoformat()
+        else:
+            date_str = ts_taipei.date().isoformat()
 
         # 解析任務 boolean[8]
         tasks = [False] * 8
@@ -190,7 +194,7 @@ def main():
 
     # Step 3：查詢既有記錄
     print('\n🗄️  查詢既有打卡記錄…')
-    existing_raw = db.get('/checkin_records?select=member_id,date&date=gte.2026-04-02')
+    existing_raw = db.get('/checkin_records?select=member_id,date&date=gte.2026-04-01')
     existing: set[tuple] = {(r['member_id'], r['date']) for r in existing_raw}
     print(f'   既有記錄數（2026-04 起）：{len(existing)}')
 

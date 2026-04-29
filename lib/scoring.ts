@@ -47,8 +47,11 @@ export function calcMonthStats(
     0,
     Math.floor((monthEndDate.getTime() - effectiveStart.getTime()) / 86400000) + 1
   )
-  const maxScore   = fullMonthDays * 8
-  const totalScore = records.reduce((s, r) => s + r.total_score, 0)
+  const maxScore        = fullMonthDays * 8
+  const effectiveStartStr = startDate > monthStart ? startStr : yearMonth + '-01'
+  const totalScore      = records
+    .filter(r => r.date >= effectiveStartStr)
+    .reduce((s, r) => s + r.total_score, 0)
   const rate       = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0
   const threshold  = LEVEL_THRESHOLDS[member.level] ?? 0.6
   const targetScore = Math.ceil(maxScore * threshold)

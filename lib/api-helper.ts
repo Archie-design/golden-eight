@@ -139,12 +139,12 @@ export function addDaysStr(dateStr: string, days: number): string {
 
 /**
  * 新成員的「加入日」與「起算計分日」（以伺服器當下台北時間為準）。
- * - 台北時間 < 12:00 → 起算日 = 加入日 +1
- * - 台北時間 ≥ 12:00 → 起算日 = 加入日 +2
+ * - 台北時間 < 12:00 → 起算日 = 加入日（當天中午後可打卡）
+ * - 台北時間 ≥ 12:00 → 起算日 = 加入日 +1（隔天中午後可打卡）
  */
 export function computeEffectiveStartDate(): { joinDate: string; effectiveStart: string } {
   const joinDate = getTodayTaipei()
-  const offset   = getNowHourTaipei() < 12 ? 1 : 2
+  const offset   = getNowHourTaipei() < 12 ? 0 : 1
   return { joinDate, effectiveStart: addDaysStr(joinDate, offset) }
 }
 
