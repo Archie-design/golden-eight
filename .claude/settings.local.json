@@ -46,7 +46,9 @@
       "Bash(python3 scripts/import_form_data.py --dry-run)",
       "Bash(python3 scripts/import_form_data.py)",
       "Bash(git -C /Users/keke/黃金八套餐定課系統/golden-eight status)",
-      "Bash(git -C /Users/keke/黃金八套餐定課系統/golden-eight log --oneline -5)"
+      "Bash(git -C /Users/keke/黃金八套餐定課系統/golden-eight log --oneline -5)",
+      "Bash(git -C /Users/keke/黃金八套餐定課系統/golden-eight diff HEAD -- app/\\\\\\(main\\\\\\)/checkin/page.tsx)",
+      "Bash(git -C /Users/keke/黃金八套餐定課系統/golden-eight show HEAD --stat)"
     ]
   }
 }
