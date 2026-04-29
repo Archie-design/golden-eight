@@ -39,6 +39,7 @@ export default function CheckInPage() {
   const [workHours, setWorkHours]       = useState<string>('')
   const [expandedTask, setExpandedTask] = useState<number | null>(null)
   const expandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const dataRef        = useRef<TodayData | null>(null)
 
   function loadData() {
     fetch('/api/checkin/today')
@@ -77,7 +78,7 @@ export default function CheckInPage() {
   useEffect(() => {
     const now = new Date()
     const taipeiHour = (now.getUTCHours() + 8) % 24
-    if (taipeiHour >= 12) return   // 已過中午，不需計時
+    if (taipeiHour >= 12) return
     const msUntilNoon = (
       (12 - taipeiHour) * 3600 -
       now.getUTCMinutes() * 60 -
@@ -86,6 +87,24 @@ export default function CheckInPage() {
     const timer = setTimeout(loadData, msUntilNoon)
     return () => clearTimeout(timer)
   }, [])
+
+  // 回到頁面時（手機切換 App 後）偵測打卡日是否已變，若變則重新載入
+  useEffect(() => {
+    function getCheckinDayClient() {
+      const d = new Date(Date.now() + 8 * 3600_000)
+      if (d.getUTCHours() < 12) d.setUTCDate(d.getUTCDate() - 1)
+      return d.toISOString().slice(0, 10)
+    }
+    function onVisible() {
+      if (document.visibilityState !== 'visible') return
+      if (dataRef.current && getCheckinDayClient() !== dataRef.current.today) loadData()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
+
+  // data 同步到 ref，讓 visibilitychange handler 讀到最新值
+  useEffect(() => { dataRef.current = data }, [data])
 
   useEffect(() => {
     if (searchParams.get('from') !== 'line') return

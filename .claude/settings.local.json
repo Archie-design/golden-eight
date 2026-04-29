@@ -44,7 +44,9 @@
       "Bash(git rm *)",
       "Bash(grep -nE \"^## |### 修復$|### 現況$\" /Users/keke/黃金八套餐定課系統/golden-eight/docs/優化建議.md)",
       "Bash(python3 scripts/import_form_data.py --dry-run)",
-      "Bash(python3 scripts/import_form_data.py)"
+      "Bash(python3 scripts/import_form_data.py)",
+      "Bash(git -C /Users/keke/黃金八套餐定課系統/golden-eight status)",
+      "Bash(git -C /Users/keke/黃金八套餐定課系統/golden-eight log --oneline -5)"
     ]
   }
 }
