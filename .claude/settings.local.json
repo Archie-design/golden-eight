@@ -41,7 +41,10 @@
       "Bash(mkdir -p _backup)",
       "Bash(cp task-*.png _backup/)",
       "Bash(sips -z 512 512 -s format jpeg -s formatOptions 85 task-__TRACKED_VAR__.png --out task-__TRACKED_VAR__.jpg)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(grep -nE \"^## |### 修復$|### 現況$\" /Users/keke/黃金八套餐定課系統/golden-eight/docs/優化建議.md)",
+      "Bash(python3 scripts/import_form_data.py --dry-run)",
+      "Bash(python3 scripts/import_form_data.py)"
     ]
   }
 }
