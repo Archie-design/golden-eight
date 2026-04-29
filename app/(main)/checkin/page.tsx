@@ -73,6 +73,20 @@ export default function CheckInPage() {
 
   useEffect(() => { loadData() }, [])
 
+  // 台北中午 12:00 換日：自動重新載入
+  useEffect(() => {
+    const now = new Date()
+    const taipeiHour = (now.getUTCHours() + 8) % 24
+    if (taipeiHour >= 12) return   // 已過中午，不需計時
+    const msUntilNoon = (
+      (12 - taipeiHour) * 3600 -
+      now.getUTCMinutes() * 60 -
+      now.getUTCSeconds()
+    ) * 1000 - now.getUTCMilliseconds()
+    const timer = setTimeout(loadData, msUntilNoon)
+    return () => clearTimeout(timer)
+  }, [])
+
   useEffect(() => {
     if (searchParams.get('from') !== 'line') return
     if (!(navigator as { standalone?: boolean }).standalone) {

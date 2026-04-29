@@ -7,7 +7,7 @@ export const TASKS = [
   { name: '破曉打拳',        icon: 'Dumbbell',  image: '/icons/tasks/task-2.jpg', desc: '日出後 10 分鐘內完成' },
   { name: '丹氣跑步 15 分鐘', icon: 'Activity', image: '/icons/tasks/task-3.jpg', desc: '雨天可室內跑步' },
   { name: '曬太陽',           icon: 'Sun',       image: '/icons/tasks/task-4.jpg', desc: '陰雨天不計分' },
-  { name: '工作 8 小時',     icon: 'Briefcase', image: '/icons/tasks/task-5.jpg', desc: '月累計 160 小時以上' },
+  { name: '工作 8 小時',     icon: 'Briefcase', image: '/icons/tasks/task-5.jpg', desc: '請依實際工時填寫，包括假日有工作也應填寫相應時數' },
   { name: '不吃肉',           icon: 'Leaf',      image: '/icons/tasks/task-6.jpg', desc: '各素食級別皆可' },
   { name: '寫觀心書',         icon: 'BookOpen',  image: '/icons/tasks/task-7.jpg', desc: '一階可寫覺察日記' },
   { name: '淨心功法',         icon: 'Wind',      image: '/icons/tasks/task-8.jpg', desc: '睡前效果更好' },

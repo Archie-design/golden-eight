@@ -56,8 +56,11 @@ export async function POST(req: Request) {
     const maxStreak  = calcMaxPunchStreakFromSorted(records)
     const isDawnKing = records.length > 0 && records.every(r => r.tasks[1])
 
-    // 工時補扣
-    const totalWorkHours = records.reduce((s, r) => s + ((r as CheckInRecord & { work_hours?: number | null }).work_hours ?? 0), 0)
+    // 工時補扣：有填 work_hours 用實際值；NULL（舊記錄）以 tasks[4] 推算（true=8h, false=0h）
+    const totalWorkHours = records.reduce((s, r) => {
+      const wh = (r as CheckInRecord & { work_hours?: number | null }).work_hours
+      return s + (wh != null ? wh : r.tasks[4] ? 8 : 0)
+    }, 0)
     const whDeduction    = calcWorkHoursDeduction(totalWorkHours, workingDays)
 
     // 套用補扣後重算 rate / passing

@@ -12,11 +12,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-interface Member     { id: string; name: string; join_date: string; level: string; next_level?: string | null; status: string }
+interface Member      { id: string; name: string; join_date: string; level: string; next_level?: string | null; status: string }
 interface ProgressRow { id: string; name: string; level: string; totalScore: number; maxScore: number; rate: number; passing: boolean; maxStreak: number; isDawnKing: boolean }
 interface PenaltyRow  { name: string; level: string; rate: number; penalty: number }
 interface AchStat     { code: string; name: string; count: number; pct: number }
 interface MemberStat  { id: string; name: string; count: number; total: number }
+interface DayRecord   { date: string; tasks: boolean[]; total_score: number; submit_time: string }
+interface DetailMember { id: string; name: string; level: string; effectiveStart: string }
 
 export default function AdminPage() {
   const [members,      setMembers]      = useState<Member[]>([])
@@ -26,6 +28,12 @@ export default function AdminPage() {
   const [achStats,     setAchStats]     = useState<AchStat[]>([])
   const [memberStats,  setMemberStats]  = useState<MemberStat[]>([])
   const [showAddModal, setShowAddModal] = useState(false)
+
+  const [detailMemberId, setDetailMemberId] = useState<string>('')
+  const [detailRecords,  setDetailRecords]  = useState<DayRecord[] | null>(null)
+  const [detailMember,   setDetailMember]   = useState<DetailMember | null>(null)
+  const [detailLoading,  setDetailLoading]  = useState(false)
+  const [detailYearMonth, setDetailYearMonth] = useState(() => new Date().toISOString().slice(0, 7))
 
   // 新增成員欄位
   const [mName,  setMName]  = useState('')
@@ -47,6 +55,15 @@ export default function AdminPage() {
     fetch('/api/admin/achievements').then(r => r.json()).then(j => {
       if (j.ok) { setAchStats(j.achievementStats); setMemberStats(j.memberStats) }
     }), [])
+
+  const loadMemberDetail = useCallback(async (memberId: string, yearMonth: string) => {
+    if (!memberId) { setDetailRecords(null); setDetailMember(null); return }
+    setDetailLoading(true)
+    const j = await fetch(`/api/admin/member-records?memberId=${memberId}&yearMonth=${yearMonth}`).then(r => r.json())
+    if (j.ok) { setDetailRecords(j.records); setDetailMember(j.member) }
+    else toast.error(j.msg)
+    setDetailLoading(false)
+  }, [])
 
   useEffect(() => { loadMembers(); loadProgress() }, [loadMembers, loadProgress])
 
@@ -162,6 +179,127 @@ export default function AdminPage() {
                   </tbody>
                 </table>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* 個人每日記錄查詢 */}
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle className="text-base">個人每日記錄查詢</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Select value={detailMemberId} onValueChange={(id: string | null) => {
+                  const val = id ?? ''
+                  setDetailMemberId(val)
+                  if (val) loadMemberDetail(val, detailYearMonth)
+                  else { setDetailRecords(null); setDetailMember(null) }
+                }}>
+                  <SelectTrigger className="w-36"><SelectValue placeholder="選擇成員…" /></SelectTrigger>
+                  <SelectContent>
+                    {members.filter(m => m.status === '活躍').map(m => (
+                      <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="month"
+                  value={detailYearMonth}
+                  onChange={e => {
+                    if (!e.target.value) return
+                    setDetailYearMonth(e.target.value)
+                    if (detailMemberId) loadMemberDetail(detailMemberId, e.target.value)
+                  }}
+                  className="h-9 w-36 text-sm"
+                />
+              </div>
+
+              {detailLoading && <p className="text-sm text-muted-foreground">載入中…</p>}
+
+              {!detailLoading && detailMember && detailRecords && (() => {
+                const todayStr   = new Date().toISOString().slice(0, 10)
+                const ym         = detailYearMonth
+                const monthStart = ym + '-01'
+                const [yy, mm]   = ym.split('-').map(Number)
+                const lastDay    = new Date(yy, mm, 0).getDate()
+                const monthEndStr = `${ym}-${String(lastDay).padStart(2, '0')}`
+                const endStr     = todayStr < monthEndStr ? todayStr : monthEndStr
+                const rangeStart = detailMember.effectiveStart > monthStart ? detailMember.effectiveStart : monthStart
+
+                const dates: string[] = []
+                const cur = new Date(rangeStart + 'T12:00:00Z')
+                const end = new Date(endStr + 'T12:00:00Z')
+                while (cur <= end) {
+                  dates.push(cur.toISOString().slice(0, 10))
+                  cur.setDate(cur.getDate() + 1)
+                }
+
+                const recMap = Object.fromEntries(detailRecords.map(r => [r.date, r]))
+                const TASK_ABBR = ['早睡', '打拳', '跑步', '曬陽', '工作', '不肉', '觀心', '淨心']
+
+                let runningScore = 0
+                const rows = dates.map((date, i) => {
+                  const rec   = recMap[date]
+                  const score = rec?.total_score ?? 0
+                  runningScore += score
+                  const cumRate = Math.round(runningScore / ((i + 1) * 8) * 100)
+                  return { date, rec, score, cumRate }
+                })
+
+                const totalScore = runningScore
+                const maxScore   = dates.length * 8
+
+                return (
+                  <>
+                    <div className="text-sm text-muted-foreground">
+                      {detailMember.name} · {detailMember.level} · 有效起算 {detailMember.effectiveStart}
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b text-muted-foreground text-xs">
+                            <th className="text-left py-1.5 pr-3">日期</th>
+                            <th className="text-left">完成項目</th>
+                            <th className="text-right">分數</th>
+                            <th className="text-right pl-3">累計率</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map(({ date, rec, score, cumRate }) => (
+                            <tr key={date} className="border-b last:border-0">
+                              <td className="py-1.5 text-xs whitespace-nowrap pr-3">{date.slice(5)}</td>
+                              <td className="py-1">
+                                {rec ? (
+                                  <div className="flex gap-0.5">
+                                    {rec.tasks.map((done, i) => (
+                                      <div
+                                        key={i}
+                                        title={TASK_ABBR[i]}
+                                        className={`w-4 h-4 rounded-sm flex items-center justify-center text-[9px] font-bold ${done ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400'}`}
+                                      >
+                                        {done ? '✓' : '·'}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">（無記錄）</span>
+                                )}
+                              </td>
+                              <td className="text-right text-xs tabular-nums">{score}</td>
+                              <td className={`text-right text-xs font-medium pl-3 tabular-nums ${cumRate >= 80 ? 'text-green-600' : cumRate >= 60 ? 'text-amber-500' : 'text-red-500'}`}>
+                                {cumRate}%
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="rounded-lg bg-gray-50 border px-3 py-2 text-sm font-medium">
+                      目前：{totalScore} / {maxScore} = {maxScore > 0 ? Math.round(totalScore / maxScore * 100) : 0}%
+                    </div>
+                  </>
+                )
+              })()}
             </CardContent>
           </Card>
         </TabsContent>
