@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   BarChart3, Calendar, TrendingUp, Dumbbell, Trophy, LinkIcon, Unlink,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -16,6 +17,7 @@ import { DailyRateChart } from '@/components/DailyRateChart'
 
 interface DashboardData {
   yearMonth: string
+  isCurrentMonth: boolean
   user: { level: string; nextLevel?: string }
   totalScore: number
   maxScore: number
@@ -61,33 +63,24 @@ function RateChart({ points }: { points: HistoryPoint[] }) {
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 140 }}>
-      {/* grid lines */}
       {yTicks.map(t => (
         <g key={t}>
           <line x1={PAD.left} x2={W - PAD.right} y1={yPos(t)} y2={yPos(t)} stroke="#e5e7eb" strokeWidth={1} />
           <text x={PAD.left - 4} y={yPos(t) + 4} fontSize={9} fill="#9ca3af" textAnchor="end">{t}</text>
         </g>
       ))}
-
-      {/* group avg dashed line */}
       {groupPts.some(Boolean) && (
         <polyline points={polyline(groupPts)} fill="none" stroke="#9ca3af" strokeWidth={1.5} strokeDasharray="4 3" />
       )}
-
-      {/* user line */}
       {userPts.some(Boolean) && (
         <polyline points={polyline(userPts)} fill="none" stroke="#f59e0b" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
       )}
-
-      {/* user dots + labels */}
       {userPts.map((p, i) => p && (
         <g key={i}>
           <circle cx={p.x} cy={p.y} r={4} fill={points[i].passing ? '#f59e0b' : '#ef4444'} stroke="white" strokeWidth={1.5} />
           <text x={p.x} y={p.y - 7} fontSize={9} fill="#6b7280" textAnchor="middle">{p.v}%</text>
         </g>
       ))}
-
-      {/* x-axis labels */}
       {points.map((p, i) => (
         <text key={i} x={xPos(i)} y={H - 6} fontSize={9} fill="#9ca3af" textAnchor="middle">
           {p.yearMonth.slice(5)}
@@ -97,9 +90,20 @@ function RateChart({ points }: { points: HistoryPoint[] }) {
   )
 }
 
+function shiftMonth(ym: string, delta: number): string {
+  const [y, m] = ym.split('-').map(Number)
+  const d = new Date(y, m - 1 + delta, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
 export default function DashboardPage() {
   const [data,    setData]    = useState<DashboardData | null>(null)
   const [history, setHistory] = useState<HistoryPoint[]>([])
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  })
+  const [maxMonth, setMaxMonth] = useState('')
   const searchParams = useSearchParams()
 
   useEffect(() => {
@@ -112,19 +116,40 @@ export default function DashboardPage() {
     if (lineError === 'line_token' || lineError === 'line_profile') toast.error('LINE 授權失敗，請重試')
   }, [searchParams])
 
+  // 切換月份時重新抓儀表板資料
   useEffect(() => {
     const ac = new AbortController()
-    Promise.all([
-      fetch('/api/stats/dashboard', { signal: ac.signal }).then(r => r.json()),
-      fetch('/api/stats/history',   { signal: ac.signal }).then(r => r.json()),
-    ]).then(([dash, hist]) => {
-      if (dash.ok) setData(dash); else toast.error(dash.msg)
-      if (hist.ok) setHistory(hist.history)
-    }).catch(e => {
-      if (e.name !== 'AbortError') console.error('[dashboard] fetch failed', e)
-    })
+    fetch(`/api/stats/dashboard?month=${selectedMonth}`, { signal: ac.signal })
+      .then(r => r.json())
+      .then(dash => {
+        if (dash.ok) {
+          setData(dash)
+          setMaxMonth(prev => prev || dash.yearMonth)
+        } else {
+          toast.error(dash.msg)
+        }
+      })
+      .catch(e => { if (e.name !== 'AbortError') console.error('[dashboard] fetch failed', e) })
+    return () => ac.abort()
+  }, [selectedMonth])
+
+  // 歷史趨勢只需載入一次
+  useEffect(() => {
+    const ac = new AbortController()
+    fetch('/api/stats/history', { signal: ac.signal })
+      .then(r => r.json())
+      .then(hist => { if (hist.ok) setHistory(hist.history) })
+      .catch(e => { if (e.name !== 'AbortError') console.error('[dashboard] history fetch failed', e) })
     return () => ac.abort()
   }, [])
+
+  function navigate(delta: number) {
+    setSelectedMonth(prev => {
+      const next = shiftMonth(prev, delta)
+      if (delta > 0 && maxMonth && next > maxMonth) return prev
+      return next
+    })
+  }
 
   async function bindLine() {
     const res  = await fetch('/api/auth/line')
@@ -133,8 +158,6 @@ export default function DashboardPage() {
 
     window.open(json.url, '_blank')
 
-    // D4: use AbortController so the listener is always cleaned up —
-    // either on success or after 5 min timeout (popup closed without binding).
     const controller = new AbortController()
     setTimeout(() => controller.abort(), 5 * 60 * 1000)
 
@@ -180,16 +203,34 @@ export default function DashboardPage() {
     </div>
   )
 
-  const maxTaskCount = Math.max(...data.taskCounts, 1)
+  const maxTaskCount   = Math.max(...data.taskCounts, 1)
+  const monthTag       = data.isCurrentMonth ? '本月' : `${data.yearMonth.split('-')[1]}月`
+  const canGoForward   = maxMonth ? selectedMonth < maxMonth : false
 
   return (
     <div className="space-y-4 max-w-2xl mx-auto">
 
-      {/* 本月進度 */}
+      {/* 月份進度 */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="w-5 h-5" /> 本月進度
+            <BarChart3 className="w-5 h-5" />
+            <button
+              onClick={() => navigate(-1)}
+              className="p-1 rounded hover:bg-gray-100 text-muted-foreground"
+              aria-label="上個月"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span>{monthTag}進度</span>
+            <button
+              onClick={() => navigate(1)}
+              disabled={!canGoForward}
+              className="p-1 rounded hover:bg-gray-100 text-muted-foreground disabled:opacity-30 disabled:cursor-not-allowed"
+              aria-label="下個月"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
             <span className="text-muted-foreground text-sm font-normal">{data.yearMonth}</span>
           </CardTitle>
         </CardHeader>
@@ -220,7 +261,7 @@ export default function DashboardPage() {
             threshold={LEVEL_THRESHOLDS[data.user.level] ?? 0.60}
           />
 
-          {/* 下月階梯選擇 */}
+          {/* 下月階梯選擇（僅當月顯示） */}
           {data.showNextLevelBtn && (
             <div className="mt-4 pt-4 border-t">
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-2">
@@ -245,7 +286,7 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Calendar className="w-5 h-5" /> 本月打卡月曆
+            <Calendar className="w-5 h-5" /> {monthTag}打卡月曆
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -257,7 +298,7 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5" /> 本月各項任務完成次數
+            <TrendingUp className="w-5 h-5" /> {monthTag}各項任務完成次數
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -280,7 +321,7 @@ export default function DashboardPage() {
               </div>
               {i === 4 && (
                 <div className="ml-[7.5rem] mt-0.5 text-xs text-muted-foreground">
-                  本月工時：{data.monthWorkHours} / {data.requiredWorkHours} 小時（{data.workingDays} 工作日）
+                  {monthTag}工時：{data.monthWorkHours} / {data.requiredWorkHours} 小時（{data.workingDays} 工作日）
                 </div>
               )}
             </div>
@@ -299,11 +340,13 @@ export default function DashboardPage() {
           <div className="flex gap-6 text-center">
             <div className="flex-1">
               <div className="text-4xl font-bold text-yellow-500">{data.punchStreak}</div>
-              <div className="text-sm text-muted-foreground">目前連續天數</div>
+              <div className="text-sm text-muted-foreground">
+                {data.isCurrentMonth ? '目前連續天數' : '最終連續天數'}
+              </div>
             </div>
             <div className="flex-1">
               <div className="text-4xl font-bold">{data.maxPunchMonth}</div>
-              <div className="text-sm text-muted-foreground">本月最長連續</div>
+              <div className="text-sm text-muted-foreground">{monthTag}最長連續</div>
             </div>
           </div>
         </CardContent>
