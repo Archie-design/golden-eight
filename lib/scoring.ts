@@ -242,12 +242,16 @@ export function calcNewAchievements(
   })
 }
 
-/** 月結後成就（月通關、黃金、完美月、連勝）*/
+/**
+ * 月結後成就（月通關、黃金、完美月、連勝）。
+ * @param passingCount 含本次月結的累計通關次數（由 settlement route 從 monthly_summary 計算後傳入）
+ */
 export function calcMonthlyAchievements(
   passing: boolean,
   rate: number,
   level: string,
-  alreadyUnlocked: string[]
+  alreadyUnlocked: string[],
+  passingCount: number,
 ): AchievementTrigger[] {
   if (!passing) return []
 
@@ -268,9 +272,8 @@ export function calcMonthlyAchievements(
   if (level === '黃金戰士')         award('MONTH_GOLD')
   if (rate >= 100)                  award('MONTH_PERFECT')
 
-  const passCount = alreadyUnlocked.filter(c => c === 'MONTH_PASS').length + 1
-  if (passCount >= 3) award('MONTH_STREAK_3')
-  if (passCount >= 6) award('MONTH_STREAK_6')
+  if (passingCount >= 3) award('MONTH_STREAK_3')
+  if (passingCount >= 6) award('MONTH_STREAK_6')
 
   return newOnes
 }

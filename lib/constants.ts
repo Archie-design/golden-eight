@@ -3,7 +3,7 @@
 // ============================================================
 
 export const TASKS = [
-  { name: '早睡早起',        icon: 'Moon',      image: '/icons/tasks/task-1.jpg', desc: '12 前入睡，早上 7 前起床' },
+  { name: '早睡早起',        icon: 'Moon',      image: '/icons/tasks/task-1.jpg', desc: '11 點前入睡，7 點前起床' },
   { name: '破曉打拳',        icon: 'Dumbbell',  image: '/icons/tasks/task-2.jpg', desc: '日出後 10 分鐘內完成' },
   { name: '丹氣跑步 15 分鐘', icon: 'Activity', image: '/icons/tasks/task-3.jpg', desc: '雨天可室內跑步' },
   { name: '曬太陽',           icon: 'Sun',       image: '/icons/tasks/task-4.jpg', desc: '陰雨天不計分' },

@@ -23,8 +23,8 @@ export async function POST(req: Request) {
   const memberList = members as Member[]
   const memberIds  = memberList.map(m => m.id)
 
-  // 一次撈取全部打卡紀錄 + 所有成就 + 工作日數，避免 per-member N+1
-  const [recsRes, achRes, workingDays] = await Promise.all([
+  // 一次撈取全部打卡紀錄 + 所有成就 + 工作日數 + 歷史通關數，避免 per-member N+1
+  const [recsRes, achRes, workingDays, pastSummariesRes] = await Promise.all([
     db.from('checkin_records').select(RECORD_COLS_SETTLEMENT)
       .in('member_id', memberIds)
       .gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth))
@@ -32,6 +32,8 @@ export async function POST(req: Request) {
     db.from('achievements').select('member_id, code')
       .in('member_id', memberIds),
     getWorkingDaysInMonth(yearMonth, db),
+    db.from('monthly_summary').select('member_id, passing')
+      .in('member_id', memberIds),
   ])
 
   const recsByMember: Record<string, CheckInRecord[]> = {}
@@ -42,6 +44,12 @@ export async function POST(req: Request) {
   const codesByMember: Record<string, string[]> = {}
   ;((achRes.data ?? []) as { member_id: string; code: string }[]).forEach(a => {
     (codesByMember[a.member_id] ??= []).push(a.code)
+  })
+
+  // 各成員歷史通關次數（不含本次月結）
+  const passCountByMember: Record<string, number> = {}
+  ;((pastSummariesRes.data ?? []) as { member_id: string; passing: boolean }[]).forEach(r => {
+    if (r.passing) passCountByMember[r.member_id] = (passCountByMember[r.member_id] ?? 0) + 1
   })
 
   // 準備批次寫入資料
@@ -85,7 +93,8 @@ export async function POST(req: Request) {
       settled_at:            new Date().toISOString(),
     })
 
-    const monthAchs = calcMonthlyAchievements(adjustedPassing, adjustedRate, m.level, codesByMember[m.id] ?? [])
+    const passingCount = (passCountByMember[m.id] ?? 0) + (adjustedPassing ? 1 : 0)
+    const monthAchs = calcMonthlyAchievements(adjustedPassing, adjustedRate, m.level, codesByMember[m.id] ?? [], passingCount)
     for (const a of monthAchs) achInserts.push({ member_id: m.id, code: a.code })
 
     if (m.next_level) levelUpdates.push({ id: m.id, level: m.next_level })
