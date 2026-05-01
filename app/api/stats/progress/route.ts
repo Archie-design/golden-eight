@@ -35,11 +35,17 @@ export async function GET(req: Request) {
     (recsByMember[r.member_id] ??= []).push(r)
   })
 
+  // 破曉王：群組本月最長連打天數最高者（可並列）
+  const groupMaxStreak = Math.max(
+    0,
+    ...memberList.map(m => calcMaxPunchStreakFromSorted(recsByMember[m.id] ?? [])),
+  )
+
   const rows = memberList.map(m => {
     const recs       = recsByMember[m.id] ?? []
     const stats      = calcMonthStats(m, recs, refDate)
     const maxStreak  = calcMaxPunchStreakFromSorted(recs)
-    const dawnKing   = isDawnKing(m, recs, yearMonth, refDate)
+    const dawnKing   = isDawnKing(maxStreak, groupMaxStreak)
     return {
       id:         m.id,
       name:       m.name,

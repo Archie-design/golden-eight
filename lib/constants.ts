@@ -25,6 +25,12 @@ export const LEVEL_PENALTIES: Record<string, number> = {
   '青銅戰士': 400,
 }
 
+/**
+ * 工時補扣機制起算日。早於此日的日期不納入計算（避免歷史月份缺工時資料造成誤扣）。
+ * 4 月只計 4/29–4/30；5 月起整月正常計算。
+ */
+export const WORK_HOURS_TRACKING_START = '2026-04-29'
+
 export const ACHIEVEMENT_LIST = [
   // 各任務連續天數（8 項 × 4 里程碑 = 32 個）
   { code: 'T1_STREAK_3',   name: '早鳥初心',    badge: 'Sunrise',    type: 'streak', task: 0, days: 3   },

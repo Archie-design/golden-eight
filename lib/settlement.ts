@@ -3,8 +3,8 @@ import {
   calcMonthStats, calcMaxPunchStreakFromSorted, calcPenalty,
   calcMonthlyAchievements, calcWorkHoursDeduction, isDawnKing,
 } from './scoring'
-import { getWorkingDaysInMonth } from './working-days'
-import { LEVEL_THRESHOLDS } from './constants'
+import { getWorkingDaysInRange } from './working-days'
+import { LEVEL_THRESHOLDS, WORK_HOURS_TRACKING_START } from './constants'
 import { MEMBER_COLS_SETTLEMENT, RECORD_COLS_SETTLEMENT } from './db-columns'
 import type { Member, CheckInRecord } from '@/types'
 
@@ -40,14 +40,24 @@ export async function runSettlement(
   const memberList = members as Member[]
   const memberIds  = memberList.map(m => m.id)
 
-  const [recsRes, achRes, workingDays, pastSummariesRes] = await Promise.all([
+  // 工時補扣窗口：max(monthStart, WORK_HOURS_TRACKING_START) ~ monthEnd
+  // 4 月只計 4/29-4/30；5 月起整月（monthStart > tracking start，效果等同整月）
+  const monthStartStr = yearMonth + '-01'
+  const monthEndStr   = getMonthEnd(yearMonth)
+  const whWindowStart = monthStartStr > WORK_HOURS_TRACKING_START
+    ? monthStartStr
+    : WORK_HOURS_TRACKING_START
+
+  const [recsRes, achRes, whWorkingDays, pastSummariesRes] = await Promise.all([
     dbAny.from('checkin_records').select(RECORD_COLS_SETTLEMENT)
       .in('member_id', memberIds)
-      .gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth))
+      .gte('date', monthStartStr).lte('date', monthEndStr)
       .order('date'),
     dbAny.from('achievements').select('member_id, code')
       .in('member_id', memberIds),
-    getWorkingDaysInMonth(yearMonth, dbAny),
+    whWindowStart > monthEndStr
+      ? Promise.resolve(0)  // tracking start 在月底之後 → 工時補扣窗口為空
+      : getWorkingDaysInRange(whWindowStart, monthEndStr, dbAny),
     dbAny.from('monthly_summary').select('member_id, passing')
       .in('member_id', memberIds),
   ])
@@ -71,7 +81,7 @@ export async function runSettlement(
   const achInserts:  { member_id: string; code: string }[] = []
   const levelUpdates: { id: string; level: string }[] = []
   const results:  { name: string; passing: boolean; penalty: number }[] = []
-  const exempted: { name: string }[] = []
+  const exempted: { id: string; name: string }[] = []
 
   // 計分基準日：min(today, monthEnd)。歷史月份用月底，本月（月中重跑）用今日
   // 必須用此 refDate 而非 today — 否則 calcMonthStats 內部會以 today 的月份取 yearMonth，
@@ -79,24 +89,33 @@ export async function runSettlement(
   const monthEnd = getMonthEnd(yearMonth)
   const refDate  = today > monthEnd ? monthEnd : today
 
+  // 破曉王：群組本月最長連打天數的最大值（可並列）
+  const groupMaxStreak = Math.max(
+    0,
+    ...memberList.map(m => calcMaxPunchStreakFromSorted(recsByMember[m.id] ?? [])),
+  )
+
   for (const m of memberList) {
     const records = recsByMember[m.id] ?? []
     const stats   = calcMonthStats(m, records, refDate)
 
     // 新進成員 maxScore=0：不參與計分，跳過所有副作用
     if (stats.maxScore === 0) {
-      exempted.push({ name: m.name })
+      exempted.push({ id: m.id, name: m.name })
       continue
     }
 
     const maxStreak       = calcMaxPunchStreakFromSorted(records)
-    const memberIsDawnKing = isDawnKing(m, records, yearMonth, refDate)
+    const memberIsDawnKing = isDawnKing(maxStreak, groupMaxStreak)
 
-    const totalWorkHours = records.reduce((s, r) => {
-      const wh = (r as CheckInRecord & { work_hours?: number | null }).work_hours
-      return s + (wh != null ? wh : r.tasks[4] ? 8 : 0)
-    }, 0)
-    const whDeduction = calcWorkHoursDeduction(totalWorkHours, workingDays)
+    // 工時補扣只計 whWindowStart 之後的紀錄（4 月限 4/29-4/30；5 月起整月）
+    const totalWorkHours = records
+      .filter(r => r.date >= whWindowStart)
+      .reduce((s, r) => {
+        const wh = (r as CheckInRecord & { work_hours?: number | null }).work_hours
+        return s + (wh != null ? wh : r.tasks[4] ? 8 : 0)
+      }, 0)
+    const whDeduction = calcWorkHoursDeduction(totalWorkHours, whWorkingDays)
 
     const adjustedTotal   = stats.totalScore - whDeduction
     const threshold       = LEVEL_THRESHOLDS[m.level] ?? 0.6
@@ -144,5 +163,14 @@ export async function runSettlement(
     )
   )
 
-  return { yearMonth, results, exempted }
+  // 清理 exempted 成員的 stale monthly_summary 列（如先前 buggy 月結遺留）
+  if (exempted.length > 0) {
+    const { error: delErr } = await dbAny.from('monthly_summary')
+      .delete()
+      .eq('year_month', yearMonth)
+      .in('member_id', exempted.map(e => e.id))
+    if (delErr) console.error('[settlement] exempted cleanup failed', delErr)
+  }
+
+  return { yearMonth, results, exempted: exempted.map(e => ({ name: e.name })) }
 }

@@ -61,6 +61,12 @@ export async function GET(req: Request) {
       recsByMember[r.member_id].push(r)
     })
 
+    // 破曉王：群組本月最長連打天數最高者（可並列）
+    const groupMaxStreak = Math.max(
+      0,
+      ...members.map((m: Member) => calcMaxPunchStreakFromSorted(recsByMember[m.id] ?? [])),
+    )
+
     rows = members.map((m: Member) => {
       const recs      = recsByMember[m.id] ?? []
       const stats     = calcMonthStats(m, recs, refDate)
@@ -74,7 +80,7 @@ export async function GET(req: Request) {
         rate:             stats.rate,
         passing:          stats.passing,
         maxStreak:        maxS,
-        isDawnKing:       isDawnKing(m, recs, ym, refDate),
+        isDawnKing:       isDawnKing(maxS, groupMaxStreak),
         achievementCount: achCount[m.id] ?? 0,
         yearMonth:        ym,
         exempted:         stats.maxScore === 0,

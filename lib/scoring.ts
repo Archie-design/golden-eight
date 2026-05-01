@@ -102,21 +102,13 @@ export function expectedCheckinDays(member: Member, yearMonth: string, refDate: 
 }
 
 /**
- * 破曉王判定：該成員本月應打卡的每一天都有打卡且 tasks[1]=true。
- * - 應打卡天數=0（新進）→ false
- * - 紀錄數 < 應打卡天數（漏打）→ false
- * - 任何一天 tasks[1]=false → false
+ * 破曉王判定：當月最長連續打拳天數最高者獲得（可並列）。
+ * @param memberMaxStreak 該成員本月最長連續打拳天數（calcMaxPunchStreakFromSorted）
+ * @param groupMaxStreak 全員當月最長連續打拳天數的最大值
+ * @returns 當該成員 streak > 0 且等於群組最大值時為 true
  */
-export function isDawnKing(
-  member: Member,
-  records: CheckInRecord[],
-  yearMonth: string,
-  refDate: string,
-): boolean {
-  const expected = expectedCheckinDays(member, yearMonth, refDate)
-  if (expected === 0) return false
-  if (records.length !== expected) return false
-  return records.every(r => r.tasks[1])
+export function isDawnKing(memberMaxStreak: number, groupMaxStreak: number): boolean {
+  return memberMaxStreak > 0 && memberMaxStreak === groupMaxStreak
 }
 
 // ─── 月最長連續打拳天數 ────────────────────────────────────────
