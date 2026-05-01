@@ -6,8 +6,8 @@ import { Crown, Trophy, Star, Dumbbell, Medal, ChevronLeft, ChevronRight } from 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { AppIcon } from '@/lib/icons'
 import { ACHIEVEMENT_LIST } from '@/lib/constants'
+import { BadgeTile } from '@/components/AchievementBadge'
 import { cn } from '@/lib/utils'
 
 function shiftMonth(ym: string, delta: number): string {
@@ -237,9 +237,9 @@ export default function LeaderboardPage() {
                         return (
                           <span
                             key={code}
-                            className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[0.7rem] font-medium text-amber-700"
+                            className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white/60 px-1.5 py-0.5 text-[0.7rem] font-medium text-gray-600"
                           >
-                            <AppIcon name={ach.badge} className="w-5 h-5 text-amber-500" />
+                            <BadgeTile ach={ach} unlocked size="sm" />
                             {ach.name}
                           </span>
                         )
