@@ -193,6 +193,25 @@ export default function LeaderboardPage() {
                     )}
                   </div>
 
+                  {/* 展示徽章 */}
+                  {row.showcaseCodes.length > 0 && (
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                      {row.showcaseCodes.map(code => {
+                        const ach = ACHIEVEMENT_LIST.find(a => a.code === code)
+                        if (!ach) return null
+                        return (
+                          <span
+                            key={code}
+                            className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[0.7rem] font-medium text-amber-700"
+                          >
+                            <AppIcon name={ach.badge} className="w-5 h-5 text-amber-500" />
+                            {ach.name}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  )}
+
                   {/* Sub stats */}
                   <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                     <span className="flex items-center gap-0.5">
@@ -205,19 +224,6 @@ export default function LeaderboardPage() {
                     </span>
                     {row.passing && (
                       <span className="text-green-600 font-medium">✓ 通過</span>
-                    )}
-                    {row.showcaseCodes.length > 0 && (
-                      <span className="flex items-center gap-1 ml-auto">
-                        {row.showcaseCodes.map(code => {
-                          const ach = ACHIEVEMENT_LIST.find(a => a.code === code)
-                          if (!ach) return null
-                          return (
-                            <span key={code} title={ach.name}>
-                              <AppIcon name={ach.badge} className="w-4 h-4 text-amber-500" />
-                            </span>
-                          )
-                        })}
-                      </span>
                     )}
                   </div>
                 </div>
