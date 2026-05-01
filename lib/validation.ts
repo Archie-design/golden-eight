@@ -35,6 +35,10 @@ export const NextLevelSchema = z.object({
   level: z.enum(LEVELS, { message: '無效的階梯選項' }),
 })
 
+export const ShowcaseSchema = z.object({
+  codes: z.array(z.string().min(1).max(64)).max(3, '最多選 3 顆'),
+})
+
 export const CreateTagSchema = z.object({
   tagName: z.string().min(1, '請填寫標籤名稱').max(20, '標籤名稱最長 20 字'),
   color:   z.string().regex(/^#[0-9A-Fa-f]{6}$/, '色碼格式錯誤').optional(),

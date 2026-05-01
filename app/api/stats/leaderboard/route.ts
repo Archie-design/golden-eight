@@ -43,7 +43,7 @@ export async function GET(req: Request) {
     id: string; name: string; level: string; totalScore: number
     maxScore: number | null; rate: number; passing: boolean
     maxStreak: number; isDawnKing: boolean; achievementCount: number
-    yearMonth: string; exempted: boolean; rank: number
+    yearMonth: string; exempted: boolean; showcaseCodes: string[]; rank: number
   }
   let rows: Omit<LeaderRow, 'rank'>[]
 
@@ -78,6 +78,7 @@ export async function GET(req: Request) {
         achievementCount: achCount[m.id] ?? 0,
         yearMonth:        ym,
         exempted:         stats.maxScore === 0,
+        showcaseCodes:    m.showcase_codes ?? [],
       }
     })
   } else {
@@ -116,6 +117,7 @@ export async function GET(req: Request) {
         achievementCount: achCount[m.id]    ?? 0,
         yearMonth:        best?.yearMonth   ?? '—',
         exempted:         !best,
+        showcaseCodes:    m.showcase_codes ?? [],
       }
     })
   }

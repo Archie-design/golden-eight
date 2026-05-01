@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
     requiredWorkHours,
     workingDays,
     achievements:     achievementsRes.data ?? [],
+    showcaseCodes:    member.showcase_codes ?? [],
     showNextLevelBtn: isCurrentMonth && day >= 25,
     line: {
       bound:       !!member.line_user_id,

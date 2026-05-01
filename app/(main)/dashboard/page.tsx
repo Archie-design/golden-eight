@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { CalendarGrid } from '@/components/CalendarGrid'
 import { AchievementWall } from '@/components/AchievementBadge'
+import { ShowcaseCard } from '@/components/ShowcaseCard'
 import { TaskIcon } from '@/lib/icons'
 import { TASKS, LEVEL_THRESHOLDS } from '@/lib/constants'
 import { DailyRateChart } from '@/components/DailyRateChart'
@@ -32,6 +33,7 @@ interface DashboardData {
   requiredWorkHours: number
   workingDays: number
   achievements: { code: string }[]
+  showcaseCodes: string[]
   showNextLevelBtn: boolean
   line: { bound: boolean; displayName: string | null; pictureUrl: string | null }
 }
@@ -380,6 +382,13 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* 我的展示徽章 */}
+      <ShowcaseCard
+        unlockedCodes={data.achievements.map(a => a.code)}
+        current={data.showcaseCodes}
+        onSave={codes => setData(prev => prev ? { ...prev, showcaseCodes: codes } : prev)}
+      />
 
       {/* 成就牆 */}
       <Card>

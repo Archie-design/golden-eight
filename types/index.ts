@@ -34,6 +34,8 @@ export interface Member {
   line_user_id?:      string | null
   line_display_name?: string | null
   line_picture_url?:  string | null
+  /** 排行榜展示徽章（最多 3 顆，順序 = 顯示順序） */
+  showcase_codes?:    string[]
   created_at: string
 }
 

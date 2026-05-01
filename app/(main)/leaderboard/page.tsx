@@ -5,6 +5,8 @@ import { toast } from 'sonner'
 import { Crown, Trophy, Star, Dumbbell, Medal, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { AppIcon } from '@/lib/icons'
+import { ACHIEVEMENT_LIST } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 
 function shiftMonth(ym: string, delta: number): string {
@@ -27,6 +29,7 @@ interface LeaderRow {
   achievementCount: number
   yearMonth:        string
   exempted:         boolean
+  showcaseCodes:    string[]
 }
 
 const LEVEL_COLORS: Record<string, string> = {
@@ -191,7 +194,7 @@ export default function LeaderboardPage() {
                   </div>
 
                   {/* Sub stats */}
-                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                     <span className="flex items-center gap-0.5">
                       <Dumbbell className="w-3 h-3" />
                       {row.maxStreak} 天
@@ -202,6 +205,19 @@ export default function LeaderboardPage() {
                     </span>
                     {row.passing && (
                       <span className="text-green-600 font-medium">✓ 通過</span>
+                    )}
+                    {row.showcaseCodes.length > 0 && (
+                      <span className="flex items-center gap-1 ml-auto">
+                        {row.showcaseCodes.map(code => {
+                          const ach = ACHIEVEMENT_LIST.find(a => a.code === code)
+                          if (!ach) return null
+                          return (
+                            <span key={code} title={ach.name}>
+                              <AppIcon name={ach.badge} className="w-4 h-4 text-amber-500" />
+                            </span>
+                          )
+                        })}
+                      </span>
                     )}
                   </div>
                 </div>

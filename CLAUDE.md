@@ -40,8 +40,9 @@ Login identifies members by **name + full 10-digit phone number**. The phone is 
 |------|---------|
 | `lib/auth.ts` | `createToken` / `verifyToken` — JWT includes `sub`, `isAdmin`, `tv` |
 | `lib/api-helper.ts` | `getCurrentMember`, `requireAdmin`, Taipei time helpers (`getTodayTaipei`, `getCheckinDayTaipei`) |
-| `lib/scoring.ts` | Pure functions: `calcBaseScore`, `calcMonthStats`, `calcNewAchievementsFromAggregates`, `calcPenalty` |
-| `lib/constants.ts` | 8 tasks, level thresholds, 45 achievement definitions |
+| `lib/scoring.ts` | Pure functions: `calcBaseScore`, `calcMonthStats`, `calcNewAchievementsFromAggregates`, `calcPenalty`, `isDawnKing`, `expectedCheckinDays` |
+| `lib/settlement.ts` | `runSettlement(db, yearMonth, today)` — shared by admin POST and cron route; idempotent via upsert |
+| `lib/constants.ts` | 8 tasks, level thresholds, 44 achievement definitions |
 | `lib/phone.ts` | `hashPhone(phone)` — HMAC-SHA256 with `PHONE_PEPPER` env var |
 | `lib/rate-limit.ts` | In-memory per-IP rate limiter; `checkRateLimit(key, limit, windowMs)` returns 429 Response or null |
 | `lib/cookie-options.ts` | `AUTH_COOKIE_OPTIONS` (secure in prod), `AUTH_TOKEN_MAX_AGE` (7 days) |
@@ -58,7 +59,7 @@ The logical check-in day uses **noon (12:00 Taipei) as the day boundary**. Befor
 - **`members`** — id `M001…`, `phone_hash`, `token_version` (JWT revocation), `failed_attempts` / `locked_until` (login lockout), `line_user_id`
 - **`checkin_records`** — `tasks BOOLEAN[8]`; `punch_bonus` is always 0 (feature suspended); one row per member per day (UNIQUE)
 - **`monthly_summary`** — `rate`, `passing`, `penalty` (NT$), `is_dawn_king`
-- **`achievements`** — 49 badge codes; UNIQUE(member_id, code)
+- **`achievements`** — 44 badge codes; UNIQUE(member_id, code)
 - **`schedule_template`** — `block_tags JSONB` (`[{id,name,color,emoji}]`); replaced old `tag_id`/`tag_name` columns
 - **`sunrise_cache`** — cross-instance DB cache for external sunrise API calls
 
@@ -77,7 +78,20 @@ In `lib/scoring.ts` and `lib/constants.ts`:
 - Base score = completed task count (0–8); `punch_bonus` fixed at 0
 - Monthly pass: Gold ≥80%, Silver ≥70%, Bronze ≥60%
 - Penalties: Gold NT$200, Silver NT$300, Bronze NT$400
-- Achievement calculation on check-in submit uses **aggregate counts + 105-day window** (`calcNewAchievementsFromAggregates`) — does not fetch full history
+- Achievement check on submit uses **aggregate counts + 105-day streak window**, not full history. POST path skips terminal-achievement COUNTs (`CHECKIN_365` / `PERFECT_30` already unlocked → pass `Number.MAX_SAFE_INTEGER`); PATCH (edit) path always queries because counts can decrease.
+
+### Dawn King (破曉王) — Unified Definition
+
+`isDawnKing(member, records, ym, refDate)` from `lib/scoring.ts`. All three call sites (settlement, leaderboard current mode, admin progress) share this helper. Member must satisfy:
+1. `expectedCheckinDays > 0` (not a brand-new joiner)
+2. `records.length === expectedDays` (no missed check-ins in the active window)
+3. Every record has `tasks[1] = true`
+
+`refDate = min(today, monthEnd)` so historical months evaluate against month-end and current month against today.
+
+### Exempted Members (新進不參與計分)
+
+When `effective_start_date > monthEnd` (or for the current month, `> today`), `calcMonthStats` returns `maxScore=0`. Settlement skips these members entirely (no `monthly_summary` row, no penalty, no level update, no monthly achievements). UI displays "本月新進，不參與計分" instead of `0%`. API responses set `exempted: true` so frontends can render the special state.
 
 ### Rate Limiting
 
@@ -94,7 +108,7 @@ PHONE_PEPPER=         # 32+ chars — HMAC pepper for phone_hash; do NOT rotate 
 LINE_CHANNEL_ID=      # LINE Login OAuth
 LINE_CHANNEL_SECRET=
 LINE_CALLBACK_URL=    # https://<host>/api/auth/line/callback
-CRON_SECRET=          # Bearer token verified by /api/cron/daily-reminder
+CRON_SECRET=          # Bearer token verified by all /api/cron/* routes
 ```
 
 ### API Response Shape
@@ -103,6 +117,22 @@ All routes return `ApiResult<T>`:
 ```ts
 { ok: true, data: T } | { ok: false, msg: string }
 ```
+
+### Cron Jobs (`vercel.json`)
+
+| Path | Schedule (UTC) | Taipei | Purpose |
+|------|---------------|--------|---------|
+| `/api/cron/daily-reminder` | `0 22 * * *` | 06:00 next day | Identifies members who haven't checked in (LINE push hook is TODO) |
+| `/api/cron/monthly-settlement` | `0 5 1 * *` | 13:00 on day 1 | Calls `runSettlement` for previous month |
+
+**Critical timing**: monthly-settlement *must* run after 12:00 Taipei because the check-in day boundary is noon — 4/30's logical day extends to 5/1 12:00 Taipei. The 13:00 schedule keeps a 1-hour buffer. Settlement is idempotent (upsert on `(member_id, year_month)`), safe to retrigger manually.
+
+### Diagnostic / Backfill Scripts (`scripts/`)
+
+Read-only by default; require `--apply` flag to mutate. Use service-role key from `.env.local`:
+- `audit_records.py` — full data-integrity scan (consistency / outliers / achievement alignment / settlement gaps)
+- `backfill_punch_streak.py`, `backfill_work_hours.py`, `backfill_achievements.py` — replay logic to repair specific anomaly classes
+- `fix_m003.py`, `import_form_data.py` — historical Excel ingestion (one-shot)
 
 ### Database Migrations
 

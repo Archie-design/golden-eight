@@ -24,7 +24,10 @@ CREATE TABLE IF NOT EXISTS members (
   line_user_id       TEXT,
   line_display_name  TEXT,
   line_picture_url   TEXT,
-  created_at      TIMESTAMPTZ DEFAULT NOW()
+  showcase_codes  TEXT[] NOT NULL DEFAULT '{}',         -- 排行榜展示徽章（最多 3 顆，順序 = 顯示順序）
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT showcase_codes_max_3
+    CHECK (array_length(showcase_codes, 1) IS NULL OR array_length(showcase_codes, 1) <= 3)
 );
 
 -- phone_hash / phone_full / line_user_id 唯一（部分索引便於漸進遷移）

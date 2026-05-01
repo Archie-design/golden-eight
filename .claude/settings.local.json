@@ -56,7 +56,8 @@
       "Bash(python3 scripts/backfill_work_hours.py)",
       "Bash(python3 scripts/backfill_work_hours.py --apply)",
       "Bash(python3 scripts/backfill_achievements.py)",
-      "Bash(python3 scripts/backfill_achievements.py --apply)"
+      "Bash(python3 scripts/backfill_achievements.py --apply)",
+      "Bash(grep -n \"AchievementWall\\\\|<Card>\\\\s*$\" /Users/keke/黃金八套餐定課系統/golden-eight/app/\\\\\\(main\\\\\\)/dashboard/page.tsx)"
     ]
   }
 }

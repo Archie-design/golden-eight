@@ -6,9 +6,9 @@
 //   2. 各 route 寫法不一致導致回傳格式漂移
 // ============================================================
 
-/** members 統計／排行用：滿足 Member type 的必填欄位 + 等級設定 */
+/** members 統計／排行用：滿足 Member type 的必填欄位 + 等級設定 + 展示徽章 */
 export const MEMBER_COLS_STATS =
-  'id, name, level, join_date, effective_start_date, next_level, is_admin, status, created_at'
+  'id, name, level, join_date, effective_start_date, next_level, is_admin, status, showcase_codes, created_at'
 
 /** members 月結用：與 STATS 同（業務邏輯已不需要敏感欄位） */
 export const MEMBER_COLS_SETTLEMENT = MEMBER_COLS_STATS
