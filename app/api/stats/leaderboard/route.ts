@@ -13,9 +13,15 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const mode = searchParams.get('mode') === 'best' ? 'best' : 'current'
 
-  const db    = createServerClient()
-  const today = getTodayTaipei()
-  const ym    = getYearMonth(today)
+  const db          = createServerClient()
+  const today       = getTodayTaipei()
+  const currentYm   = getYearMonth(today)
+  const rawMonth    = searchParams.get('month') ?? ''
+  const ym          = /^\d{4}-\d{2}$/.test(rawMonth) && rawMonth <= currentYm
+    ? rawMonth : currentYm
+  const isCurrentMonth = ym === currentYm
+  // 歷史月份以月底為基準，使 calcMonthStats 的分母涵蓋完整一個月
+  const refDate = isCurrentMonth ? today : getMonthEnd(ym)
 
   const { data: members } = await db
     .from('members').select(MEMBER_COLS_STATS).eq('status', '活躍').order('id')
@@ -67,7 +73,7 @@ export async function GET(req: Request) {
 
     rows = members.map((m: Member) => {
       const recs      = recsByMember[m.id] ?? []
-      const stats     = calcMonthStats(m, recs, today)
+      const stats     = calcMonthStats(m, recs, refDate)
       const maxS      = calcMaxPunchStreakFromSorted(recs)
       return {
         id:               m.id,
@@ -132,5 +138,5 @@ export async function GET(req: Request) {
     return { ...r, rank }
   })
 
-  return NextResponse.json({ ok: true, mode, yearMonth: ym, rows })
+  return NextResponse.json({ ok: true, mode, yearMonth: ym, isCurrentMonth, currentYearMonth: currentYm, rows })
 }

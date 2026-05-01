@@ -4,13 +4,19 @@ import { calcMonthStats, calcMaxPunchStreakFromSorted } from '@/lib/scoring'
 import { MEMBER_COLS_STATS, RECORD_COLS_STATS } from '@/lib/db-columns'
 import type { Member, CheckInRecord } from '@/types'
 
-export async function GET() {
+export async function GET(req: Request) {
   const admin = await requireAdmin()
   if (admin instanceof NextResponse) return admin
   const { db } = admin
 
-  const today     = getTodayTaipei()
-  const yearMonth = today.substring(0, 7)
+  const today      = getTodayTaipei()
+  const currentYm  = today.substring(0, 7)
+  const rawMonth   = new URL(req.url).searchParams.get('month') ?? ''
+  const yearMonth  = /^\d{4}-\d{2}$/.test(rawMonth) && rawMonth <= currentYm
+    ? rawMonth : currentYm
+  const isCurrentMonth = yearMonth === currentYm
+  // 歷史月份用月底為基準，使 calcMonthStats 分母涵蓋完整一個月
+  const refDate = isCurrentMonth ? today : getMonthEnd(yearMonth)
 
   const { data: members } = await db.from('members').select(MEMBER_COLS_STATS).eq('status', '活躍').order('id')
   if (!members?.length) return NextResponse.json({ ok: true, yearMonth, rows: [] })
@@ -31,7 +37,7 @@ export async function GET() {
 
   const rows = memberList.map(m => {
     const recs       = recsByMember[m.id] ?? []
-    const stats      = calcMonthStats(m, recs, today)
+    const stats      = calcMonthStats(m, recs, refDate)
     const maxStreak  = calcMaxPunchStreakFromSorted(recs)
     const isDawnKing = recs.length > 0 && recs.every(r => r.tasks[1])
     return {
@@ -47,5 +53,5 @@ export async function GET() {
     }
   })
 
-  return NextResponse.json({ ok: true, yearMonth, rows })
+  return NextResponse.json({ ok: true, yearMonth, isCurrentMonth, currentYearMonth: currentYm, rows })
 }

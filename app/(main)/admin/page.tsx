@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { toast } from 'sonner'
-import { Star, CheckCircle2, X, Crown, PartyPopper, Download, Trophy, Medal, KeyRound, AlertTriangle } from 'lucide-react'
+import { Star, CheckCircle2, X, Crown, PartyPopper, Download, Trophy, Medal, KeyRound, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,6 +23,8 @@ interface DetailMember { id: string; name: string; level: string; effectiveStart
 export default function AdminPage() {
   const [members,      setMembers]      = useState<Member[]>([])
   const [progress,     setProgress]     = useState<ProgressRow[]>([])
+  const [progressYM,   setProgressYM]   = useState(() => new Date().toISOString().slice(0, 7))
+  const [progressMaxYM, setProgressMaxYM] = useState('')
   const [penaltyData,  setPenaltyData]  = useState<{ yearMonth: string; rows: PenaltyRow[]; total: number } | null>(null)
   const [penaltyYM,    setPenaltyYM]    = useState(() => new Date().toISOString().slice(0, 7))
   const [achStats,     setAchStats]     = useState<AchStat[]>([])
@@ -42,8 +44,13 @@ export default function AdminPage() {
 
   const loadMembers  = useCallback(() =>
     fetch('/api/admin/members').then(r => r.json()).then(j => { if (j.ok) setMembers(j.members) }), [])
-  const loadProgress = useCallback(() =>
-    fetch('/api/stats/progress').then(r => r.json()).then(j => { if (j.ok) setProgress(j.rows) }), [])
+  const loadProgress = useCallback((ym: string) =>
+    fetch(`/api/stats/progress?month=${ym}`).then(r => r.json()).then(j => {
+      if (j.ok) {
+        setProgress(j.rows)
+        if (j.currentYearMonth) setProgressMaxYM(prev => prev || j.currentYearMonth)
+      }
+    }), [])
 
   const loadPenalty = useCallback((ym: string) =>
     fetch(`/api/admin/penalty?yearMonth=${ym}`)
@@ -65,7 +72,19 @@ export default function AdminPage() {
     setDetailLoading(false)
   }, [])
 
-  useEffect(() => { loadMembers(); loadProgress() }, [loadMembers, loadProgress])
+  useEffect(() => { loadMembers() }, [loadMembers])
+  useEffect(() => { loadProgress(progressYM) }, [loadProgress, progressYM])
+
+  function shiftProgressMonth(delta: number) {
+    setProgressYM(prev => {
+      const [y, m] = prev.split('-').map(Number)
+      const d = new Date(y, m - 1 + delta, 1)
+      const next = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      if (delta > 0 && progressMaxYM && next > progressMaxYM) return prev
+      return next
+    })
+  }
+  const progressIsCurrent = !progressMaxYM || progressYM >= progressMaxYM
 
   function handleExportCSV() {
     window.location.href = `/api/admin/export?yearMonth=${penaltyYM}`
@@ -146,8 +165,25 @@ export default function AdminPage() {
         <TabsContent value="progress">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base">本月全員進度</CardTitle>
-              <Button size="sm" variant="outline" onClick={loadProgress}>重新整理</Button>
+              <CardTitle className="text-base flex items-center gap-1">
+                <button
+                  onClick={() => shiftProgressMonth(-1)}
+                  className="p-1 rounded hover:bg-gray-100 text-muted-foreground"
+                  aria-label="上個月"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span>{progressIsCurrent ? '本月全員進度' : `${progressYM} 全員進度`}</span>
+                <button
+                  onClick={() => shiftProgressMonth(1)}
+                  disabled={progressIsCurrent}
+                  className="p-1 rounded hover:bg-gray-100 text-muted-foreground disabled:opacity-30 disabled:cursor-not-allowed"
+                  aria-label="下個月"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </CardTitle>
+              <Button size="sm" variant="outline" onClick={() => loadProgress(progressYM)}>重新整理</Button>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">

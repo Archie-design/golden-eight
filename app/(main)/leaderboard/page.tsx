@@ -2,10 +2,16 @@
 
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Crown, Trophy, Star, Dumbbell, Medal } from 'lucide-react'
+import { Crown, Trophy, Star, Dumbbell, Medal, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+
+function shiftMonth(ym: string, delta: number): string {
+  const [y, m] = ym.split('-').map(Number)
+  const d = new Date(y, m - 1 + delta, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
 
 interface LeaderRow {
   rank:             number
@@ -38,18 +44,44 @@ export default function LeaderboardPage() {
   const [mode,        setMode]        = useState<'current' | 'best'>('current')
   const [rows,        setRows]        = useState<LeaderRow[]>([])
   const [yearMonth,   setYearMonth]   = useState('')
-  const [fetchedMode, setFetchedMode] = useState<string | null>(null)
-  const loading = fetchedMode !== mode
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  })
+  const [maxMonth,    setMaxMonth]    = useState('')
+  const [fetchedKey,  setFetchedKey]  = useState<string | null>(null)
+  const fetchKey = mode === 'current' ? `current:${selectedMonth}` : 'best'
+  const loading  = fetchedKey !== fetchKey
+  const isCurrentMonth = !maxMonth || selectedMonth >= maxMonth
 
   useEffect(() => {
-    fetch(`/api/stats/leaderboard?mode=${mode}`)
+    const ac = new AbortController()
+    const url = mode === 'current'
+      ? `/api/stats/leaderboard?mode=current&month=${selectedMonth}`
+      : `/api/stats/leaderboard?mode=best`
+    fetch(url, { signal: ac.signal })
       .then(r => r.json())
       .then(json => {
-        if (json.ok) { setRows(json.rows); setYearMonth(json.yearMonth) }
-        else toast.error(json.msg)
+        if (json.ok) {
+          setRows(json.rows)
+          setYearMonth(json.yearMonth)
+          if (json.currentYearMonth) setMaxMonth(prev => prev || json.currentYearMonth)
+        } else {
+          toast.error(json.msg)
+        }
       })
-      .finally(() => setFetchedMode(mode))
-  }, [mode])
+      .catch(e => { if (e.name !== 'AbortError') console.error('[leaderboard] fetch failed', e) })
+      .finally(() => setFetchedKey(fetchKey))
+    return () => ac.abort()
+  }, [fetchKey, mode, selectedMonth])
+
+  function navigate(delta: number) {
+    setSelectedMonth(prev => {
+      const next = shiftMonth(prev, delta)
+      if (delta > 0 && maxMonth && next > maxMonth) return prev
+      return next
+    })
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
@@ -57,7 +89,26 @@ export default function LeaderboardPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="flex items-center gap-2 text-lg font-bold">
           <Trophy className="w-5 h-5 text-amber-500" /> 排行榜
-          {yearMonth && <span className="text-sm font-normal text-muted-foreground">{yearMonth}</span>}
+          {mode === 'current' && (
+            <span className="flex items-center gap-1 text-sm font-normal text-muted-foreground">
+              <button
+                onClick={() => navigate(-1)}
+                className="p-1 rounded hover:bg-gray-100"
+                aria-label="上個月"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="min-w-[4.5rem] text-center">{yearMonth || selectedMonth}</span>
+              <button
+                onClick={() => navigate(1)}
+                disabled={isCurrentMonth}
+                className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                aria-label="下個月"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </span>
+          )}
         </h1>
         <div className="flex gap-2">
           <Button
@@ -82,7 +133,9 @@ export default function LeaderboardPage() {
       <Card>
         <CardHeader className="pb-2 pt-3 px-4">
           <CardTitle className="text-sm text-muted-foreground">
-            {mode === 'current' ? '依本月達成率排序' : '每位成員歷史最高達成率月份'}
+            {mode === 'current'
+              ? (isCurrentMonth ? '依本月達成率排序' : `${yearMonth} 達成率排序`)
+              : '每位成員歷史最高達成率月份'}
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-4 space-y-2">
