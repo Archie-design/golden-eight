@@ -11,10 +11,21 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Switch } from '@/components/ui/switch'
 
 interface Member      { id: string; name: string; join_date: string; level: string; next_level?: string | null; status: string }
-interface ProgressRow { id: string; name: string; level: string; totalScore: number; maxScore: number; rate: number; passing: boolean; maxStreak: number; isDawnKing: boolean; exempted: boolean }
-interface PenaltyRow  { name: string; level: string; rate: number; penalty: number }
+interface ProgressRow {
+  id: string; name: string; level: string
+  totalScore: number; maxScore: number; rate: number; passing: boolean
+  maxStreak: number; isDawnKing: boolean; exempted: boolean
+  settledTotal: number | null; settledRate: number | null
+  settledPassing: boolean | null; whDeduction: number | null; penalty: number | null
+}
+interface PenaltyRow  {
+  name: string; level: string; rate: number; penalty: number
+  liveRate: number | null; liveTotal: number | null
+  whDeduction: number; settledTotal: number
+}
 interface AchStat     { code: string; name: string; count: number; pct: number }
 interface MemberStat  { id: string; name: string; count: number; total: number }
 interface DayRecord   { date: string; tasks: boolean[]; total_score: number; submit_time: string }
@@ -25,6 +36,8 @@ export default function AdminPage() {
   const [progress,     setProgress]     = useState<ProgressRow[]>([])
   const [progressYM,   setProgressYM]   = useState(() => new Date().toISOString().slice(0, 7))
   const [progressMaxYM, setProgressMaxYM] = useState('')
+  const [progressShowSettled, setProgressShowSettled] = useState(false)
+  const [penaltyShowDetail,   setPenaltyShowDetail]   = useState(false)
   const [penaltyData,  setPenaltyData]  = useState<{ yearMonth: string; rows: PenaltyRow[]; total: number } | null>(null)
   const [penaltyYM,    setPenaltyYM]    = useState(() => new Date().toISOString().slice(0, 7))
   const [achStats,     setAchStats]     = useState<AchStat[]>([])
@@ -183,7 +196,13 @@ export default function AdminPage() {
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </CardTitle>
-              <Button size="sm" variant="outline" onClick={() => loadProgress(progressYM)}>重新整理</Button>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                  <Switch checked={progressShowSettled} onCheckedChange={setProgressShowSettled} />
+                  扣分後
+                </label>
+                <Button size="sm" variant="outline" onClick={() => loadProgress(progressYM)}>重新整理</Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -194,30 +213,47 @@ export default function AdminPage() {
                     <th className="text-center">狀態</th><th className="text-right">連打</th>
                   </tr></thead>
                   <tbody>
-                    {progress.map(r => r.exempted ? (
-                      <tr key={r.id} className="border-b last:border-0 text-muted-foreground">
-                        <td className="py-2 font-medium">{r.name}</td>
-                        <td><Badge variant="outline">{r.level}</Badge></td>
-                        <td colSpan={4} className="text-center text-xs italic">本月新進，不參與計分</td>
-                      </tr>
-                    ) : (
-                      <tr key={r.id} className="border-b last:border-0">
-                        <td className="py-2 font-medium">{r.name}</td>
-                        <td><Badge variant="outline">{r.level}</Badge></td>
-                        <td className="text-right">{r.totalScore}/{r.maxScore}</td>
-                        <td className="text-right">{r.rate}%</td>
-                        <td className="text-center">
-                          <span className={`inline-flex items-center gap-1 font-semibold ${r.passing ? 'text-green-600' : 'text-red-500'}`}>
-                            {r.passing ? <><CheckCircle2 className="w-4 h-4" /> 達標</> : <><X className="w-4 h-4" /> 未達標</>}
-                          </span>
-                        </td>
-                        <td className="text-right">
-                          <span className="inline-flex items-center justify-end gap-1">
-                            {r.maxStreak} 天{r.isDawnKing && <Crown className="w-4 h-4 text-yellow-500" />}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                    {progress.map(r => {
+                      if (r.exempted) return (
+                        <tr key={r.id} className="border-b last:border-0 text-muted-foreground">
+                          <td className="py-2 font-medium">{r.name}</td>
+                          <td><Badge variant="outline">{r.level}</Badge></td>
+                          <td colSpan={4} className="text-center text-xs italic">本月新進，不參與計分</td>
+                        </tr>
+                      )
+                      const useSettled = progressShowSettled && r.settledRate != null
+                      const total   = useSettled ? r.settledTotal! : r.totalScore
+                      const rate    = useSettled ? r.settledRate!  : r.rate
+                      const passing = useSettled ? r.settledPassing! : r.passing
+                      const notSettled = progressShowSettled && r.settledRate == null
+                      return (
+                        <tr key={r.id} className="border-b last:border-0">
+                          <td className="py-2 font-medium">{r.name}</td>
+                          <td><Badge variant="outline">{r.level}</Badge></td>
+                          <td className="text-right">{notSettled ? '—' : `${total}/${r.maxScore}`}</td>
+                          <td className="text-right">
+                            {notSettled
+                              ? <span className="text-xs italic text-muted-foreground">未月結</span>
+                              : `${rate}%`}
+                            {useSettled && r.whDeduction != null && r.whDeduction > 0 && (
+                              <span className="text-[0.65rem] text-muted-foreground ml-1">(-{r.whDeduction})</span>
+                            )}
+                          </td>
+                          <td className="text-center">
+                            {notSettled ? '—' : (
+                              <span className={`inline-flex items-center gap-1 font-semibold ${passing ? 'text-green-600' : 'text-red-500'}`}>
+                                {passing ? <><CheckCircle2 className="w-4 h-4" /> 達標</> : <><X className="w-4 h-4" /> 未達標</>}
+                              </span>
+                            )}
+                          </td>
+                          <td className="text-right">
+                            <span className="inline-flex items-center justify-end gap-1">
+                              {r.maxStreak} 天{r.isDawnKing && <Crown className="w-4 h-4 text-yellow-500" />}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -350,7 +386,13 @@ export default function AdminPage() {
         <TabsContent value="penalty">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
-              <CardTitle className="text-base">罰款總結</CardTitle>
+              <CardTitle className="text-base flex items-center gap-3">
+                罰款總結
+                <label className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground cursor-pointer">
+                  <Switch checked={penaltyShowDetail} onCheckedChange={setPenaltyShowDetail} />
+                  扣分明細
+                </label>
+              </CardTitle>
               <div className="flex items-center gap-2 flex-wrap">
                 <Input
                   type="month"
@@ -377,13 +419,26 @@ export default function AdminPage() {
                   <table className="w-full text-sm mb-3">
                     <thead><tr className="border-b text-muted-foreground">
                       <th className="text-left py-2">姓名</th><th className="text-left">階梯</th>
-                      <th className="text-right">達成率</th><th className="text-right">罰款</th>
+                      {penaltyShowDetail && <th className="text-right">扣前</th>}
+                      {penaltyShowDetail && <th className="text-right">工時扣</th>}
+                      <th className="text-right">{penaltyShowDetail ? '扣後' : '達成率'}</th>
+                      <th className="text-right">罰款</th>
                     </tr></thead>
                     <tbody>
                       {penaltyData.rows.map((r, i) => (
                         <tr key={i} className="border-b last:border-0">
                           <td className="py-2">{r.name}</td>
                           <td>{r.level}</td>
+                          {penaltyShowDetail && (
+                            <td className="text-right text-muted-foreground">
+                              {r.liveRate != null ? `${r.liveRate}%` : '—'}
+                            </td>
+                          )}
+                          {penaltyShowDetail && (
+                            <td className="text-right text-orange-600">
+                              {r.whDeduction > 0 ? `-${r.whDeduction}` : '—'}
+                            </td>
+                          )}
                           <td className="text-right text-red-500">{r.rate}%</td>
                           <td className="text-right font-bold text-red-600">NT$ {r.penalty}</td>
                         </tr>

@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Crown, Trophy, Star, Dumbbell, Medal, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { AppIcon } from '@/lib/icons'
 import { ACHIEVEMENT_LIST } from '@/lib/constants'
 import { cn } from '@/lib/utils'
@@ -30,6 +31,10 @@ interface LeaderRow {
   yearMonth:        string
   exempted:         boolean
   showcaseCodes:    string[]
+  settledTotal:     number | null
+  settledRate:      number | null
+  settledPassing:   boolean | null
+  whDeduction:      number | null
 }
 
 const LEVEL_COLORS: Record<string, string> = {
@@ -53,6 +58,7 @@ export default function LeaderboardPage() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   })
   const [maxMonth,    setMaxMonth]    = useState('')
+  const [showSettled, setShowSettled] = useState(false)
   const [fetchedKey,  setFetchedKey]  = useState<string | null>(null)
   const fetchKey = mode === 'current' ? `current:${selectedMonth}` : 'best'
   const loading  = fetchedKey !== fetchKey
@@ -86,6 +92,24 @@ export default function LeaderboardPage() {
       return next
     })
   }
+
+  // toggle 扣分後時依 settledRate 重排（未月結墊底）並重編 rank
+  const displayRows: LeaderRow[] = (() => {
+    if (mode !== 'current' || !showSettled) return rows
+    const sorted = [...rows].sort((a, b) => {
+      const aSet = a.settledRate != null
+      const bSet = b.settledRate != null
+      if (aSet !== bSet) return aSet ? -1 : 1
+      const ar = a.settledRate ?? -1
+      const br = b.settledRate ?? -1
+      return br - ar || a.name.localeCompare(b.name)
+    })
+    let rank = 1
+    return sorted.map((r, i) => {
+      if (i > 0 && (r.settledRate ?? -1) !== (sorted[i - 1].settledRate ?? -1)) rank = i + 1
+      return { ...r, rank }
+    })
+  })()
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
@@ -135,12 +159,18 @@ export default function LeaderboardPage() {
       </div>
 
       <Card>
-        <CardHeader className="pb-2 pt-3 px-4">
+        <CardHeader className="pb-2 pt-3 px-4 flex flex-row items-center justify-between gap-2">
           <CardTitle className="text-sm text-muted-foreground">
             {mode === 'current'
               ? (isCurrentMonth ? '依本月達成率排序' : `${yearMonth} 達成率排序`)
               : '每位成員歷史最高達成率月份'}
           </CardTitle>
+          {mode === 'current' && (
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+              <Switch checked={showSettled} onCheckedChange={setShowSettled} />
+              扣分後
+            </label>
+          )}
         </CardHeader>
         <CardContent className="px-4 pb-4 space-y-2">
           {loading && (
@@ -151,12 +181,17 @@ export default function LeaderboardPage() {
             </>
           )}
 
-          {!loading && rows.length === 0 && (
+          {!loading && displayRows.length === 0 && (
             <p className="text-sm text-muted-foreground py-6 text-center">尚無資料</p>
           )}
 
-          {!loading && rows.map(row => {
+          {!loading && displayRows.map(row => {
             const rankStyle = RANK_STYLES[row.rank]
+            const useSettled  = mode === 'current' && showSettled && row.settledRate != null
+            const dispRate    = useSettled ? row.settledRate! : row.rate
+            const dispTotal   = useSettled ? row.settledTotal! : row.totalScore
+            const dispPassing = useSettled ? row.settledPassing! : row.passing
+            const notSettled  = mode === 'current' && showSettled && row.settledRate == null && !row.exempted
             return (
               <div
                 key={row.id}
@@ -222,8 +257,11 @@ export default function LeaderboardPage() {
                       <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
                       {row.achievementCount} 成就
                     </span>
-                    {row.passing && (
+                    {dispPassing && (
                       <span className="text-green-600 font-medium">✓ 通過</span>
+                    )}
+                    {useSettled && row.whDeduction != null && row.whDeduction > 0 && (
+                      <span className="text-orange-600">工時扣 -{row.whDeduction}</span>
                     )}
                   </div>
                 </div>
@@ -232,20 +270,22 @@ export default function LeaderboardPage() {
                 <div className="text-right shrink-0">
                   {row.exempted ? (
                     <div className="text-xs text-muted-foreground italic">不參與計分</div>
+                  ) : notSettled ? (
+                    <div className="text-xs text-muted-foreground italic">未月結</div>
                   ) : (
                     <>
                       <div className={cn(
                         'text-xl font-bold',
-                        row.rate >= 80 ? 'text-amber-500'
-                          : row.rate >= 70 ? 'text-gray-500'
-                          : row.rate >= 60 ? 'text-orange-500'
+                        dispRate >= 80 ? 'text-amber-500'
+                          : dispRate >= 70 ? 'text-gray-500'
+                          : dispRate >= 60 ? 'text-orange-500'
                           : 'text-red-400'
                       )}>
-                        {row.rate}%
+                        {dispRate}%
                       </div>
                       {row.maxScore != null && (
                         <div className="text-xs text-muted-foreground">
-                          {row.totalScore} / {row.maxScore}
+                          {dispTotal} / {row.maxScore}
                         </div>
                       )}
                     </>

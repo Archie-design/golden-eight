@@ -23,16 +23,34 @@ export async function GET(req: Request) {
 
   const memberList = members as Member[]
 
-  // 一次撈取所有成員當月紀錄，避免 per-member N+1
-  const { data: allRecs } = await db
-    .from('checkin_records').select(RECORD_COLS_STATS)
-    .in('member_id', memberList.map(m => m.id))
-    .gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth))
-    .order('date')
+  // 一次撈取所有成員當月紀錄 + 月結結果（若已月結）
+  const [allRecsRes, summariesRes] = await Promise.all([
+    db.from('checkin_records').select(RECORD_COLS_STATS)
+      .in('member_id', memberList.map(m => m.id))
+      .gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth))
+      .order('date'),
+    db.from('monthly_summary')
+      .select('member_id, total_score, rate, passing, work_hours_deduction, penalty')
+      .eq('year_month', yearMonth)
+      .in('member_id', memberList.map(m => m.id)),
+  ])
 
   const recsByMember: Record<string, CheckInRecord[]> = {}
-  ;((allRecs ?? []) as CheckInRecord[]).forEach(r => {
+  ;((allRecsRes.data ?? []) as CheckInRecord[]).forEach(r => {
     (recsByMember[r.member_id] ??= []).push(r)
+  })
+
+  type Summary = {
+    member_id: string
+    total_score: number
+    rate: number
+    passing: boolean
+    work_hours_deduction: number
+    penalty: number
+  }
+  const summaryByMember: Record<string, Summary> = {}
+  ;((summariesRes.data ?? []) as Summary[]).forEach(s => {
+    summaryByMember[s.member_id] = s
   })
 
   // 破曉王：群組本月最長連打天數最高者（可並列）
@@ -46,6 +64,7 @@ export async function GET(req: Request) {
     const stats      = calcMonthStats(m, recs, refDate)
     const maxStreak  = calcMaxPunchStreakFromSorted(recs)
     const dawnKing   = isDawnKing(maxStreak, groupMaxStreak)
+    const summary    = summaryByMember[m.id]
     return {
       id:         m.id,
       name:       m.name,
@@ -57,6 +76,12 @@ export async function GET(req: Request) {
       maxStreak,
       isDawnKing: dawnKing,
       exempted:   stats.maxScore === 0,
+      // 月結後欄位（未月結為 null）
+      settledTotal:   summary?.total_score          ?? null,
+      settledRate:    summary?.rate                 ?? null,
+      settledPassing: summary?.passing              ?? null,
+      whDeduction:    summary?.work_hours_deduction ?? null,
+      penalty:        summary?.penalty              ?? null,
     }
   })
 

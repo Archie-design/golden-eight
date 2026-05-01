@@ -43,22 +43,39 @@ export async function GET(req: Request) {
     id: string; name: string; level: string; totalScore: number
     maxScore: number | null; rate: number; passing: boolean
     maxStreak: number; isDawnKing: boolean; achievementCount: number
-    yearMonth: string; exempted: boolean; showcaseCodes: string[]; rank: number
+    yearMonth: string; exempted: boolean; showcaseCodes: string[]
+    settledTotal: number | null; settledRate: number | null
+    settledPassing: boolean | null; whDeduction: number | null
+    rank: number
   }
   let rows: Omit<LeaderRow, 'rank'>[]
 
   if (mode === 'current') {
     // ── Current-month leaderboard (calculated live) ───────────────────────
-    const { data: allRecs } = await db
-      .from('checkin_records').select(RECORD_COLS_STATS)
-      .in('member_id', members.map((m: Member) => m.id))
-      .gte('date', ym + '-01').lte('date', getMonthEnd(ym))
-      .order('date')
+    const [allRecsRes, summariesRes] = await Promise.all([
+      db.from('checkin_records').select(RECORD_COLS_STATS)
+        .in('member_id', members.map((m: Member) => m.id))
+        .gte('date', ym + '-01').lte('date', getMonthEnd(ym))
+        .order('date'),
+      db.from('monthly_summary')
+        .select('member_id, total_score, rate, passing, work_hours_deduction')
+        .eq('year_month', ym)
+        .in('member_id', members.map((m: Member) => m.id)),
+    ])
 
     const recsByMember: Record<string, CheckInRecord[]> = {}
-    ;(allRecs ?? []).forEach((r: CheckInRecord) => {
+    ;(allRecsRes.data ?? []).forEach((r: CheckInRecord) => {
       if (!recsByMember[r.member_id]) recsByMember[r.member_id] = []
       recsByMember[r.member_id].push(r)
+    })
+
+    type Summary = {
+      member_id: string; total_score: number; rate: number
+      passing: boolean; work_hours_deduction: number
+    }
+    const summaryByMember: Record<string, Summary> = {}
+    ;((summariesRes.data ?? []) as Summary[]).forEach(s => {
+      summaryByMember[s.member_id] = s
     })
 
     // 破曉王：群組本月最長連打天數最高者（可並列）
@@ -71,6 +88,7 @@ export async function GET(req: Request) {
       const recs      = recsByMember[m.id] ?? []
       const stats     = calcMonthStats(m, recs, refDate)
       const maxS      = calcMaxPunchStreakFromSorted(recs)
+      const summary   = summaryByMember[m.id]
       return {
         id:               m.id,
         name:             m.name,
@@ -85,6 +103,10 @@ export async function GET(req: Request) {
         yearMonth:        ym,
         exempted:         stats.maxScore === 0,
         showcaseCodes:    m.showcase_codes ?? [],
+        settledTotal:     summary?.total_score          ?? null,
+        settledRate:      summary?.rate                 ?? null,
+        settledPassing:   summary?.passing              ?? null,
+        whDeduction:      summary?.work_hours_deduction ?? null,
       }
     })
   } else {
@@ -124,6 +146,11 @@ export async function GET(req: Request) {
         yearMonth:        best?.yearMonth   ?? '—',
         exempted:         !best,
         showcaseCodes:    m.showcase_codes ?? [],
+        // best 模式不需要 settled 對照（本身就是 settled）
+        settledTotal:     null,
+        settledRate:      null,
+        settledPassing:   null,
+        whDeduction:      null,
       }
     })
   }
