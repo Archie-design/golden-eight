@@ -35,7 +35,7 @@ export async function getCurrentMember(): Promise<
   // 前端用不到的欄位（phone_*、failed_attempts、locked_until）不回傳。
   const { data: member, error } = await db
     .from('members')
-    .select('id, name, join_date, effective_start_date, level, next_level, is_admin, status, line_user_id, line_display_name, line_picture_url, created_at, token_version')
+    .select('id, name, join_date, effective_start_date, level, next_level, is_admin, status, line_user_id, line_display_name, line_picture_url, showcase_codes, created_at, token_version')
     .eq('id', payload.sub)
     .eq('status', '活躍')
     .single()
@@ -76,7 +76,7 @@ export async function requireAdmin(): Promise<
   const db = createServerClient()
   const { data: member } = await db
     .from('members')
-    .select('id, name, join_date, effective_start_date, level, next_level, is_admin, status, line_user_id, line_display_name, line_picture_url, created_at, token_version')
+    .select('id, name, join_date, effective_start_date, level, next_level, is_admin, status, line_user_id, line_display_name, line_picture_url, showcase_codes, created_at, token_version')
     .eq('id', payload.sub)
     .eq('status', '活躍')
     .eq('is_admin', true)
