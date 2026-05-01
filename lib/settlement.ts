@@ -73,13 +73,15 @@ export async function runSettlement(
   const results:  { name: string; passing: boolean; penalty: number }[] = []
   const exempted: { name: string }[] = []
 
-  // 破曉王判定基準：min(today, monthEnd)。歷史月份用月底，本月（月中重跑）用今日
+  // 計分基準日：min(today, monthEnd)。歷史月份用月底，本月（月中重跑）用今日
+  // 必須用此 refDate 而非 today — 否則 calcMonthStats 內部會以 today 的月份取 yearMonth，
+  // 對歷史月份結算時會把分母 / 起算月份算成「當月」，導致 totalScore=0、rate 變 0% 或負數。
   const monthEnd = getMonthEnd(yearMonth)
   const refDate  = today > monthEnd ? monthEnd : today
 
   for (const m of memberList) {
     const records = recsByMember[m.id] ?? []
-    const stats   = calcMonthStats(m, records, today)
+    const stats   = calcMonthStats(m, records, refDate)
 
     // 新進成員 maxScore=0：不參與計分，跳過所有副作用
     if (stats.maxScore === 0) {
