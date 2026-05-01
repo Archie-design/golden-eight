@@ -81,28 +81,34 @@ export async function POST(request: NextRequest) {
   }
 
   // P2-15：以聚合 + 最近 N 日紀錄取代「撈全量紀錄」
+  // O-1：先取已解鎖名單，若已拿終端成就（CHECKIN_365 / PERFECT_30）則跳過對應 COUNT —
+  //      因 cumulative / perfect_count 類成就單調遞增，submit 不會解除已拿到的，
+  //      傳 Infinity 給計算函式不會誤觸新成就（award 內部檢查 unlocked Set）。
   const windowStart = shiftDate(target, -(STREAK_WINDOW_DAYS - 1))
-  const [totalCntRes, perfectCntRes, recentRes, unlockedRes] = await Promise.all([
-    db.from('checkin_records')
-      .select('id', { count: 'exact', head: true })
-      .eq('member_id', member.id),
-    db.from('checkin_records')
-      .select('id', { count: 'exact', head: true })
-      .eq('member_id', member.id)
-      .eq('base_score', 8),
+  const { data: unlockedData } = await db.from('achievements').select('code').eq('member_id', member.id)
+  const alreadyCodes = (unlockedData ?? []).map((a: { code: string }) => a.code)
+  const codeSet      = new Set(alreadyCodes)
+  const needTotal    = !codeSet.has('CHECKIN_365')
+  const needPerfect  = !codeSet.has('PERFECT_30')
+
+  const [totalCntRes, perfectCntRes, recentRes] = await Promise.all([
+    needTotal
+      ? db.from('checkin_records').select('id', { count: 'exact', head: true }).eq('member_id', member.id)
+      : Promise.resolve({ count: null as number | null }),
+    needPerfect
+      ? db.from('checkin_records').select('id', { count: 'exact', head: true }).eq('member_id', member.id).eq('base_score', 8)
+      : Promise.resolve({ count: null as number | null }),
     db.from('checkin_records').select(RECORD_COLS_STATS)
       .eq('member_id', member.id)
       .gte('date', windowStart)
       .lte('date', target)
       .order('date'),
-    db.from('achievements').select('code').eq('member_id', member.id),
   ])
 
-  const totalCount   = totalCntRes.count   ?? 0
-  const perfectCount = perfectCntRes.count ?? 0
+  const totalCount   = needTotal   ? (totalCntRes.count   ?? 0) : Number.MAX_SAFE_INTEGER
+  const perfectCount = needPerfect ? (perfectCntRes.count ?? 0) : Number.MAX_SAFE_INTEGER
   const recent       = (recentRes.data ?? []) as CheckInRecord[]
   const todayFull    = recent.find(r => r.date === target) as CheckInRecord
-  const alreadyCodes = (unlockedRes.data ?? []).map((a: { code: string }) => a.code)
 
   const newAchievements = calcNewAchievementsFromAggregates({
     totalCount,

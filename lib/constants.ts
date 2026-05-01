@@ -62,7 +62,6 @@ export const ACHIEVEMENT_LIST = [
   // 單日特殊
   { code: 'FIRST_CHECKIN',       name: '萬里起行',   badge: 'PartyPopper',  type: 'first'         },
   { code: 'DAILY_PERFECT',       name: '大滿貫',      badge: 'Star',         type: 'perfect'       },
-  { code: 'DAILY_PERFECT_BONUS', name: '金色大滿貫',  badge: 'Star',         type: 'perfect_bonus' },
   // 累積里程碑
   { code: 'CHECKIN_30',  name: '打卡 30 天', badge: 'Calendar', type: 'cumulative',    target: 30  },
   { code: 'CHECKIN_100', name: '打卡百日',   badge: 'Calendar', type: 'cumulative',    target: 100 },

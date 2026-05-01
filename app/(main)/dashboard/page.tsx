@@ -235,31 +235,42 @@ export default function DashboardPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center mb-4">
-            <div>
-              <div className="text-3xl font-bold text-yellow-500">{data.totalScore}</div>
-              <div className="text-xs text-muted-foreground">累計得分</div>
+          {data.maxScore === 0 ? (
+            <div className="text-center py-6 text-muted-foreground text-sm">
+              <p className="font-medium">本月新進，不參與計分</p>
+              <p className="mt-1 text-xs">下個月起正式開始計分</p>
             </div>
-            <div>
-              <div className="text-3xl font-bold">{data.rate}%</div>
-              <div className="text-xs text-muted-foreground">達成率</div>
-            </div>
-            <div>
-              <div className="text-3xl font-bold text-red-500">
-                {data.remaining > 0 ? `-${data.remaining}` : '✓'}
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center mb-4">
+              <div>
+                <div className="text-3xl font-bold text-yellow-500">{data.totalScore}</div>
+                <div className="text-xs text-muted-foreground">累計得分</div>
               </div>
-              <div className="text-xs text-muted-foreground">距目標差</div>
+              <div>
+                <div className="text-3xl font-bold">{data.rate}%</div>
+                <div className="text-xs text-muted-foreground">達成率</div>
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-red-500">
+                  {data.remaining > 0 ? `-${data.remaining}` : '✓'}
+                </div>
+                <div className="text-xs text-muted-foreground">距目標差</div>
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className="flex justify-between text-xs text-muted-foreground mb-1">
-            <span>{data.user.level}</span>
-            <span>目標 {data.targetScore} 分</span>
-          </div>
-          <DailyRateChart
-            calendar={data.calendar}
-            threshold={LEVEL_THRESHOLDS[data.user.level] ?? 0.60}
-          />
+          {data.maxScore > 0 && (
+            <>
+              <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                <span>{data.user.level}</span>
+                <span>目標 {data.targetScore} 分</span>
+              </div>
+              <DailyRateChart
+                calendar={data.calendar}
+                threshold={LEVEL_THRESHOLDS[data.user.level] ?? 0.60}
+              />
+            </>
+          )}
 
           {/* 下月階梯選擇（僅當月顯示） */}
           {data.showNextLevelBtn && (

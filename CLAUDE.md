@@ -41,7 +41,7 @@ Login identifies members by **name + full 10-digit phone number**. The phone is 
 | `lib/auth.ts` | `createToken` / `verifyToken` — JWT includes `sub`, `isAdmin`, `tv` |
 | `lib/api-helper.ts` | `getCurrentMember`, `requireAdmin`, Taipei time helpers (`getTodayTaipei`, `getCheckinDayTaipei`) |
 | `lib/scoring.ts` | Pure functions: `calcBaseScore`, `calcMonthStats`, `calcNewAchievementsFromAggregates`, `calcPenalty` |
-| `lib/constants.ts` | 8 tasks, level thresholds, 49 achievement definitions |
+| `lib/constants.ts` | 8 tasks, level thresholds, 45 achievement definitions |
 | `lib/phone.ts` | `hashPhone(phone)` — HMAC-SHA256 with `PHONE_PEPPER` env var |
 | `lib/rate-limit.ts` | In-memory per-IP rate limiter; `checkRateLimit(key, limit, windowMs)` returns 429 Response or null |
 | `lib/cookie-options.ts` | `AUTH_COOKIE_OPTIONS` (secure in prod), `AUTH_TOKEN_MAX_AGE` (7 days) |

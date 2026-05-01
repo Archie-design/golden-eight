@@ -84,6 +84,41 @@ export function calcTaskStreak(
   return streak
 }
 
+// ─── 破曉王判定 ────────────────────────────────────────────────
+
+/**
+ * 計算成員在指定月份的「應打卡天數」（從 effective_start_date 或 join_date 到 refDate）。
+ * - refDate 為「當下台北日期」或「歷史月份的月底」
+ * - 若起算日晚於 refDate（新進尚未開始），回傳 0
+ */
+export function expectedCheckinDays(member: Member, yearMonth: string, refDate: string): number {
+  const startStr   = member.effective_start_date ?? member.join_date
+  const monthStart = `${yearMonth}-01`
+  const effectiveStartStr = startStr > monthStart ? startStr : monthStart
+  if (effectiveStartStr > refDate) return 0
+  const a = new Date(effectiveStartStr + 'T00:00:00+08:00')
+  const b = new Date(refDate + 'T00:00:00+08:00')
+  return Math.floor((b.getTime() - a.getTime()) / 86_400_000) + 1
+}
+
+/**
+ * 破曉王判定：該成員本月應打卡的每一天都有打卡且 tasks[1]=true。
+ * - 應打卡天數=0（新進）→ false
+ * - 紀錄數 < 應打卡天數（漏打）→ false
+ * - 任何一天 tasks[1]=false → false
+ */
+export function isDawnKing(
+  member: Member,
+  records: CheckInRecord[],
+  yearMonth: string,
+  refDate: string,
+): boolean {
+  const expected = expectedCheckinDays(member, yearMonth, refDate)
+  if (expected === 0) return false
+  if (records.length !== expected) return false
+  return records.every(r => r.tasks[1])
+}
+
 // ─── 月最長連續打拳天數 ────────────────────────────────────────
 
 /**
@@ -163,7 +198,6 @@ export function calcNewAchievementsFromAggregates(args: {
 
   if (totalCount === 1)                award('FIRST_CHECKIN')
   if (todayRecord.base_score === 8)    award('DAILY_PERFECT')
-  if (todayRecord.total_score >= 8.5)  award('DAILY_PERFECT_BONUS')
 
   for (const { target, code } of [
     { target: 30,  code: 'CHECKIN_30'  },
@@ -197,7 +231,6 @@ export function calcNewAchievementsFromAggregates(args: {
  *   add    — 編輯後新達成而尚未解鎖（沿用 calcNewAchievementsFromAggregates）
  *   remove — 只撤可立即驗證為「已不再成立」的：
  *     · DAILY_PERFECT       → perfectCount === 0
- *     · DAILY_PERFECT_BONUS → 105 日內無任何 total_score >= 8.5
  *     · PERFECT_10 / 30     → perfectCount < 10 / 30
  *   不撤銷的：FIRST_CHECKIN、CHECKIN_30/100/365（單調遞增）、T*_STREAK_*（視為歷史里程碑，
  *   即使最近 105 日無資料也保留），月度成就由 settlement 管理不在此處理。
@@ -215,10 +248,6 @@ export function reconcileAchievementsAfterEdit(args: {
 
   if (unlocked.has('DAILY_PERFECT') && args.perfectCount === 0) {
     remove.push('DAILY_PERFECT')
-  }
-  if (unlocked.has('DAILY_PERFECT_BONUS')) {
-    const stillBonus = args.recentSorted.some(r => r.total_score >= 8.5)
-    if (!stillBonus) remove.push('DAILY_PERFECT_BONUS')
   }
   if (unlocked.has('PERFECT_10') && args.perfectCount < 10) remove.push('PERFECT_10')
   if (unlocked.has('PERFECT_30') && args.perfectCount < 30) remove.push('PERFECT_30')

@@ -49,7 +49,14 @@
       "Bash(git -C /Users/keke/黃金八套餐定課系統/golden-eight log --oneline -5)",
       "Bash(git -C /Users/keke/黃金八套餐定課系統/golden-eight diff HEAD -- app/\\\\\\(main\\\\\\)/checkin/page.tsx)",
       "Bash(git -C /Users/keke/黃金八套餐定課系統/golden-eight show HEAD --stat)",
-      "Bash(python3 scripts/fix_m003.py)"
+      "Bash(python3 scripts/fix_m003.py)",
+      "Bash(python3 scripts/audit_records.py)",
+      "Bash(python3 scripts/backfill_punch_streak.py)",
+      "Bash(python3 scripts/backfill_punch_streak.py --apply)",
+      "Bash(python3 scripts/backfill_work_hours.py)",
+      "Bash(python3 scripts/backfill_work_hours.py --apply)",
+      "Bash(python3 scripts/backfill_achievements.py)",
+      "Bash(python3 scripts/backfill_achievements.py --apply)"
     ]
   }
 }

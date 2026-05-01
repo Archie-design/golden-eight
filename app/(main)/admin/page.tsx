@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 interface Member      { id: string; name: string; join_date: string; level: string; next_level?: string | null; status: string }
-interface ProgressRow { id: string; name: string; level: string; totalScore: number; maxScore: number; rate: number; passing: boolean; maxStreak: number; isDawnKing: boolean }
+interface ProgressRow { id: string; name: string; level: string; totalScore: number; maxScore: number; rate: number; passing: boolean; maxStreak: number; isDawnKing: boolean; exempted: boolean }
 interface PenaltyRow  { name: string; level: string; rate: number; penalty: number }
 interface AchStat     { code: string; name: string; count: number; pct: number }
 interface MemberStat  { id: string; name: string; count: number; total: number }
@@ -194,7 +194,13 @@ export default function AdminPage() {
                     <th className="text-center">狀態</th><th className="text-right">連打</th>
                   </tr></thead>
                   <tbody>
-                    {progress.map(r => (
+                    {progress.map(r => r.exempted ? (
+                      <tr key={r.id} className="border-b last:border-0 text-muted-foreground">
+                        <td className="py-2 font-medium">{r.name}</td>
+                        <td><Badge variant="outline">{r.level}</Badge></td>
+                        <td colSpan={4} className="text-center text-xs italic">本月新進，不參與計分</td>
+                      </tr>
+                    ) : (
                       <tr key={r.id} className="border-b last:border-0">
                         <td className="py-2 font-medium">{r.name}</td>
                         <td><Badge variant="outline">{r.level}</Badge></td>

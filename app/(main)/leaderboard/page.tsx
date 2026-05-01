@@ -26,6 +26,7 @@ interface LeaderRow {
   isDawnKing:       boolean
   achievementCount: number
   yearMonth:        string
+  exempted:         boolean
 }
 
 const LEVEL_COLORS: Record<string, string> = {
@@ -207,19 +208,25 @@ export default function LeaderboardPage() {
 
                 {/* Rate */}
                 <div className="text-right shrink-0">
-                  <div className={cn(
-                    'text-xl font-bold',
-                    row.rate >= 80 ? 'text-amber-500'
-                      : row.rate >= 70 ? 'text-gray-500'
-                      : row.rate >= 60 ? 'text-orange-500'
-                      : 'text-red-400'
-                  )}>
-                    {row.rate}%
-                  </div>
-                  {row.maxScore != null && (
-                    <div className="text-xs text-muted-foreground">
-                      {row.totalScore} / {row.maxScore}
-                    </div>
+                  {row.exempted ? (
+                    <div className="text-xs text-muted-foreground italic">不參與計分</div>
+                  ) : (
+                    <>
+                      <div className={cn(
+                        'text-xl font-bold',
+                        row.rate >= 80 ? 'text-amber-500'
+                          : row.rate >= 70 ? 'text-gray-500'
+                          : row.rate >= 60 ? 'text-orange-500'
+                          : 'text-red-400'
+                      )}>
+                        {row.rate}%
+                      </div>
+                      {row.maxScore != null && (
+                        <div className="text-xs text-muted-foreground">
+                          {row.totalScore} / {row.maxScore}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

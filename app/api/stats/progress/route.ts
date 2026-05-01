@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
-import { calcMonthStats, calcMaxPunchStreakFromSorted } from '@/lib/scoring'
+import { calcMonthStats, calcMaxPunchStreakFromSorted, isDawnKing } from '@/lib/scoring'
 import { MEMBER_COLS_STATS, RECORD_COLS_STATS } from '@/lib/db-columns'
 import type { Member, CheckInRecord } from '@/types'
 
@@ -39,7 +39,7 @@ export async function GET(req: Request) {
     const recs       = recsByMember[m.id] ?? []
     const stats      = calcMonthStats(m, recs, refDate)
     const maxStreak  = calcMaxPunchStreakFromSorted(recs)
-    const isDawnKing = recs.length > 0 && recs.every(r => r.tasks[1])
+    const dawnKing   = isDawnKing(m, recs, yearMonth, refDate)
     return {
       id:         m.id,
       name:       m.name,
@@ -49,7 +49,8 @@ export async function GET(req: Request) {
       rate:       stats.rate,
       passing:    stats.passing,
       maxStreak,
-      isDawnKing,
+      isDawnKing: dawnKing,
+      exempted:   stats.maxScore === 0,
     }
   })
 

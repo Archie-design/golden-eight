@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentMember, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
-import { calcMonthStats, calcMaxPunchStreakFromSorted } from '@/lib/scoring'
+import { calcMonthStats } from '@/lib/scoring'
 import { getCalendarColor } from '@/lib/constants'
 import { getWorkingDaysInMonth } from '@/lib/working-days'
 import { RECORD_COLS_STATS } from '@/lib/db-columns'
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   // 歷史月份以月底為基準，使 calcMonthStats 的分母涵蓋完整一個月
   const refDate = isCurrentMonth ? today : getMonthEnd(yearMonth)
 
-  const [monthRecsRes, achievementsRes, workingDays] = await Promise.all([
+  const [monthRecsRes, achievementsRes, workingDays, latestRecRes] = await Promise.all([
     db.from('checkin_records').select(RECORD_COLS_STATS)
       .eq('member_id', member.id)
       .gte('date', yearMonth + '-01')
@@ -30,11 +30,21 @@ export async function GET(request: NextRequest) {
       .order('date'),
     db.from('achievements').select('code, unlocked_at').eq('member_id', member.id),
     getWorkingDaysInMonth(yearMonth, db),
+    isCurrentMonth
+      ? db.from('checkin_records').select('tasks, punch_streak, date')
+          .eq('member_id', member.id)
+          .order('date', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ])
 
   const monthRecs = (monthRecsRes.data ?? []) as CheckInRecord[]
   const stats     = calcMonthStats(member, monthRecs, refDate)
-  const maxStreak = calcMaxPunchStreakFromSorted(monthRecs)
+  // 跨月感知：取當月紀錄裡 punch_streak 欄位的最大值（欄位本身已累積跨月計數）
+  const maxStreak = monthRecs
+    .filter(r => r.tasks[1])
+    .reduce((m, r) => Math.max(m, (r as CheckInRecord & { punch_streak?: number }).punch_streak ?? 0), 0)
 
   const daysInMonth = new Date(parseInt(yearMonth.split('-')[0]), parseInt(yearMonth.split('-')[1]), 0).getDate()
   const calendar = Array.from({ length: daysInMonth }, (_, i) => {
@@ -49,10 +59,15 @@ export async function GET(request: NextRequest) {
   const monthWorkHours    = monthRecs.reduce((s, r) => s + ((r as CheckInRecord & { work_hours?: number | null }).work_hours ?? 0), 0)
   const requiredWorkHours = workingDays * 8
 
-  const lastRec = monthRecs.at(-1)
-  const punchStreak = lastRec?.tasks[1]
-    ? (lastRec as { punch_streak?: number }).punch_streak ?? 0
-    : 0
+  // 本月視角：用「該成員最新一筆紀錄」（跨月）；歷史視角：用該月最後一筆
+  let punchStreak = 0
+  if (isCurrentMonth) {
+    const latest = latestRecRes.data as { tasks?: boolean[]; punch_streak?: number } | null
+    if (latest?.tasks?.[1]) punchStreak = latest.punch_streak ?? 0
+  } else {
+    const lastRec = monthRecs.at(-1)
+    if (lastRec?.tasks[1]) punchStreak = (lastRec as { punch_streak?: number }).punch_streak ?? 0
+  }
 
   return NextResponse.json({
     ok: true,

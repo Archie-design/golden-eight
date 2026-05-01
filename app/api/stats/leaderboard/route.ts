@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getTokenPayload, getTodayTaipei, getYearMonth, getMonthEnd } from '@/lib/api-helper'
 import { createServerClient } from '@/lib/supabase/server'
-import { calcMonthStats, calcMaxPunchStreakFromSorted } from '@/lib/scoring'
+import { calcMonthStats, calcMaxPunchStreakFromSorted, isDawnKing } from '@/lib/scoring'
 import { MEMBER_COLS_STATS, RECORD_COLS_STATS } from '@/lib/db-columns'
 import type { Member, CheckInRecord } from '@/types'
 
@@ -43,7 +43,7 @@ export async function GET(req: Request) {
     id: string; name: string; level: string; totalScore: number
     maxScore: number | null; rate: number; passing: boolean
     maxStreak: number; isDawnKing: boolean; achievementCount: number
-    yearMonth: string; rank: number
+    yearMonth: string; exempted: boolean; rank: number
   }
   let rows: Omit<LeaderRow, 'rank'>[]
 
@@ -61,16 +61,6 @@ export async function GET(req: Request) {
       recsByMember[r.member_id].push(r)
     })
 
-    // Find dawn king: member with highest maxStreak this month
-    const streaks = members.map((m: Member) => ({
-      id: m.id,
-      streak: calcMaxPunchStreakFromSorted(recsByMember[m.id] ?? []),
-    }))
-    const maxStreak = Math.max(...streaks.map(s => s.streak), 0)
-    const dawnKingIds = new Set(
-      maxStreak > 0 ? streaks.filter(s => s.streak === maxStreak).map(s => s.id) : []
-    )
-
     rows = members.map((m: Member) => {
       const recs      = recsByMember[m.id] ?? []
       const stats     = calcMonthStats(m, recs, refDate)
@@ -84,9 +74,10 @@ export async function GET(req: Request) {
         rate:             stats.rate,
         passing:          stats.passing,
         maxStreak:        maxS,
-        isDawnKing:       dawnKingIds.has(m.id),
+        isDawnKing:       isDawnKing(m, recs, ym, refDate),
         achievementCount: achCount[m.id] ?? 0,
         yearMonth:        ym,
+        exempted:         stats.maxScore === 0,
       }
     })
   } else {
@@ -124,12 +115,18 @@ export async function GET(req: Request) {
         isDawnKing:       best?.isDawnKing  ?? false,
         achievementCount: achCount[m.id]    ?? 0,
         yearMonth:        best?.yearMonth   ?? '—',
+        exempted:         !best,
       }
     })
   }
 
-  // Sort: rate desc → totalScore desc → name asc
-  rows.sort((a, b) => b.rate - a.rate || b.totalScore - a.totalScore || a.name.localeCompare(b.name))
+  // Sort: 不參與計分者固定排在最後 → rate desc → totalScore desc → name asc
+  rows.sort((a, b) =>
+    Number(a.exempted) - Number(b.exempted) ||
+    b.rate - a.rate ||
+    b.totalScore - a.totalScore ||
+    a.name.localeCompare(b.name)
+  )
 
   // Assign rank (ties get same rank)
   let rank = 1
