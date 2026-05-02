@@ -22,7 +22,12 @@ export interface SettlementResult {
 /**
  * 對指定月份執行月結。供 admin 手動結算與 cron 自動結算共用。
  * 副作用：寫入 monthly_summary、月度成就 achievements、套用 next_level → level。
- * 對 maxScore=0（新進成員，effective_start_date 晚於本月）一律跳過。
+ *
+ * 對所有非停用成員（含新進豁免 maxScore=0 者）寫 monthly_summary 列：
+ *   - 一般成員：完整統計 + chose_next_level snapshot
+ *   - 新進豁免：stub 列（max_score=0、其他統計值為 0/false） + chose_next_level snapshot
+ * chose_next_level 在月結套用 next_level 「之前」記錄該成員的 next_level 是否非 NULL。
+ * next_level 套用 + 清空 涵蓋所有非停用成員（含豁免）。
  */
 export async function runSettlement(
   db: SupabaseLike,
@@ -99,8 +104,26 @@ export async function runSettlement(
     const records = recsByMember[m.id] ?? []
     const stats   = calcMonthStats(m, records, refDate)
 
-    // 新進成員 maxScore=0：不參與計分，跳過所有副作用
+    // chose_next_level snapshot：套用前先記錄
+    const choseNextLevel = m.next_level != null
+
+    // 新進成員 maxScore=0：寫 stub 列僅記錄 chose_next_level，不觸發成就
     if (stats.maxScore === 0) {
+      summaryRows.push({
+        member_id:            m.id,
+        year_month:           yearMonth,
+        total_score:          0,
+        max_score:            0,
+        rate:                 0,
+        passing:              false,
+        penalty:              0,
+        max_streak:           0,
+        is_dawn_king:         false,
+        work_hours_deduction: 0,
+        chose_next_level:     choseNextLevel,
+        settled_at:           new Date().toISOString(),
+      })
+      if (m.next_level) levelUpdates.push({ id: m.id, level: m.next_level })
       exempted.push({ id: m.id, name: m.name })
       continue
     }
@@ -134,6 +157,7 @@ export async function runSettlement(
       max_streak:           maxStreak,
       is_dawn_king:         memberIsDawnKing,
       work_hours_deduction: whDeduction,
+      chose_next_level:     choseNextLevel,
       settled_at:           new Date().toISOString(),
     })
 
@@ -162,15 +186,6 @@ export async function runSettlement(
       dbAny.from('members').update({ level: lvl, next_level: null }).in('id', ids)
     )
   )
-
-  // 清理 exempted 成員的 stale monthly_summary 列（如先前 buggy 月結遺留）
-  if (exempted.length > 0) {
-    const { error: delErr } = await dbAny.from('monthly_summary')
-      .delete()
-      .eq('year_month', yearMonth)
-      .in('member_id', exempted.map(e => e.id))
-    if (delErr) console.error('[settlement] exempted cleanup failed', delErr)
-  }
 
   return { yearMonth, results, exempted: exempted.map(e => ({ name: e.name })) }
 }

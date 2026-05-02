@@ -60,7 +60,9 @@
       "Bash(grep -n \"AchievementWall\\\\|<Card>\\\\s*$\" /Users/keke/黃金八套餐定課系統/golden-eight/app/\\\\\\(main\\\\\\)/dashboard/page.tsx)",
       "Bash(npx shadcn@latest add switch)",
       "Bash(node -e ' *)",
-      "Bash(node --input-type=module)"
+      "Bash(node --input-type=module)",
+      "Read(//private/tmp/openspec-check/openspec/**)",
+      "Read(//tmp/openspec-check/openspec/**)"
     ]
   }
 }

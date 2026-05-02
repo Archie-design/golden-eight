@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//private/tmp/openspec-check/**)",
+      "Bash(openspec init *)",
+      "Bash(openspec new *)",
+      "Bash(openspec status *)",
+      "Bash(openspec instructions *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(a['id'], a['status']\\) for a in d['artifacts']]\")",
+      "Bash(wait)",
+      "Bash(grep -n \"^#\\\\{1,2\\\\} \" /Users/keke/黃金八套餐定課系統/golden-eight/docs/開發規格書.md)",
+      "Bash(grep -n \"^#\\\\{1,3\\\\} \" /Users/keke/黃金八套餐定課系統/golden-eight/docs/開發規格書.md)"
+    ]
+  }
+}

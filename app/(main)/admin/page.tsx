@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Switch } from '@/components/ui/switch'
+import { UnselectedNextLevelList } from '@/components/admin/UnselectedNextLevelList'
 
 interface Member      { id: string; name: string; join_date: string; level: string; next_level?: string | null; status: string }
 interface ProgressRow {
@@ -452,6 +453,13 @@ export default function AdminPage() {
               )}
             </CardContent>
           </Card>
+
+          <div className="mt-4">
+            <UnselectedNextLevelList
+              yearMonth={penaltyYM}
+              onChange={() => { loadPenalty(penaltyYM); loadMembers() }}
+            />
+          </div>
         </TabsContent>
 
         {/* 成就統計 */}

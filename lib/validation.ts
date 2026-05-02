@@ -70,6 +70,10 @@ export const AddMemberSchema = z.object({
   level: z.enum(LEVELS),
 })
 
+export const BatchDeactivateSchema = z.object({
+  memberIds: z.array(z.string().min(1)).min(1, '至少需選擇一位成員').max(100, '單次最多 100 人'),
+})
+
 // ── Helper: parse request body with schema, return error response on failure ──
 
 export async function parseBody<T>(

@@ -71,17 +71,19 @@ CREATE TABLE IF NOT EXISTS checkin_records (
 
 -- 3. 月結摘要表
 CREATE TABLE IF NOT EXISTS monthly_summary (
-  id            BIGSERIAL PRIMARY KEY,
-  member_id     TEXT NOT NULL REFERENCES members(id),
-  year_month    TEXT NOT NULL,                   -- 'YYYY-MM'
-  total_score   NUMERIC(8,2) DEFAULT 0,
-  max_score     NUMERIC(8,2) DEFAULT 0,
-  rate          NUMERIC(5,2) DEFAULT 0,
-  passing       BOOLEAN DEFAULT FALSE,
-  penalty       INT DEFAULT 0,
-  max_streak    INT DEFAULT 0,
-  is_dawn_king  BOOLEAN DEFAULT FALSE,
-  settled_at    TIMESTAMPTZ,
+  id                    BIGSERIAL PRIMARY KEY,
+  member_id             TEXT NOT NULL REFERENCES members(id),
+  year_month            TEXT NOT NULL,                   -- 'YYYY-MM'
+  total_score           NUMERIC(8,2) DEFAULT 0,
+  max_score             NUMERIC(8,2) DEFAULT 0,
+  rate                  NUMERIC(5,2) DEFAULT 0,
+  passing               BOOLEAN DEFAULT FALSE,
+  penalty               INT DEFAULT 0,
+  max_streak            INT DEFAULT 0,
+  is_dawn_king          BOOLEAN DEFAULT FALSE,
+  work_hours_deduction  INT DEFAULT 0,
+  chose_next_level      BOOLEAN NOT NULL DEFAULT FALSE,  -- 月結套用 next_level 之前的快照
+  settled_at            TIMESTAMPTZ,
   UNIQUE(member_id, year_month)
 );
 
@@ -226,6 +228,8 @@ CREATE INDEX IF NOT EXISTS idx_checkin_member_date ON checkin_records(member_id,
 CREATE INDEX IF NOT EXISTS idx_checkin_date        ON checkin_records(date DESC);
 CREATE INDEX IF NOT EXISTS idx_monthly_member      ON monthly_summary(member_id, year_month DESC);
 CREATE INDEX IF NOT EXISTS idx_monthly_ym          ON monthly_summary(year_month);
+CREATE INDEX IF NOT EXISTS idx_monthly_unselected
+  ON monthly_summary(year_month) WHERE chose_next_level = FALSE;
 CREATE INDEX IF NOT EXISTS idx_achievements_member ON achievements(member_id);
 CREATE INDEX IF NOT EXISTS idx_achievements_code   ON achievements(code);
 CREATE INDEX IF NOT EXISTS idx_schedule_member     ON schedule_template(member_id);

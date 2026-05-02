@@ -70,7 +70,20 @@ export interface MonthlySummary {
   max_streak: number
   is_dawn_king: boolean
   work_hours_deduction: number
+  /** 月結套用 next_level 之前的快照 */
+  chose_next_level: boolean
   settled_at?: string | null
+}
+
+/** 「未選下月階梯」管理面板列項 */
+export interface UnselectedNextLevelRow {
+  id: string
+  name: string
+  level: Level
+  joinDate: string
+  exempted: boolean         // max_score = 0（新進豁免）
+  monthRate: number         // 該月達成率（豁免者為 0）
+  monthPassing: boolean
 }
 
 export interface Achievement {
