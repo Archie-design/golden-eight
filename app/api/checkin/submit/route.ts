@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
   const parsed = await parseBody(request, CheckInSubmitSchema)
   if (parsed instanceof NextResponse) return parsed
-  const { tasks, note, work_hours } = parsed.data
+  const { tasks, note, work_hours, early_sleep_half } = parsed.data
 
   const target  = getCheckinDayTaipei()
   const prevDay = getPrevDayStr(target)
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
   if (typeof work_hours === 'number') {
     normalizedTasks[4] = work_hours > 0
   }
-  const baseScore  = calcBaseScore(normalizedTasks)
+  const baseScore  = calcBaseScore(normalizedTasks, early_sleep_half)
   const totalScore = baseScore
 
   const { data: prevRec } = await db
@@ -62,15 +62,16 @@ export async function POST(request: NextRequest) {
     : 0
 
   const { error: insertError } = await db.from('checkin_records').insert({
-    member_id:    member.id,
-    date:         target,
-    tasks:        normalizedTasks,
-    base_score:   baseScore,
-    punch_bonus:  0,
-    total_score:  totalScore,
-    punch_streak: punchStreak,
-    note:         note || '',
-    work_hours:   typeof work_hours === 'number' ? work_hours : null,
+    member_id:        member.id,
+    date:             target,
+    tasks:            normalizedTasks,
+    base_score:       baseScore,
+    punch_bonus:      0,
+    total_score:      totalScore,
+    punch_streak:     punchStreak,
+    note:             note || '',
+    work_hours:       typeof work_hours === 'number' ? work_hours : null,
+    early_sleep_half: early_sleep_half,
   })
   if (insertError) {
     if ((insertError as { code?: string }).code === '23505') {
@@ -155,7 +156,7 @@ export async function PATCH(request: NextRequest) {
 
   const parsed = await parseBody(request, CheckInSubmitSchema)
   if (parsed instanceof NextResponse) return parsed
-  const { tasks, note, work_hours } = parsed.data
+  const { tasks, note, work_hours, early_sleep_half } = parsed.data
 
   const target  = getCheckinDayTaipei()
   const prevDay = getPrevDayStr(target)
@@ -185,7 +186,7 @@ export async function PATCH(request: NextRequest) {
   if (typeof work_hours === 'number') {
     normalizedTasks[4] = work_hours > 0
   }
-  const baseScore  = calcBaseScore(normalizedTasks)
+  const baseScore  = calcBaseScore(normalizedTasks, early_sleep_half)
   const totalScore = baseScore
 
   // 昨日 streak 推進：昨日有打拳才延續，否則歸 0
@@ -201,12 +202,13 @@ export async function PATCH(request: NextRequest) {
     : (existing as CheckInRecord & { work_hours?: number | null }).work_hours ?? null
 
   const { error: updateError } = await db.from('checkin_records').update({
-    tasks:        normalizedTasks,
-    base_score:   baseScore,
-    total_score:  totalScore,
-    punch_streak: punchStreak,
-    note:         note ?? existing.note ?? '',
-    work_hours:   updatedWorkHours,
+    tasks:            normalizedTasks,
+    base_score:       baseScore,
+    total_score:      totalScore,
+    punch_streak:     punchStreak,
+    note:             note ?? existing.note ?? '',
+    work_hours:       updatedWorkHours,
+    early_sleep_half: early_sleep_half,
   }).eq('member_id', member.id).eq('date', target)
 
   if (updateError) {

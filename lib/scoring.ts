@@ -7,8 +7,9 @@ import { ACHIEVEMENT_LIST, LEVEL_PENALTIES, LEVEL_THRESHOLDS } from './constants
 
 // ─── 得分計算 ─────────────────────────────────────────────────
 
-export function calcBaseScore(tasks: boolean[]): number {
-  return tasks.filter(Boolean).length
+export function calcBaseScore(tasks: boolean[], earlySleepHalf = false): number {
+  const count = tasks.filter(Boolean).length
+  return (earlySleepHalf && tasks[0]) ? count - 0.5 : count
 }
 
 /** 連續打拳天數（加分機制已移除，連續紀錄供成就系統使用） */

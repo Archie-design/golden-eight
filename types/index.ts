@@ -50,9 +50,10 @@ export interface CheckInRecord {
   member_id: string
   date: string              // 'YYYY-MM-DD'
   tasks: boolean[]          // length 8
-  base_score: number        // 0-8
+  base_score: number        // 0–8，可含 0.5 步進
   punch_bonus: number       // 0 or 0.5
-  total_score: number       // 0-8.5
+  total_score: number       // 0–8.5
+  early_sleep_half: boolean // task 1 選「12點前入睡」時為 true
   work_hours?: number | null
   note?: string
   submit_time: string

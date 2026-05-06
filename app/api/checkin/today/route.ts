@@ -16,7 +16,7 @@ export async function GET() {
 
   const [todayRec, prevRec, monthRecs, sunrise] = await Promise.all([
     db.from('checkin_records')
-      .select('total_score, submit_time, tasks, note, work_hours, punch_streak')
+      .select('total_score, submit_time, tasks, note, work_hours, punch_streak, early_sleep_half')
       .eq('member_id', member.id).eq('date', today).maybeSingle(),
     db.from('checkin_records').select('punch_streak').eq('member_id', member.id).eq('date', prevDay).maybeSingle(),
     db.from('checkin_records').select(RECORD_COLS_STATS).eq('member_id', member.id).gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth)),
@@ -40,12 +40,13 @@ export async function GET() {
     monthRate:  monthStats.rate,
     todayRecord: todayRec.data
       ? {
-          submitted:  true,
-          totalScore: (todayRec.data as { total_score: number }).total_score,
-          submitTime: (todayRec.data as { submit_time: string }).submit_time,
-          tasks:      (todayRec.data as { tasks: boolean[] }).tasks,
-          note:       (todayRec.data as { note?: string }).note ?? '',
-          work_hours: (todayRec.data as { work_hours?: number | null }).work_hours ?? null,
+          submitted:        true,
+          totalScore:       (todayRec.data as { total_score: number }).total_score,
+          submitTime:       (todayRec.data as { submit_time: string }).submit_time,
+          tasks:            (todayRec.data as { tasks: boolean[] }).tasks,
+          note:             (todayRec.data as { note?: string }).note ?? '',
+          work_hours:       (todayRec.data as { work_hours?: number | null }).work_hours ?? null,
+          early_sleep_half: (todayRec.data as { early_sleep_half?: boolean }).early_sleep_half ?? false,
         }
       : { submitted: false },
   })

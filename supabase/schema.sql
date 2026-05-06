@@ -56,16 +56,17 @@ CREATE INDEX IF NOT EXISTS idx_checkin_edit_logs_member_date
 
 -- 2. 打卡紀錄表
 CREATE TABLE IF NOT EXISTS checkin_records (
-  id            BIGSERIAL PRIMARY KEY,
-  member_id     TEXT NOT NULL REFERENCES members(id),
-  date          DATE NOT NULL,
-  tasks         BOOLEAN[] NOT NULL,              -- 長度 8
-  base_score    INT NOT NULL,
-  punch_bonus   NUMERIC(3,1) DEFAULT 0,          -- 目前固定 0（加分邏輯暫停）
-  total_score   NUMERIC(4,1) NOT NULL,
-  punch_streak  INT NOT NULL DEFAULT 0,
-  note          TEXT,
-  submit_time   TIMESTAMPTZ DEFAULT NOW(),
+  id                BIGSERIAL PRIMARY KEY,
+  member_id         TEXT NOT NULL REFERENCES members(id),
+  date              DATE NOT NULL,
+  tasks             BOOLEAN[] NOT NULL,              -- 長度 8
+  base_score        NUMERIC(3,1) NOT NULL,           -- 0–8，支援 0.5 步進
+  punch_bonus       NUMERIC(3,1) DEFAULT 0,          -- 目前固定 0（加分邏輯暫停）
+  total_score       NUMERIC(4,1) NOT NULL,
+  punch_streak      INT NOT NULL DEFAULT 0,
+  note              TEXT,
+  submit_time       TIMESTAMPTZ DEFAULT NOW(),
+  early_sleep_half  BOOLEAN NOT NULL DEFAULT FALSE,  -- task 1 選「12點前入睡」時為 true
   UNIQUE(member_id, date)
 );
 

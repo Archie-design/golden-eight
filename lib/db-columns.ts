@@ -15,7 +15,7 @@ export const MEMBER_COLS_SETTLEMENT = MEMBER_COLS_STATS
 
 /** checkin_records 統計用：滿足 CheckInRecord type 的必填欄位 */
 export const RECORD_COLS_STATS =
-  'id, member_id, date, tasks, total_score, base_score, punch_bonus, punch_streak, work_hours, note, submit_time'
+  'id, member_id, date, tasks, total_score, base_score, punch_bonus, punch_streak, work_hours, note, submit_time, early_sleep_half'
 
 /** checkin_records 月結用：與 STATS 同 */
 export const RECORD_COLS_SETTLEMENT = RECORD_COLS_STATS
