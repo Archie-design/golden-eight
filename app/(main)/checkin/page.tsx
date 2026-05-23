@@ -361,7 +361,8 @@ export default function CheckInPage() {
                       const raw = e.target.value
                       const v   = raw === '' ? '' : String(Math.max(0, Number(raw)))
                       setWorkHours(v)
-                      setChecked(prev => prev.map((old, idx) => idx === 4 ? Number(v) > 0 : old))
+                      // 有填欄位（含 0）就視為 task 4 完成；空白則取消
+                      setChecked(prev => prev.map((old, idx) => idx === 4 ? v !== '' : old))
                     }}
                     onClick={e => e.stopPropagation()}
                     placeholder="0"

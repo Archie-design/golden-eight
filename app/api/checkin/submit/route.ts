@@ -47,9 +47,10 @@ export async function POST(request: NextRequest) {
   if (existing) return NextResponse.json({ ok: false, msg: `${target} 的打卡記錄已存在` }, { status: 409 })
 
   const normalizedTasks: boolean[] = Array.from({ length: 8 }, (_, i) => Boolean(tasks?.[i]))
-  // tasks[4] 由工時決定：有填工時且 > 0 才算完成
+  // tasks[4] 由工時決定：只要有填工時欄位（含 0）就算完成。
+  // 月結會以總工時 vs. 工作日 × 8 判斷不足扣分。
   if (typeof work_hours === 'number') {
-    normalizedTasks[4] = work_hours > 0
+    normalizedTasks[4] = true
   }
   const baseScore  = calcBaseScore(normalizedTasks, early_sleep_half)
   const totalScore = baseScore
@@ -182,9 +183,10 @@ export async function PATCH(request: NextRequest) {
   }
 
   const normalizedTasks: boolean[] = Array.from({ length: 8 }, (_, i) => Boolean(tasks?.[i]))
-  // tasks[4] 由工時決定
+  // tasks[4] 由工時決定：只要有填工時欄位（含 0）就算完成。
+  // 月結會以總工時 vs. 工作日 × 8 判斷不足扣分。
   if (typeof work_hours === 'number') {
-    normalizedTasks[4] = work_hours > 0
+    normalizedTasks[4] = true
   }
   const baseScore  = calcBaseScore(normalizedTasks, early_sleep_half)
   const totalScore = baseScore
