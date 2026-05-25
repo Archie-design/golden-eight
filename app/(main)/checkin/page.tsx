@@ -333,12 +333,24 @@ export default function CheckInPage() {
                   </div>
                 </div>
               ) : i === 4 ? (
-                // 工作 8 小時：數字輸入取代勾選
+                // 工作 8 小時：數字輸入；點任務列即可標記完成（休息日填 0）
                 <div
                   key={i}
-                  onClick={() => showIconPopup(i)}
+                  onClick={() => {
+                    // 點任務列（非輸入框）→ 切換 task 4 完成狀態
+                    // 已完成 → 取消（清空工時 + 取消勾選）
+                    // 未完成 → 填 0（今日不工作）+ 勾選
+                    if (checked[4]) {
+                      setWorkHours('')
+                      setChecked(prev => prev.map((v, idx) => idx === 4 ? false : v))
+                    } else {
+                      setWorkHours('0')
+                      setChecked(prev => prev.map((v, idx) => idx === 4 ? true : v))
+                    }
+                    showIconPopup(4)
+                  }}
                   className={cn(
-                    'w-full flex items-center gap-3 rounded-xl border p-3 transition-all',
+                    'w-full flex items-center gap-3 rounded-xl border p-3 transition-all cursor-pointer',
                     checked[i]
                       ? 'border-yellow-400 bg-yellow-50 shadow-sm'
                       : 'border-gray-100 bg-white'
