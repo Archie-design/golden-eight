@@ -62,7 +62,11 @@
       "Bash(node -e ' *)",
       "Bash(node --input-type=module)",
       "Read(//private/tmp/openspec-check/openspec/**)",
-      "Read(//tmp/openspec-check/openspec/**)"
+      "Read(//tmp/openspec-check/openspec/**)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/api/auth/me)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/api/auth/me)",
+      "Bash(curl -s -c /tmp/admin-cookie.txt -X POST http://localhost:3000/api/auth/login -H 'Content-Type: application/json' -d '{\"name\":\"柯啟鴻\",\"phone\":\"0909064335\",\"password\":\"Ic743590\"}')",
+      "Bash(curl -s -b /tmp/admin-cookie.txt -X POST 'http://localhost:3000/api/admin/backfill-achievements')"
     ]
   }
 }

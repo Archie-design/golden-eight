@@ -78,9 +78,10 @@ export function calcTaskStreak(
     if (rec.date !== checkDate) break
     if (!rec.tasks[taskIdx]) break
     streak++
-    const d = new Date(checkDate + 'T00:00:00+08:00')
-    d.setDate(d.getDate() - 1)
-    checkDate = d.toISOString().slice(0, 10)
+    // 純字串日期遞減一天：用 UTC 計算避免 timezone 偏移（toISOString() 永遠輸出 UTC）
+    const [y, m, d] = checkDate.split('-').map(Number)
+    const dt = new Date(Date.UTC(y, m - 1, d - 1))
+    checkDate = dt.toISOString().slice(0, 10)
   }
   return streak
 }
