@@ -1,5 +1,9 @@
+'use client'
+
+import { Tooltip } from '@base-ui/react/tooltip'
 import { ACHIEVEMENT_LIST } from '@/lib/constants'
 import { AppIcon } from '@/lib/icons'
+import { cn } from '@/lib/utils'
 
 type AchievementTier = 'bronze' | 'silver' | 'gold' | 'legendary' | 'special'
 
@@ -43,31 +47,50 @@ function BadgeTile({ ach, unlocked, size = 'md' }: BadgeTileProps) {
   const iconSz = isSm ? 'w-3.5 h-3.5' : 'w-5 h-5'
 
   return (
-    <div
-      title={ach.name}
-      className={isSm ? 'flex flex-col items-center w-8' : 'flex flex-col items-center w-14'}
-    >
-      {/* 六角徽章（固定高度，圖示絕對置中） */}
-      <div className={isSm ? 'relative w-8 h-9 shrink-0' : 'relative w-12 h-[3.25rem] shrink-0'}>
-        <svg viewBox="0 0 48 52" className="absolute inset-0 w-full h-full" aria-hidden>
-          <polygon points={HEX_OUTER} fill={style.bg} stroke={style.ring} strokeWidth="2.5" />
-          <polygon points={HEX_INNER} fill={style.shine} />
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center" style={{ color: style.icon }}>
-          <AppIcon name={ach.badge} className={iconSz} />
-        </div>
-      </div>
+    <Tooltip.Root>
+      <Tooltip.Trigger
+        render={
+          <div
+            className={cn(
+              'flex flex-col items-center cursor-help',
+              isSm ? 'w-8' : 'w-14',
+            )}
+          >
+            {/* 六角徽章（固定高度，圖示絕對置中） */}
+            <div className={isSm ? 'relative w-8 h-9 shrink-0' : 'relative w-12 h-[3.25rem] shrink-0'}>
+              <svg viewBox="0 0 48 52" className="absolute inset-0 w-full h-full" aria-hidden>
+                <polygon points={HEX_OUTER} fill={style.bg} stroke={style.ring} strokeWidth="2.5" />
+                <polygon points={HEX_INNER} fill={style.shine} />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center" style={{ color: style.icon }}>
+                <AppIcon name={ach.badge} className={iconSz} />
+              </div>
+            </div>
 
-      {/* 名稱獨立一列 */}
-      {!isSm && (
-        <div
-          className="mt-1 w-full text-[0.6rem] leading-tight text-center break-words"
-          style={{ color: unlocked ? style.ring : '#9ca3af' }}
-        >
-          {ach.name}
-        </div>
-      )}
-    </div>
+            {/* 名稱獨立一列 */}
+            {!isSm && (
+              <div
+                className="mt-1 w-full text-[0.6rem] leading-tight text-center break-words"
+                style={{ color: unlocked ? style.ring : '#9ca3af' }}
+              >
+                {ach.name}
+              </div>
+            )}
+          </div>
+        }
+      />
+      <Tooltip.Portal>
+        <Tooltip.Positioner sideOffset={6}>
+          <Tooltip.Popup className="rounded-lg bg-white border shadow-lg p-3 max-w-xs z-50 text-left">
+            <div className="font-semibold text-sm" style={{ color: style.ring }}>{ach.name}</div>
+            <div className="text-xs text-muted-foreground mt-1 leading-snug">{ach.description}</div>
+            <div className={cn('text-xs mt-2 font-medium', unlocked ? 'text-green-600' : 'text-gray-400')}>
+              {unlocked ? '✓ 已解鎖' : '🔒 尚未解鎖'}
+            </div>
+          </Tooltip.Popup>
+        </Tooltip.Positioner>
+      </Tooltip.Portal>
+    </Tooltip.Root>
   )
 }
 
@@ -78,11 +101,13 @@ interface AchievementWallProps {
 export function AchievementWall({ unlockedCodes }: AchievementWallProps) {
   const unlockedSet = new Set(unlockedCodes)
   return (
-    <div className="flex flex-wrap gap-2">
-      {ACHIEVEMENT_LIST.map(ach => (
-        <BadgeTile key={ach.code} ach={ach} unlocked={unlockedSet.has(ach.code)} />
-      ))}
-    </div>
+    <Tooltip.Provider delay={150} closeDelay={100}>
+      <div className="flex flex-wrap gap-2">
+        {ACHIEVEMENT_LIST.map(ach => (
+          <BadgeTile key={ach.code} ach={ach} unlocked={unlockedSet.has(ach.code)} />
+        ))}
+      </div>
+    </Tooltip.Provider>
   )
 }
 
