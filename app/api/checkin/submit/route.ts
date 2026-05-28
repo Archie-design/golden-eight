@@ -258,6 +258,17 @@ export async function PATCH(request: NextRequest) {
     const { error: rmErr } = await db.from('achievements')
       .delete().eq('member_id', member.id).in('code', remove)
     if (rmErr) console.error('[checkin/edit] achievements delete failed', rmErr)
+
+    // 同步從 showcase_codes 移除被撤銷的成就，避免 UI 顯示已失效的徽章
+    const { data: m } = await db.from('members')
+      .select('showcase_codes').eq('id', member.id).maybeSingle()
+    const cur = ((m as { showcase_codes?: string[] } | null)?.showcase_codes ?? []) as string[]
+    const next = cur.filter(c => !remove.includes(c))
+    if (next.length !== cur.length) {
+      const { error: scErr } = await db.from('members')
+        .update({ showcase_codes: next }).eq('id', member.id)
+      if (scErr) console.error('[checkin/edit] showcase sync failed', scErr)
+    }
   }
 
   // Audit log（失敗不阻擋主流程）

@@ -161,8 +161,15 @@ export async function runSettlement(
       settled_at:           new Date().toISOString(),
     })
 
-    const passingCount = (passCountByMember[m.id] ?? 0) + (adjustedPassing ? 1 : 0)
-    const monthAchs = calcMonthlyAchievements(adjustedPassing, adjustedRate, m.level, codesByMember[m.id] ?? [], passingCount)
+    const passingCount    = (passCountByMember[m.id] ?? 0) + (adjustedPassing ? 1 : 0)
+    const totalReachedMax = stats.maxScore > 0 && adjustedTotal >= stats.maxScore
+    const monthAchs = calcMonthlyAchievements(
+      adjustedPassing,
+      m.level,
+      codesByMember[m.id] ?? [],
+      passingCount,
+      totalReachedMax,
+    )
     for (const a of monthAchs) achInserts.push({ member_id: m.id, code: a.code })
 
     if (m.next_level) levelUpdates.push({ id: m.id, level: m.next_level })

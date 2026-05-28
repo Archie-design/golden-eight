@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/api-helper'
-import { calcNewAchievementsFromAggregates } from '@/lib/scoring'
+import { calcNewAchievementsFromAggregates, isBaseScorePerfect } from '@/lib/scoring'
 import { RECORD_COLS_STATS } from '@/lib/db-columns'
 import type { Member, CheckInRecord } from '@/types'
 
@@ -42,7 +42,7 @@ export async function POST() {
     for (let i = 0; i < sortedRecs.length; i++) {
       const todayRec = sortedRecs[i]
       totalCount   += 1
-      perfectCount += todayRec.base_score === 8 ? 1 : 0
+      perfectCount += isBaseScorePerfect(todayRec.base_score) ? 1 : 0
 
       const windowStart = Math.max(0, i - (STREAK_WINDOW - 1))
       const recent      = sortedRecs.slice(windowStart, i + 1)

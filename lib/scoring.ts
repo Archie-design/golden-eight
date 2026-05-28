@@ -5,6 +5,14 @@
 import { CheckInRecord, Member } from '@/types'
 import { ACHIEVEMENT_LIST, LEVEL_PENALTIES, LEVEL_THRESHOLDS } from './constants'
 
+/**
+ * base_score 在 DB 是 NUMERIC(3,1)，Supabase JS client 可能以字串回傳（如 "8.0"），
+ * 直接用 `=== 8` 會 false。統一用此 helper 判定當日是否滿分（含 0.5 步進）。
+ */
+export function isBaseScorePerfect(score: number | string): boolean {
+  return Number(score) === 8
+}
+
 // ─── 得分計算 ─────────────────────────────────────────────────
 
 export function calcBaseScore(tasks: boolean[], earlySleepHalf = false): number {
@@ -190,8 +198,8 @@ export function calcNewAchievementsFromAggregates(args: {
     }
   }
 
-  if (totalCount === 1)                award('FIRST_CHECKIN')
-  if (todayRecord.base_score === 8)    award('DAILY_PERFECT')
+  if (totalCount === 1)                       award('FIRST_CHECKIN')
+  if (isBaseScorePerfect(todayRecord.base_score)) award('DAILY_PERFECT')
 
   for (const { target, code } of [
     { target: 30,  code: 'CHECKIN_30'  },
@@ -258,7 +266,7 @@ export function calcNewAchievements(
   const sorted = [...allRecords].sort((a, b) => a.date.localeCompare(b.date))
   return calcNewAchievementsFromAggregates({
     totalCount:      sorted.length,
-    perfectCount:    sorted.filter(r => r.base_score === 8).length,
+    perfectCount:    sorted.filter(r => isBaseScorePerfect(r.base_score)).length,
     recentSorted:    sorted,
     todayRecord,
     alreadyUnlocked,
@@ -267,14 +275,16 @@ export function calcNewAchievements(
 
 /**
  * 月結後成就（月通關、黃金、完美月、連勝）。
- * @param passingCount 含本次月結的累計通關次數（由 settlement route 從 monthly_summary 計算後傳入）
+ * @param passingCount   含本次月結的累計通關次數（由 settlement route 從 monthly_summary 計算後傳入）
+ * @param totalReachedMax 當月實際分數是否達到 maxScore（用於 MONTH_PERFECT；
+ *                        避免 rate 四捨五入到 100% 但實際還差 0.5 分）
  */
 export function calcMonthlyAchievements(
   passing: boolean,
-  rate: number,
   level: string,
   alreadyUnlocked: string[],
   passingCount: number,
+  totalReachedMax: boolean,
 ): AchievementTrigger[] {
   if (!passing) return []
 
@@ -293,7 +303,7 @@ export function calcMonthlyAchievements(
 
   if (!unlocked.has('MONTH_PASS')) award('MONTH_PASS')
   if (level === '黃金戰士')         award('MONTH_GOLD')
-  if (rate >= 100)                  award('MONTH_PERFECT')
+  if (totalReachedMax)              award('MONTH_PERFECT')
 
   if (passingCount >= 3) award('MONTH_STREAK_3')
   if (passingCount >= 6) award('MONTH_STREAK_6')

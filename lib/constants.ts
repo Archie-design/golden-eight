@@ -78,8 +78,8 @@ export const ACHIEVEMENT_LIST = [
   { code: 'MONTH_PASS',     name: '初次通關', badge: 'Unlock',        type: 'month_first',                description: '當月達成率達到所屬等級門檻'      },
   { code: 'MONTH_GOLD',     name: '黃金通關', badge: 'GraduationCap', type: 'month_gold',                 description: '以黃金戰士等級當月通關'          },
   { code: 'MONTH_PERFECT',  name: '完美月',   badge: 'CheckCircle2',  type: 'month_rate',    rate: 100,   description: '當月達成率達到 100%'             },
-  { code: 'MONTH_STREAK_3', name: '三月連勝', badge: 'Swords',        type: 'month_streak',  n: 3,        description: '累計連續通關 3 個月'             },
-  { code: 'MONTH_STREAK_6', name: '半年英雄', badge: 'Trophy',        type: 'month_streak',  n: 6,        description: '累計連續通關 6 個月'             },
+  { code: 'MONTH_STREAK_3', name: '三月連勝', badge: 'Swords',        type: 'month_streak',  n: 3,        description: '累計通關 3 個月（不限連續）'      },
+  { code: 'MONTH_STREAK_6', name: '半年英雄', badge: 'Trophy',        type: 'month_streak',  n: 6,        description: '累計通關 6 個月（不限連續）'      },
 ]
 
 export const CALENDAR_COLORS = {
