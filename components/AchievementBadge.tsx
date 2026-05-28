@@ -1,6 +1,6 @@
 'use client'
 
-import { Tooltip } from '@base-ui/react/tooltip'
+import { Popover } from '@base-ui/react/popover'
 import { ACHIEVEMENT_LIST } from '@/lib/constants'
 import { AppIcon } from '@/lib/icons'
 import { cn } from '@/lib/utils'
@@ -47,8 +47,12 @@ function BadgeTile({ ach, unlocked, size = 'md' }: BadgeTileProps) {
   const iconSz = isSm ? 'w-3.5 h-3.5' : 'w-5 h-5'
 
   return (
-    <Tooltip.Root>
-      <Tooltip.Trigger
+    <Popover.Root>
+      <Popover.Trigger
+        nativeButton={false}
+        openOnHover
+        delay={150}
+        closeDelay={100}
         render={
           <div
             className={cn(
@@ -79,18 +83,18 @@ function BadgeTile({ ach, unlocked, size = 'md' }: BadgeTileProps) {
           </div>
         }
       />
-      <Tooltip.Portal>
-        <Tooltip.Positioner sideOffset={6}>
-          <Tooltip.Popup className="rounded-lg bg-white border shadow-lg p-3 max-w-xs z-50 text-left">
+      <Popover.Portal>
+        <Popover.Positioner sideOffset={6}>
+          <Popover.Popup className="rounded-lg bg-white border shadow-lg p-3 max-w-xs z-50 text-left">
             <div className="font-semibold text-sm" style={{ color: style.ring }}>{ach.name}</div>
             <div className="text-xs text-muted-foreground mt-1 leading-snug">{ach.description}</div>
             <div className={cn('text-xs mt-2 font-medium', unlocked ? 'text-green-600' : 'text-gray-400')}>
               {unlocked ? '✓ 已解鎖' : '🔒 尚未解鎖'}
             </div>
-          </Tooltip.Popup>
-        </Tooltip.Positioner>
-      </Tooltip.Portal>
-    </Tooltip.Root>
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
   )
 }
 
@@ -101,13 +105,11 @@ interface AchievementWallProps {
 export function AchievementWall({ unlockedCodes }: AchievementWallProps) {
   const unlockedSet = new Set(unlockedCodes)
   return (
-    <Tooltip.Provider delay={150} closeDelay={100}>
-      <div className="flex flex-wrap gap-2">
-        {ACHIEVEMENT_LIST.map(ach => (
-          <BadgeTile key={ach.code} ach={ach} unlocked={unlockedSet.has(ach.code)} />
-        ))}
-      </div>
-    </Tooltip.Provider>
+    <div className="flex flex-wrap gap-2">
+      {ACHIEVEMENT_LIST.map(ach => (
+        <BadgeTile key={ach.code} ach={ach} unlocked={unlockedSet.has(ach.code)} />
+      ))}
+    </div>
   )
 }
 
