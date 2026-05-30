@@ -5,6 +5,7 @@ import { CheckInSubmitSchema, parseBody } from '@/lib/validation'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { ACHIEVEMENT_LIST } from '@/lib/constants'
 import { RECORD_COLS_STATS } from '@/lib/db-columns'
+import { awardOnCheckin } from '@/lib/partner-achievements'
 import type { CheckInRecord } from '@/types'
 
 // 計算 streak 成就所需的最小查詢窗（最長 streak 目標為 100 天）
@@ -132,9 +133,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // 夥伴成就（競爭 / 同步類）— 獨立查詢區塊，失敗不阻擋主流程
+  const partnerAchievements = await awardOnCheckin(db, member, target, todayFull, recent)
+
   return NextResponse.json({
     ok: true, msg: '打卡成功', totalScore, baseScore, punchStreak,
-    newAchievements: persistedAchievements,
+    newAchievements: [...persistedAchievements, ...partnerAchievements],
   })
 }
 
@@ -290,13 +294,16 @@ export async function PATCH(request: NextRequest) {
     return { code, name: ach?.name ?? code, badge: ach?.badge ?? 'Trophy' }
   })
 
+  // 夥伴成就（編輯後可能突破 streak / rate）— 同 POST 路徑
+  const partnerAchievements = await awardOnCheckin(db, member, target, todayFull, recent)
+
   return NextResponse.json({
     ok: true,
     msg: '修改成功',
     totalScore,
     baseScore,
     punchStreak,
-    achievementsAdded:   add,
+    achievementsAdded:   [...add, ...partnerAchievements],
     achievementsRemoved: removedDetails,
   })
 }

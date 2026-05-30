@@ -146,6 +146,33 @@ export function calcMaxPunchStreak(records: CheckInRecord[]): number {
   return calcMaxPunchStreakFromSorted(sorted)
 }
 
+/**
+ * 從 endDate 往回算最多 windowDays 天，找出我與夥伴「連續同日皆打卡」的天數。
+ * 純函式，純字串日期算術（避免 timezone 偏移）。
+ *
+ * @param myDates       我有打卡記錄的日期 Set（'YYYY-MM-DD'）
+ * @param partnerDates  夥伴有打卡記錄的日期 Set
+ * @param endDate       'YYYY-MM-DD'（通常為今日邏輯日）
+ * @param windowDays    最大窗口（一般 105 已足夠涵蓋 30 天門檻）
+ */
+export function calcPartnerSyncStreak(
+  myDates: Set<string>,
+  partnerDates: Set<string>,
+  endDate: string,
+  windowDays: number,
+): number {
+  let streak = 0
+  let checkDate = endDate
+  for (let i = 0; i < windowDays; i++) {
+    if (!myDates.has(checkDate) || !partnerDates.has(checkDate)) break
+    streak++
+    const [y, m, d] = checkDate.split('-').map(Number)
+    const dt = new Date(Date.UTC(y, m - 1, d - 1))
+    checkDate = dt.toISOString().slice(0, 10)
+  }
+  return streak
+}
+
 // ─── 工作時數補扣計算 ───────────────────────────────────────────
 
 /** 當月總工時不足（工作日×8小時）時，每少 8 小時扣 1 分 */

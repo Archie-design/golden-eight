@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentMember, getCheckinDayTaipei } from '@/lib/api-helper'
 import { parseBody, PartnerEncourageSchema } from '@/lib/validation'
 import { ENCOURAGE_MESSAGES } from '@/lib/constants'
+import { awardOnEncourage } from '@/lib/partner-achievements'
 
 /**
  * POST /api/partners/[id]/encourage
@@ -63,5 +64,8 @@ export async function POST(
     return NextResponse.json({ ok: false, msg: '送出失敗，請稍後再試' }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, msg: '已送出鼓勵' })
+  // 觸發鼓勵類成就：我自己（送出 ≥10 解 PARTNER_CHEER_10）、對方（收到 ≥10 解 PARTNER_CHEERED_10）
+  const newAchievements = await awardOnEncourage(db, member.id, partnerId)
+
+  return NextResponse.json({ ok: true, msg: '已送出鼓勵', newAchievements })
 }

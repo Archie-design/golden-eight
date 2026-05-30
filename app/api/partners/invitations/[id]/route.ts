@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentMember } from '@/lib/api-helper'
 import { parseBody, PartnerInvitationActionSchema } from '@/lib/validation'
 import { PARTNER_MAX } from '@/lib/constants'
+import { awardOnAccept } from '@/lib/partner-achievements'
 
 /**
  * PATCH /api/partners/invitations/[id]
@@ -71,9 +72,16 @@ export async function PATCH(
     return NextResponse.json({ ok: false, msg: '操作失敗，請稍後再試' }, { status: 500 })
   }
 
+  // accept 後觸發雙方社交類成就（PARTNER_FIRST/3/5）；回傳我這側新解鎖的供前端 popup
+  let newAchievements: { code: string; name: string; badge: string }[] = []
+  if (action === 'accept') {
+    newAchievements = await awardOnAccept(db, member.id, row.requester_id)
+  }
+
   return NextResponse.json({
     ok:  true,
     msg: action === 'accept' ? '已接受邀請' : '已拒絕邀請',
+    newAchievements,
   })
 }
 
