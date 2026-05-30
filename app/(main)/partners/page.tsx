@@ -2,14 +2,15 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
-import { Users, UserPlus, UserMinus, Search, Check, X, Flame, Mail } from 'lucide-react'
+import { Users, UserPlus, UserMinus, Search, Check, X, Flame, Mail, Megaphone } from 'lucide-react'
+import { Popover } from '@base-ui/react/popover'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ProgressBar } from '@/components/ProgressBar'
-import { TASKS } from '@/lib/constants'
+import { TASKS, ENCOURAGE_MESSAGES } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import type { PartnerCard, Level } from '@/types'
 
@@ -121,6 +122,23 @@ export default function PartnersPage() {
       const r = await fetch(`/api/partners/invitations/${id}`, { method: 'DELETE' }).then(r => r.json())
       if (r.ok) { toast.success(r.msg); loadInvites() }
       else { toast.error(r.msg) }
+    } finally { setBusy(false) }
+  }
+
+  async function encourage(partnerId: string, message: string) {
+    setBusy(true)
+    try {
+      const r = await fetch(`/api/partners/${partnerId}/encourage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message }),
+      }).then(r => r.json())
+      if (r.ok) {
+        toast.success('已送出鼓勵')
+        setPartners(prev => prev.map(p => p.id === partnerId ? { ...p, encouragedToday: true } : p))
+      } else {
+        toast.error(r.msg)
+      }
     } finally { setBusy(false) }
   }
 
@@ -241,6 +259,52 @@ export default function PartnersPage() {
                   <div className="rounded-md bg-pink-50 border border-pink-200 px-3 py-2 text-xs text-pink-700">
                     <span className="font-medium">收到鼓勵：</span>{p.receivedFromToday}
                   </div>
+                )}
+
+                {/* 鼓勵按鈕（每日每對一次） */}
+                {p.encouragedToday ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled
+                    className="w-full text-green-700 border-green-200 bg-green-50"
+                  >
+                    <Check className="w-3.5 h-3.5 mr-1" />今日已鼓勵
+                  </Button>
+                ) : (
+                  <Popover.Root>
+                    <Popover.Trigger
+                      nativeButton={false}
+                      render={
+                        <Button
+                          size="sm"
+                          className="w-full bg-pink-500 hover:bg-pink-600 text-white"
+                          disabled={busy}
+                        >
+                          <Megaphone className="w-3.5 h-3.5 mr-1" />送出鼓勵
+                        </Button>
+                      }
+                    />
+                    <Popover.Portal>
+                      <Popover.Positioner sideOffset={6}>
+                        <Popover.Popup className="rounded-lg bg-white border shadow-lg p-2 z-50 w-56">
+                          <div className="text-xs text-muted-foreground px-2 py-1 mb-1">
+                            選一條訊息送出
+                          </div>
+                          {ENCOURAGE_MESSAGES.map(msg => (
+                            <button
+                              key={msg}
+                              onClick={() => encourage(p.id, msg)}
+                              disabled={busy}
+                              className="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-pink-50 disabled:opacity-50"
+                            >
+                              {msg}
+                            </button>
+                          ))}
+                        </Popover.Popup>
+                      </Popover.Positioner>
+                    </Popover.Portal>
+                  </Popover.Root>
                 )}
               </CardContent>
             </Card>
