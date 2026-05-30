@@ -76,3 +76,45 @@ export async function PATCH(
     msg: action === 'accept' ? '已接受邀請' : '已拒絕邀請',
   })
 }
+
+/**
+ * DELETE /api/partners/invitations/[id]
+ * 取消尚未回應的邀請。只有邀請者（requester）可以取消，且必須是 pending 狀態。
+ */
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const auth = await getCurrentMember()
+  if (auth instanceof NextResponse) return auth
+  const { member, db } = auth
+
+  const { id } = await params
+  const invitationId = Number(id)
+  if (!Number.isFinite(invitationId) || invitationId <= 0) {
+    return NextResponse.json({ ok: false, msg: '無效的邀請 ID' }, { status: 400 })
+  }
+
+  const { data: rowRaw } = await db
+    .from('partner_requests')
+    .select('id, requester_id, status')
+    .eq('id', invitationId)
+    .maybeSingle()
+  const row = rowRaw as { id: number; requester_id: string; status: string } | null
+  if (!row) {
+    return NextResponse.json({ ok: false, msg: '找不到此邀請' }, { status: 404 })
+  }
+  if (row.requester_id !== member.id) {
+    return NextResponse.json({ ok: false, msg: '只能取消自己發出的邀請' }, { status: 403 })
+  }
+  if (row.status !== 'pending') {
+    return NextResponse.json({ ok: false, msg: '此邀請已處理過' }, { status: 409 })
+  }
+
+  const { error } = await db.from('partner_requests').delete().eq('id', invitationId)
+  if (error) {
+    console.error('[partners/invitations/DELETE] failed', error)
+    return NextResponse.json({ ok: false, msg: '取消失敗，請稍後再試' }, { status: 500 })
+  }
+  return NextResponse.json({ ok: true, msg: '已取消邀請' })
+}

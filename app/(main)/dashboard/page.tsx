@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { CalendarGrid } from '@/components/CalendarGrid'
 import { AchievementWall } from '@/components/AchievementBadge'
+import { PartnersWidget } from '@/components/PartnersWidget'
 import { ShowcaseCard } from '@/components/ShowcaseCard'
 import { TaskIcon } from '@/lib/icons'
 import { TASKS, LEVEL_THRESHOLDS } from '@/lib/constants'
@@ -389,6 +390,9 @@ export default function DashboardPage() {
         current={data.showcaseCodes}
         onSave={codes => setData(prev => prev ? { ...prev, showcaseCodes: codes } : prev)}
       />
+
+      {/* 夥伴動態 */}
+      <PartnersWidget />
 
       {/* 成就牆 */}
       <Card>
