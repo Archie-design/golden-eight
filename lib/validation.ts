@@ -75,6 +75,23 @@ export const BatchDeactivateSchema = z.object({
   memberIds: z.array(z.string().min(1)).min(1, '至少需選擇一位成員').max(100, '單次最多 100 人'),
 })
 
+// ── 夥伴系統 ─────────────────────────────────────────────────
+
+const MEMBER_ID_RE = /^M\d+$/
+
+export const PartnerInviteSchema = z.object({
+  targetId: z.string().regex(MEMBER_ID_RE, '無效的成員 ID'),
+})
+
+export const PartnerInvitationActionSchema = z.object({
+  action: z.enum(['accept', 'reject'], { message: '無效的操作' }),
+})
+
+// 鼓勵訊息驗證在 route 內動態 import ENCOURAGE_MESSAGES（避免 constants → validation 循環依賴）
+export const PartnerEncourageSchema = z.object({
+  message: z.string().min(1).max(50),
+})
+
 // ── Helper: parse request body with schema, return error response on failure ──
 
 export async function parseBody<T>(

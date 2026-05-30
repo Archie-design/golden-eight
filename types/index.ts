@@ -94,6 +94,34 @@ export interface Achievement {
   unlocked_at: string
 }
 
+// ─── 夥伴系統 ────────────────────────────────────────────────
+
+export interface PartnerInvitation {
+  id:           number
+  requester_id: string
+  target_id:    string
+  status:       'pending' | 'accepted' | 'rejected'
+  requested_at: string
+  responded_at: string | null
+  /** 對方成員（搭配 API JOIN 後的展示用） */
+  other?: { id: string; name: string; level: Level }
+  /** 'sent' = 我發出的；'received' = 收到的 */
+  direction?: 'sent' | 'received'
+}
+
+/** 夥伴卡（用於 /partners 頁面與 dashboard 動態區） */
+export interface PartnerCard {
+  id:               string
+  name:             string
+  level:            Level
+  checkedInToday:   boolean
+  tasks:            boolean[] | null   // 8 項；今日未打卡為 null
+  monthRate:        number             // 0-100
+  punchStreak:      number             // 當前連續打拳天數
+  encouragedToday:  boolean            // 我今天是否已鼓勵過此夥伴
+  receivedFromToday:string | null      // 此夥伴今日是否送過我鼓勵；有的話是訊息文字
+}
+
 export interface Tag {
   id: string
   member_id?: string | null

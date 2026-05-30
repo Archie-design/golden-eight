@@ -31,6 +31,27 @@ export const LEVEL_PENALTIES: Record<string, number> = {
  */
 export const WORK_HOURS_TRACKING_START = '2026-04-29'
 
+// ─── 夥伴系統 ────────────────────────────────────────────────
+
+/** 每位成員最多可擁有的夥伴數（accepted 狀態） */
+export const PARTNER_MAX = 5
+
+/** 被拒絕後、同一對成員的重新邀請冷卻時間（天） */
+export const PARTNER_REJECT_COOLDOWN_DAYS = 7
+
+/** 預設鼓勵訊息清單（前後端共用，前端展開供選擇，後端 Zod 限制只能此列表） */
+export const ENCOURAGE_MESSAGES = [
+  '加油！',
+  '你做得到 💪',
+  '今天也辛苦了 🌸',
+  '一起前進 🏃',
+  '為你打氣 📣',
+  '太棒了 ✨',
+  '明天繼續 🌅',
+  '我也在堅持 🤝',
+] as const
+export type EncourageMessage = typeof ENCOURAGE_MESSAGES[number]
+
 export const ACHIEVEMENT_LIST = [
   // 各任務連續天數（8 項 × 4 里程碑 = 32 個）
   { code: 'T1_STREAK_3',   name: '早鳥初心',    badge: 'Moon',       type: 'streak', task: 0, days: 3,   description: '連續 3 天完成「早睡早起」'        },
@@ -80,6 +101,16 @@ export const ACHIEVEMENT_LIST = [
   { code: 'MONTH_PERFECT',  name: '完美月',   badge: 'CheckCircle2',  type: 'month_rate',    rate: 100,   description: '當月達成率達到 100%'             },
   { code: 'MONTH_STREAK_3', name: '三月連勝', badge: 'Swords',        type: 'month_streak',  n: 3,        description: '累計通關 3 個月（不限連續）'      },
   { code: 'MONTH_STREAK_6', name: '半年英雄', badge: 'Trophy',        type: 'month_streak',  n: 6,        description: '累計通關 6 個月（不限連續）'      },
+  // 夥伴系統（社交 / 競爭 / 同步 / 鼓勵 共 9 個）
+  { code: 'PARTNER_FIRST',       name: '初結夥伴', badge: 'Users',      type: 'partner_count',   target: 1,  description: '擁有 1 位夥伴'                       },
+  { code: 'PARTNER_3',           name: '黃金同行', badge: 'UsersRound', type: 'partner_count',   target: 3,  description: '擁有 3 位夥伴'                       },
+  { code: 'PARTNER_5',           name: '戰隊成形', badge: 'UserCheck',  type: 'partner_count',   target: 5,  description: '擁有 5 位夥伴（達上限）'              },
+  { code: 'PARTNER_BEAT_RATE',   name: '後來居上', badge: 'TrendingUp', type: 'partner_beat',                description: '本月達成率超越任一夥伴'              },
+  { code: 'PARTNER_BEAT_STREAK', name: '連續超越', badge: 'Flame',      type: 'partner_beat',                description: '連續打拳天數超越任一夥伴'            },
+  { code: 'PARTNER_SYNC_7',      name: '七日同行', badge: 'Link',       type: 'partner_sync',    days: 7,    description: '與任一夥伴連續同日打卡 7 天'          },
+  { code: 'PARTNER_SYNC_30',     name: '同行三十', badge: 'Link2',      type: 'partner_sync',    days: 30,   description: '與任一夥伴連續同日打卡 30 天'         },
+  { code: 'PARTNER_CHEER_10',    name: '加油大使', badge: 'Megaphone',  type: 'partner_cheer',   target: 10, description: '累積送出 10 次鼓勵'                  },
+  { code: 'PARTNER_CHEERED_10',  name: '人氣戰士', badge: 'HeartHandshake', type: 'partner_cheer', target: 10, description: '累積收到 10 次鼓勵'                },
 ]
 
 export const CALENDAR_COLORS = {

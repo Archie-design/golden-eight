@@ -6,6 +6,7 @@ import {
   Zap, Shield, Target, Sparkles, Clock, Sprout, Heart, Globe,
   Waves, Feather, CloudSun, Diamond, Gem, CalendarCheck, CalendarDays,
   Coffee, Rocket, Brain, Ribbon, Mountain, GraduationCap, Swords,
+  UsersRound, UserCheck, Link, Link2, Megaphone, HeartHandshake,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -17,6 +18,7 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   Zap, Shield, Target, Sparkles, Clock, Sprout, Heart, Globe,
   Waves, Feather, CloudSun, Diamond, Gem, CalendarCheck, CalendarDays,
   Coffee, Rocket, Brain, Ribbon, Mountain, GraduationCap, Swords,
+  UsersRound, UserCheck, Link, Link2, Megaphone, HeartHandshake,
 }
 
 interface AppIconProps {

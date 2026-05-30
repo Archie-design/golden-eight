@@ -127,6 +127,31 @@ CREATE TABLE IF NOT EXISTS sunrise_cache (
   fetched_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 8. 夥伴關係（單向記錄，雙向確認）
+CREATE TABLE IF NOT EXISTS partner_requests (
+  id            BIGSERIAL PRIMARY KEY,
+  requester_id  TEXT NOT NULL REFERENCES members(id),
+  target_id     TEXT NOT NULL REFERENCES members(id),
+  status        TEXT NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending', 'accepted', 'rejected')),
+  requested_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  responded_at  TIMESTAMPTZ,
+  CHECK (requester_id <> target_id),
+  UNIQUE (requester_id, target_id)
+);
+
+-- 9. 鼓勵紀錄（每對成員每日一次）
+CREATE TABLE IF NOT EXISTS encouragements (
+  id          BIGSERIAL PRIMARY KEY,
+  from_id     TEXT NOT NULL REFERENCES members(id),
+  to_id       TEXT NOT NULL REFERENCES members(id),
+  date        DATE NOT NULL DEFAULT CURRENT_DATE,
+  message     TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (from_id <> to_id),
+  UNIQUE (from_id, to_id, date)
+);
+
 -- ============================================================
 -- 會員 ID 序列 + next_member_id() RPC
 -- ============================================================
@@ -233,6 +258,14 @@ CREATE INDEX IF NOT EXISTS idx_monthly_unselected
   ON monthly_summary(year_month) WHERE chose_next_level = FALSE;
 CREATE INDEX IF NOT EXISTS idx_achievements_member ON achievements(member_id);
 CREATE INDEX IF NOT EXISTS idx_achievements_code   ON achievements(code);
+CREATE INDEX IF NOT EXISTS idx_partner_requests_requester
+  ON partner_requests(requester_id, status);
+CREATE INDEX IF NOT EXISTS idx_partner_requests_target
+  ON partner_requests(target_id, status);
+CREATE INDEX IF NOT EXISTS idx_encouragements_to
+  ON encouragements(to_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_encouragements_from
+  ON encouragements(from_id);
 CREATE INDEX IF NOT EXISTS idx_schedule_member     ON schedule_template(member_id);
 CREATE INDEX IF NOT EXISTS idx_tag_member          ON tag_library(member_id);
 CREATE INDEX IF NOT EXISTS idx_members_status_active
@@ -251,3 +284,5 @@ ALTER TABLE tag_library        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE schedule_template  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sunrise_cache      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE checkin_edit_logs  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE partner_requests   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE encouragements     ENABLE ROW LEVEL SECURITY;
