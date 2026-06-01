@@ -78,7 +78,11 @@
       "Bash(curl -s -b /tmp/admin-cookie.txt -X POST 'http://localhost:3000/api/partners/M999/encourage' -H 'Content-Type: application/json' -d '{\"message\":\"加油！\"}')",
       "Bash(curl -s -b /tmp/admin-cookie.txt -X POST 'http://localhost:3000/api/partners/M002/encourage' -H 'Content-Type: application/json' -d '{\"message\":\"加油！\"}')",
       "Bash(curl -s -b /tmp/admin-cookie.txt -X POST 'http://localhost:3000/api/partners/M002/encourage' -H 'Content-Type: application/json' -d '{\"message\":\"駭客訊息\"}')",
-      "Bash(curl -s -b /tmp/admin-cookie.txt -X POST 'http://localhost:3000/api/partners/M001/encourage' -H 'Content-Type: application/json' -d '{\"message\":\"加油！\"}')"
+      "Bash(curl -s -b /tmp/admin-cookie.txt -X POST 'http://localhost:3000/api/partners/M001/encourage' -H 'Content-Type: application/json' -d '{\"message\":\"加油！\"}')",
+      "Bash(rm /Users/keke/黃金八套餐定課系統/golden-eight/scripts/_q.mjs /tmp/q.mjs)"
+    ],
+    "additionalDirectories": [
+      "/private/tmp"
     ]
   }
 }
