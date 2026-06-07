@@ -140,6 +140,12 @@ CREATE TABLE IF NOT EXISTS partner_requests (
   UNIQUE (requester_id, target_id)
 );
 
+-- 8.5 台灣國定假日（getWorkingDaysInRange 用來扣除假日）
+CREATE TABLE IF NOT EXISTS taiwan_holidays (
+  date DATE PRIMARY KEY,
+  note TEXT
+);
+
 -- 9. 鼓勵紀錄（每對成員每日一次）
 CREATE TABLE IF NOT EXISTS encouragements (
   id          BIGSERIAL PRIMARY KEY,
@@ -286,3 +292,4 @@ ALTER TABLE sunrise_cache      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE checkin_edit_logs  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE partner_requests   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE encouragements     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE taiwan_holidays    ENABLE ROW LEVEL SECURITY;

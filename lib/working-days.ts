@@ -1,5 +1,20 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
+/**
+ * 從 'YYYY-MM-DD' 字串算出星期幾（0=日 ~ 6=六），TZ 獨立。
+ * 用 Date.UTC 構造 UTC 午夜，再用 getUTCDay()，完全不依賴 process.env.TZ。
+ */
+function dowFromDateStr(s: string): number {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay()
+}
+
+/** 純字串遞增一天 */
+function nextDay(s: string): string {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10)
+}
+
 /** 計算指定日期區間（含起訖）內的工作日數（去除週末與台灣國定假日） */
 export async function getWorkingDaysInRange(
   from: string,
@@ -9,10 +24,8 @@ export async function getWorkingDaysInRange(
   if (from > to) return 0
 
   let weekdays = 0
-  const start = new Date(from + 'T00:00:00+08:00')
-  const end   = new Date(to   + 'T00:00:00+08:00')
-  for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const dow = d.getDay()
+  for (let cur = from; cur <= to; cur = nextDay(cur)) {
+    const dow = dowFromDateStr(cur)
     if (dow >= 1 && dow <= 5) weekdays++
   }
 
@@ -23,7 +36,7 @@ export async function getWorkingDaysInRange(
     .lte('date', to)
 
   const holidaysOnWeekdays = ((data ?? []) as { date: string }[]).filter(h => {
-    const dow = new Date(h.date + 'T00:00:00+08:00').getDay()
+    const dow = dowFromDateStr(h.date)
     return dow >= 1 && dow <= 5
   }).length
 

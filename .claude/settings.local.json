@@ -79,7 +79,21 @@
       "Bash(curl -s -b /tmp/admin-cookie.txt -X POST 'http://localhost:3000/api/partners/M002/encourage' -H 'Content-Type: application/json' -d '{\"message\":\"加油！\"}')",
       "Bash(curl -s -b /tmp/admin-cookie.txt -X POST 'http://localhost:3000/api/partners/M002/encourage' -H 'Content-Type: application/json' -d '{\"message\":\"駭客訊息\"}')",
       "Bash(curl -s -b /tmp/admin-cookie.txt -X POST 'http://localhost:3000/api/partners/M001/encourage' -H 'Content-Type: application/json' -d '{\"message\":\"加油！\"}')",
-      "Bash(rm /Users/keke/黃金八套餐定課系統/golden-eight/scripts/_q.mjs /tmp/q.mjs)"
+      "Bash(rm /Users/keke/黃金八套餐定課系統/golden-eight/scripts/_q.mjs /tmp/q.mjs)",
+      "Bash(node scripts/_q.mjs)",
+      "Bash(curl -s -b /tmp/admin-cookie.txt 'http://localhost:3000/api/stats/dashboard?month=2026-06')",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('workingDays:',d.get\\('workingDays'\\)\\);print\\('monthWorkHours:',d.get\\('monthWorkHours'\\)\\);print\\('requiredWorkHours:',d.get\\('requiredWorkHours'\\)\\);print\\('yearMonth:',d.get\\('yearMonth'\\)\\)\")",
+      "Bash(TZ='' node -e \"console.log\\('resolved:', Intl.DateTimeFormat\\(\\).resolvedOptions\\(\\).timeZone\\); console.log\\('day:', new Date\\('2026-06-01T00:00:00+08:00'\\).getDay\\(\\)\\)\")",
+      "Bash(TZ=UTC node -e ' *)",
+      "Bash(TZ=Asia/Taipei node -e ' *)",
+      "Bash(curl -s -b /tmp/admin-cookie.txt 'http://localhost:3000/api/stats/dashboard?month=2026-05')",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('5月 workingDays:',d.get\\('workingDays'\\),'requiredWorkHours:',d.get\\('requiredWorkHours'\\)\\)\")",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('6月 workingDays:',d.get\\('workingDays'\\),'/ requiredHours:',d.get\\('requiredWorkHours'\\)\\)\")",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('5月 workingDays:',d.get\\('workingDays'\\),'/ requiredHours:',d.get\\('requiredWorkHours'\\)\\)\")",
+      "Bash(curl -s -b /tmp/admin-cookie.txt 'http://localhost:3000/api/stats/dashboard?month=2026-02')",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('2月 workingDays:',d.get\\('workingDays'\\),'/ requiredHours:',d.get\\('requiredWorkHours'\\)\\)\")",
+      "Bash(curl -s -b /tmp/admin-cookie.txt 'http://localhost:3000/api/stats/dashboard?month=2026-04')",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('4月 workingDays:',d.get\\('workingDays'\\),'/ requiredHours:',d.get\\('requiredWorkHours'\\)\\)\")"
     ],
     "additionalDirectories": [
       "/private/tmp"
