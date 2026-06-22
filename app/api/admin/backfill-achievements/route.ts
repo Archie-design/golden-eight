@@ -38,11 +38,13 @@ export async function POST() {
 
     let totalCount = 0
     let perfectCount = 0
+    const taskCounts = [0, 0, 0, 0, 0, 0, 0, 0]
 
     for (let i = 0; i < sortedRecs.length; i++) {
       const todayRec = sortedRecs[i]
       totalCount   += 1
       perfectCount += isBaseScorePerfect(todayRec.base_score) ? 1 : 0
+      for (let t = 0; t < 8; t++) if (todayRec.tasks[t]) taskCounts[t]++
 
       const windowStart = Math.max(0, i - (STREAK_WINDOW - 1))
       const recent      = sortedRecs.slice(windowStart, i + 1)
@@ -55,6 +57,7 @@ export async function POST() {
       const newOnes = calcNewAchievementsFromAggregates({
         totalCount,
         perfectCount,
+        taskCounts,
         recentSorted:    recent,
         todayRecord:     todayRec,
         alreadyUnlocked: Array.from(seen),

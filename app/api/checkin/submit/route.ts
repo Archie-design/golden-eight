@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
   const needTotal    = !codeSet.has('CHECKIN_365')
   const needPerfect  = !codeSet.has('PERFECT_30')
 
-  const [totalCntRes, perfectCntRes, recentRes] = await Promise.all([
+  const [totalCntRes, perfectCntRes, recentRes, taskRecsRes] = await Promise.all([
     needTotal
       ? db.from('checkin_records').select('id', { count: 'exact', head: true }).eq('member_id', member.id)
       : Promise.resolve({ count: null as number | null }),
@@ -106,16 +106,21 @@ export async function POST(request: NextRequest) {
       .gte('date', windowStart)
       .lte('date', target)
       .order('date'),
+    // 累積 task 次數（給 T*_STREAK_30 / 100 的 mode='cumulative' 判定用）
+    db.from('checkin_records').select('tasks').eq('member_id', member.id),
   ])
 
   const totalCount   = needTotal   ? (totalCntRes.count   ?? 0) : Number.MAX_SAFE_INTEGER
   const perfectCount = needPerfect ? (perfectCntRes.count ?? 0) : Number.MAX_SAFE_INTEGER
   const recent       = (recentRes.data ?? []) as CheckInRecord[]
   const todayFull    = recent.find(r => r.date === target) as CheckInRecord
+  const allTaskRecs  = (taskRecsRes.data ?? []) as { tasks: boolean[] }[]
+  const taskCounts   = Array.from({ length: 8 }, (_, i) => allTaskRecs.filter(r => r.tasks[i]).length)
 
   const newAchievements = calcNewAchievementsFromAggregates({
     totalCount,
     perfectCount,
+    taskCounts,
     recentSorted:    recent,
     todayRecord:     todayFull,
     alreadyUnlocked: alreadyCodes,
@@ -224,7 +229,7 @@ export async function PATCH(request: NextRequest) {
 
   // 取彙總、最近 105 日、已解鎖成就
   const windowStart = shiftDate(target, -(STREAK_WINDOW_DAYS - 1))
-  const [totalCntRes, perfectCntRes, recentRes, unlockedRes] = await Promise.all([
+  const [totalCntRes, perfectCntRes, recentRes, unlockedRes, taskRecsRes] = await Promise.all([
     db.from('checkin_records')
       .select('id', { count: 'exact', head: true }).eq('member_id', member.id),
     db.from('checkin_records')
@@ -232,6 +237,7 @@ export async function PATCH(request: NextRequest) {
     db.from('checkin_records').select(RECORD_COLS_STATS)
       .eq('member_id', member.id).gte('date', windowStart).lte('date', target).order('date'),
     db.from('achievements').select('code').eq('member_id', member.id),
+    db.from('checkin_records').select('tasks').eq('member_id', member.id),
   ])
 
   const totalCount   = totalCntRes.count   ?? 0
@@ -243,10 +249,13 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ ok: false, msg: '修改失敗，請稍後再試' }, { status: 500 })
   }
   const alreadyCodes = (unlockedRes.data ?? []).map((a: { code: string }) => a.code)
+  const allTaskRecs  = (taskRecsRes.data ?? []) as { tasks: boolean[] }[]
+  const taskCounts   = Array.from({ length: 8 }, (_, i) => allTaskRecs.filter(r => r.tasks[i]).length)
 
   const { add, remove } = reconcileAchievementsAfterEdit({
     totalCount,
     perfectCount,
+    taskCounts,
     recentSorted:    recent,
     todayRecord:     todayFull,
     alreadyUnlocked: alreadyCodes,

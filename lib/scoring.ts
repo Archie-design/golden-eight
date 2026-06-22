@@ -207,11 +207,12 @@ export interface AchievementTrigger {
 export function calcNewAchievementsFromAggregates(args: {
   totalCount:   number          // 含今日的總打卡天數
   perfectCount: number          // 含今日的大滿貫累計次數（base_score = 8）
-  recentSorted: CheckInRecord[] // 最近 N 日（N ≥ 100 即可支援最長 streak 成就），升序
+  taskCounts:   number[]        // 每項任務累積完成次數（長度 8，含今日）
+  recentSorted: CheckInRecord[] // 最近 N 日（N ≥ 7 足以支援 streak 3/7 成就），升序
   todayRecord:  CheckInRecord
   alreadyUnlocked: string[]
 }): AchievementTrigger[] {
-  const { totalCount, perfectCount, recentSorted, todayRecord, alreadyUnlocked } = args
+  const { totalCount, perfectCount, taskCounts, recentSorted, todayRecord, alreadyUnlocked } = args
   const unlocked = new Set(alreadyUnlocked)
   const newOnes: AchievementTrigger[] = []
 
@@ -239,14 +240,19 @@ export function calcNewAchievementsFromAggregates(args: {
     { target: 30, code: 'PERFECT_30' },
   ]) if (perfectCount >= target) award(code)
 
-  // 各任務連續天數（只需近 100 日即可判斷所有 streak 成就）
+  // 各任務天數成就
+  //   - 3 / 7 天：streak（連續）— 用 calcTaskStreak
+  //   - 30 / 100 天：cumulative（累積）— 用 taskCounts
   for (let taskIdx = 0; taskIdx < 8; taskIdx++) {
-    const streak = calcTaskStreak(recentSorted, taskIdx, todayRecord.date)
+    const streak     = calcTaskStreak(recentSorted, taskIdx, todayRecord.date)
+    const cumulative = taskCounts[taskIdx] ?? 0
     ACHIEVEMENT_LIST
       .filter(a => a.type === 'streak' && (a as { task?: number }).task === taskIdx)
       .forEach(ach => {
-        const days = (ach as { days?: number }).days ?? 0
-        if (streak >= days) award(ach.code)
+        const days  = (ach as { days?: number }).days ?? 0
+        const mode  = (ach as { mode?: string }).mode ?? 'streak'
+        const value = mode === 'cumulative' ? cumulative : streak
+        if (value >= days) award(ach.code)
       })
   }
 
@@ -267,6 +273,7 @@ export function calcNewAchievementsFromAggregates(args: {
 export function reconcileAchievementsAfterEdit(args: {
   totalCount:   number
   perfectCount: number
+  taskCounts:   number[]
   recentSorted: CheckInRecord[]
   todayRecord:  CheckInRecord
   alreadyUnlocked: string[]
@@ -291,9 +298,13 @@ export function calcNewAchievements(
   alreadyUnlocked: string[]
 ): AchievementTrigger[] {
   const sorted = [...allRecords].sort((a, b) => a.date.localeCompare(b.date))
+  const taskCounts = Array.from({ length: 8 }, (_, i) =>
+    sorted.filter(r => r.tasks[i]).length,
+  )
   return calcNewAchievementsFromAggregates({
     totalCount:      sorted.length,
     perfectCount:    sorted.filter(r => isBaseScorePerfect(r.base_score)).length,
+    taskCounts,
     recentSorted:    sorted,
     todayRecord,
     alreadyUnlocked,
