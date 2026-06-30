@@ -30,7 +30,12 @@ export const CheckInSubmitSchema = z.object({
   note:             z.string().max(500).optional(),
   work_hours:       z.number().min(0).max(24).optional(),
   early_sleep_half: z.boolean().optional().default(false),
-})
+}).refine(
+  // 破曉打拳(tasks[1])前置條件：須同時完成早睡早起/子時入睡(tasks[0])。
+  // 同一筆打卡內判定，不跨日；早睡只要勾選即算(1 分或 0.5 分皆可)。
+  d => !d.tasks[1] || d.tasks[0],
+  { message: '要打卡「破曉打拳」前，請先完成「早睡早起（子時入睡）」', path: ['tasks'] },
+)
 
 export const NextLevelSchema = z.object({
   level: z.enum(LEVELS, { message: '無效的階梯選項' }),

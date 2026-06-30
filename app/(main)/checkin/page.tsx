@@ -128,6 +128,11 @@ export default function CheckInPage() {
   }
 
   async function handleSubmit() {
+    // 破曉打拳需先完成早睡早起/子時入睡：送出前先攔截（後端為主防線）
+    if (checked[1] && !checked[0]) {
+      toast.error('要打卡「破曉打拳」前，請先完成「早睡早起（子時入睡）」')
+      return
+    }
     setLoading(true)
     const method = isEditing ? 'PATCH' : 'POST'
     const res  = await fetch('/api/checkin/submit', {
