@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
-import { getWorkingDaysInRange } from '@/lib/working-days'
+import { countWorkingDays, fetchWeekdayHolidaySet } from '@/lib/working-days'
 import { WORK_HOURS_TRACKING_START } from '@/lib/constants'
 import { csvRow } from '@/lib/csv'
 
@@ -15,12 +15,15 @@ export async function GET(req: NextRequest) {
 
   const { data: summaries } = await db
     .from('monthly_summary')
-    .select('*, members(id, name, level)')
+    .select('*, members(id, name, level, effective_start_date, join_date)')
     .eq('year_month', yearMonth)
     .order('member_id')
 
   type SummaryRow = {
-    members: { id: string; name: string; level: string }
+    members: {
+      id: string; name: string; level: string
+      effective_start_date: string | null; join_date: string | null
+    }
     member_id: string
     total_score: number
     max_score: number
@@ -42,12 +45,12 @@ export async function GET(req: NextRequest) {
     ? monthStartStr
     : WORK_HOURS_TRACKING_START
 
-  // 額外撈：窗口工作日數 + 各成員窗口內實際工時加總
+  // 額外撈：窗口平日假日集合（per-member 工作日以此純記憶體計算）+ 各成員紀錄
   const memberIds = rows.map(r => r.member_id)
-  const [whWorkingDays, recsRes] = await Promise.all([
+  const [whHolidaySet, recsRes] = await Promise.all([
     whWindowStart > monthEndStr
-      ? Promise.resolve(0)
-      : getWorkingDaysInRange(whWindowStart, monthEndStr, db),
+      ? Promise.resolve(new Set<string>())
+      : fetchWeekdayHolidaySet(whWindowStart, monthEndStr, db),
     memberIds.length
       ? db.from('checkin_records').select('member_id, date, tasks, work_hours')
           .in('member_id', memberIds)
@@ -55,14 +58,23 @@ export async function GET(req: NextRequest) {
       : Promise.resolve({ data: [] }),
   ])
 
-  const workHoursByMember: Record<string, number> = {}
+  // 依成員分組紀錄，稍後以各自 memberWhStart 過濾加總（對齊 settlement 的 per-member 分母）
+  const recsByMember: Record<string, { date: string; tasks: boolean[]; work_hours: number | null }[]> = {}
   ;((recsRes.data ?? []) as { member_id: string; date: string; tasks: boolean[]; work_hours: number | null }[])
     .forEach(r => {
-      const wh = r.work_hours != null ? r.work_hours : (r.tasks[4] ? 8 : 0)
-      workHoursByMember[r.member_id] = (workHoursByMember[r.member_id] ?? 0) + wh
+      (recsByMember[r.member_id] ??= []).push(r)
     })
 
-  const requiredHours = whWorkingDays * 8
+  // 每位成員的工時窗口起點 = max(群組窗口, 個人起算日)，以及據此縮減的目標工時/實際工時
+  function memberWorkHours(r: SummaryRow): { requiredHours: number; totalWh: number } {
+    const memberStart   = r.members?.effective_start_date ?? r.members?.join_date ?? whWindowStart
+    const memberWhStart = memberStart > whWindowStart ? memberStart : whWindowStart
+    const workingDays   = memberWhStart > monthEndStr ? 0 : countWorkingDays(memberWhStart, monthEndStr, whHolidaySet)
+    const totalWh = (recsByMember[r.member_id] ?? [])
+      .filter(rec => rec.date >= memberWhStart)
+      .reduce((s, rec) => s + (rec.work_hours != null ? rec.work_hours : (rec.tasks[4] ? 8 : 0)), 0)
+    return { requiredHours: workingDays * 8, totalWh }
+  }
 
   // P1-5：以 csvField 逐欄跳脫，阻擋公式注入（=/+/-/@）及逗號/引號。
   const header = [
@@ -73,7 +85,7 @@ export async function GET(req: NextRequest) {
   const lines  = [
     csvRow(header),
     ...rows.map(r => {
-      const totalWh = workHoursByMember[r.member_id] ?? 0
+      const { requiredHours, totalWh } = memberWorkHours(r)
       const shortfall = Math.max(0, requiredHours - totalWh)
       return csvRow([
         r.members?.id    ?? '',

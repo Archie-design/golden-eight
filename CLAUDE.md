@@ -91,7 +91,9 @@ In `lib/scoring.ts` and `lib/constants.ts`:
 
 ### Exempted Members (新進不參與計分)
 
-When `effective_start_date > monthEnd` (or for the current month, `> today`), `calcMonthStats` returns `maxScore=0`. Settlement skips these members entirely (no `monthly_summary` row, no penalty, no level update, no monthly achievements). UI displays "本月新進，不參與計分" instead of `0%`. API responses set `exempted: true` so frontends can render the special state.
+When `effective_start_date > monthEnd` (or for the current month, `> today`), `calcMonthStats` returns `maxScore=0`. For these members settlement writes a **stub `monthly_summary` row** (all stats 0/false, `work_hours_deduction=0`, plus the `chose_next_level` snapshot) and **still applies `next_level → level`**, but skips penalty and monthly achievements. UI displays "本月新進，不參與計分" instead of `0%`. API responses set `exempted: true` so frontends can render the special state.
+
+The work-hours deduction denominator is **per-member**: the window starts at `max(monthStart-or-WORK_HOURS_TRACKING_START, effective_start_date)`, mirroring the score denominator in `calcMonthStats`, so mid-month joiners are not charged for working days before they started. `adjustedTotal` is clamped at `≥0` so rate never goes negative.
 
 ### Rate Limiting
 
