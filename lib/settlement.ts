@@ -65,10 +65,10 @@ export async function runSettlement(
     whWindowStart > monthEndStr
       ? Promise.resolve(new Set<string>())
       : fetchWeekdayHolidaySet(whWindowStart, monthEndStr, dbAny),
-    // BUG fix：排除當前結算月，避免重跑時把本月的 passing 重複計入累計通關次數
-    // （下方 passingCount 會再 +1 當月），否則 MONTH_STREAK 成就在重跑時提早觸發。
-    dbAny.from('monthly_summary').select('member_id, passing')
-      .in('member_id', memberIds).neq('year_month', yearMonth),
+    // 撈全月份 summary：同時供 (a) 累計通關數（排除當月）與 (b) 當月 level 快照。
+    // level 快照讓「重跑歷史月」能還原當月階梯，而非用現在的 members.level 重算而污染。
+    dbAny.from('monthly_summary').select('member_id, year_month, passing, level')
+      .in('member_id', memberIds),
   ])
 
   const recsByMember: Record<string, CheckInRecord[]> = {}
@@ -81,9 +81,16 @@ export async function runSettlement(
     (codesByMember[a.member_id] ??= []).push(a.code)
   })
 
+  // 累計通關數：排除當月（避免重跑時當月 passing 被重複計入，下方會再 +1 當月）。
   const passCountByMember: Record<string, number> = {}
-  ;((pastSummariesRes.data ?? []) as { member_id: string; passing: boolean }[]).forEach(r => {
-    if (r.passing) passCountByMember[r.member_id] = (passCountByMember[r.member_id] ?? 0) + 1
+  // 當月 level 快照：若此月已結算過，取當時存下的 level，供重跑時忠於當月階梯。
+  const settledLevelByMember: Record<string, string> = {}
+  ;((pastSummariesRes.data ?? []) as { member_id: string; year_month: string; passing: boolean; level: string | null }[]).forEach(r => {
+    if (r.year_month === yearMonth) {
+      if (r.level) settledLevelByMember[r.member_id] = r.level
+    } else if (r.passing) {
+      passCountByMember[r.member_id] = (passCountByMember[r.member_id] ?? 0) + 1
+    }
   })
 
   const summaryRows: Record<string, unknown>[] = []
@@ -102,6 +109,10 @@ export async function runSettlement(
     const records = recsByMember[m.id] ?? []
     const stats   = calcMonthStats(m, records, refDate)
 
+    // 當月生效階梯：優先用已存的當月快照（重跑歷史月時忠於當月階梯），
+    // 首次結算無快照則用現在的 members.level。門檻 / 罰金 / 月成就 / 快照都以此為準。
+    const effectiveLevel = settledLevelByMember[m.id] ?? m.level
+
     // chose_next_level snapshot：套用前先記錄
     const choseNextLevel = m.next_level != null
 
@@ -119,7 +130,7 @@ export async function runSettlement(
         is_dawn_king:         false,
         work_hours_deduction: 0,
         chose_next_level:     choseNextLevel,
-        level:                m.level,   // 當月生效階梯快照
+        level:                effectiveLevel,   // 當月生效階梯快照
         settled_at:           new Date().toISOString(),
       })
       if (m.next_level) levelUpdates.push({ id: m.id, level: m.next_level })
@@ -146,10 +157,10 @@ export async function runSettlement(
     // 工時補扣可能超過實得分數；夾在 0 以下限，避免負分 / 負達成率寫入 monthly_summary
     // 與傳播到排行榜、進度頁（顯示負百分比）。
     const adjustedTotal   = Math.max(0, stats.totalScore - whDeduction)
-    const threshold       = LEVEL_THRESHOLDS[m.level] ?? 0.6
+    const threshold       = LEVEL_THRESHOLDS[effectiveLevel] ?? 0.6
     const adjustedRate    = stats.maxScore > 0 ? Math.round((adjustedTotal / stats.maxScore) * 100) : 0
     const adjustedPassing = adjustedRate >= threshold * 100
-    const penalty         = calcPenalty(m.level, adjustedPassing)
+    const penalty         = calcPenalty(effectiveLevel, adjustedPassing)
 
     summaryRows.push({
       member_id:            m.id,
@@ -163,7 +174,7 @@ export async function runSettlement(
       is_dawn_king:         memberIsDawnKing,
       work_hours_deduction: whDeduction,
       chose_next_level:     choseNextLevel,
-      level:                m.level,   // 當月生效階梯快照
+      level:                effectiveLevel,   // 當月生效階梯快照
       settled_at:           new Date().toISOString(),
     })
 
@@ -171,7 +182,7 @@ export async function runSettlement(
     const totalReachedMax = stats.maxScore > 0 && adjustedTotal >= stats.maxScore
     const monthAchs = calcMonthlyAchievements(
       adjustedPassing,
-      m.level,
+      effectiveLevel,
       codesByMember[m.id] ?? [],
       passingCount,
       totalReachedMax,
