@@ -107,11 +107,12 @@ export async function GET(req: Request) {
     // ── Historical best (from monthly_summary) ────────────────────────────
     const { data: summaries } = await db
       .from('monthly_summary')
-      .select('member_id, rate, total_score, year_month, max_streak, is_dawn_king')
+      .select('member_id, rate, total_score, year_month, max_streak, is_dawn_king, passing, level')
       .in('member_id', members.map((m: Member) => m.id))
 
-    const bestByMember: Record<string, { rate: number; totalScore: number; yearMonth: string; maxStreak: number; isDawnKing: boolean }> = {}
-    ;(summaries ?? []).forEach((s: { member_id: string; rate: number; total_score: number; year_month: string; max_streak: number; is_dawn_king: boolean }) => {
+    type BestRow = { rate: number; totalScore: number; yearMonth: string; maxStreak: number; isDawnKing: boolean; passing: boolean; level: string | null }
+    const bestByMember: Record<string, BestRow> = {}
+    ;(summaries ?? []).forEach((s: { member_id: string; rate: number; total_score: number; year_month: string; max_streak: number; is_dawn_king: boolean; passing: boolean; level: string | null }) => {
       const prev = bestByMember[s.member_id]
       if (!prev || s.rate > prev.rate || (s.rate === prev.rate && s.total_score > prev.totalScore)) {
         bestByMember[s.member_id] = {
@@ -120,6 +121,8 @@ export async function GET(req: Request) {
           yearMonth:  s.year_month,
           maxStreak:  s.max_streak,
           isDawnKing: s.is_dawn_king,
+          passing:    s.passing,
+          level:      s.level,
         }
       }
     })
@@ -129,11 +132,13 @@ export async function GET(req: Request) {
       return {
         id:               m.id,
         name:             m.name,
-        level:            m.level,
+        // best 模式顯示「該最佳月份當時的階梯」；缺歷史 level 的舊列 fallback 到現在的 level
+        level:            best?.level ?? m.level,
         totalScore:       best?.totalScore  ?? 0,
         maxScore:         null,
         rate:             best?.rate        ?? 0,
-        passing:          best ? best.rate >= (m.level === '黃金戰士' ? 80 : m.level === '白銀戰士' ? 70 : 60) : false,
+        // 直接採用月結當下存下的 passing 快照，不以現在的 level 門檻重算
+        passing:          best?.passing     ?? false,
         maxStreak:        best?.maxStreak   ?? 0,
         isDawnKing:       best?.isDawnKing  ?? false,
         achievementCount: achCount[m.id]    ?? 0,

@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
     max_streak: number
     is_dawn_king: boolean
     work_hours_deduction: number
+    level: string | null   // 當月階梯快照
   }
 
   const rows: SummaryRow[] = summaries ?? []
@@ -90,7 +91,7 @@ export async function GET(req: NextRequest) {
       return csvRow([
         r.members?.id    ?? '',
         r.members?.name  ?? '',
-        r.members?.level ?? '',
+        r.level ?? r.members?.level ?? '',   // 當月階梯快照優先，缺快照 fallback 現在的 level
         r.total_score,
         r.max_score,
         r.rate,

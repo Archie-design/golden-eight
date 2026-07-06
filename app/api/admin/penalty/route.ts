@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   const { data: rows } = await db
     .from('monthly_summary')
-    .select('member_id, total_score, rate, penalty, work_hours_deduction, members(id, name, level)')
+    .select('member_id, total_score, rate, penalty, work_hours_deduction, level, members(id, name, level)')
     .eq('year_month', yearMonth)
     .eq('passing', false)
 
@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
     rate: number
     penalty: number
     work_hours_deduction: number
+    level: string | null   // 當月階梯快照
     members: { id: string; name: string; level: string } | null
   }
   const typedRows = (rows ?? []) as unknown as Row[]
@@ -60,7 +61,8 @@ export async function GET(req: NextRequest) {
     const live = r.member_id ? liveByMember[r.member_id] : undefined
     return {
       name:        r.members?.name,
-      level:       r.members?.level,
+      // 顯示當月階梯快照；缺快照的舊列 fallback 到現在的 level
+      level:       r.level ?? r.members?.level,
       rate:        r.rate,
       penalty:     r.penalty,
       // 新增：扣前對照

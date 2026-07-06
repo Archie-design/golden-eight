@@ -119,6 +119,7 @@ export async function runSettlement(
         is_dawn_king:         false,
         work_hours_deduction: 0,
         chose_next_level:     choseNextLevel,
+        level:                m.level,   // 當月生效階梯快照
         settled_at:           new Date().toISOString(),
       })
       if (m.next_level) levelUpdates.push({ id: m.id, level: m.next_level })
@@ -162,6 +163,7 @@ export async function runSettlement(
       is_dawn_king:         memberIsDawnKing,
       work_hours_deduction: whDeduction,
       chose_next_level:     choseNextLevel,
+      level:                m.level,   // 當月生效階梯快照
       settled_at:           new Date().toISOString(),
     })
 

@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS monthly_summary (
   is_dawn_king          BOOLEAN DEFAULT FALSE,
   work_hours_deduction  INT DEFAULT 0,
   chose_next_level      BOOLEAN NOT NULL DEFAULT FALSE,  -- 月結套用 next_level 之前的快照
+  level                 TEXT,                            -- 當月生效階梯快照（罰金/門檻以此為準，不受日後升降階影響）
   settled_at            TIMESTAMPTZ,
   UNIQUE(member_id, year_month)
 );
