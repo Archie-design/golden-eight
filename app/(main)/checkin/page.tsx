@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  Sunrise, Flame, CheckCircle2, Trophy, Pencil,
+  Sunrise, Flame, CheckCircle2, Trophy, Pencil, Share2,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ import { ProgressBar } from '@/components/ProgressBar'
 import { AppIcon, TaskIcon } from '@/lib/icons'
 import { TASKS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
+import { captureAndShare } from '@/lib/share-image'
 
 interface TodayData {
   today: string        // 打卡邏輯日
@@ -41,6 +42,9 @@ export default function CheckInPage() {
   const [expandedTask, setExpandedTask]     = useState<number | null>(null)
   const expandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dataRef        = useRef<TodayData | null>(null)
+  const doneCardRef    = useRef<HTMLDivElement | null>(null)
+  const [sharing, setSharing]           = useState(false)
+  const [shareImageUrl, setShareImageUrl] = useState<string | null>(null)
 
   function loadData() {
     fetch('/api/checkin/today')
@@ -179,6 +183,31 @@ export default function CheckInPage() {
     if (next.length === 0) setShowAch(false)
   }
 
+  async function handleShareScreenshot() {
+    const node = doneCardRef.current
+    if (!node || sharing) return
+    setSharing(true)
+    try {
+      const day = (dataRef.current ?? data)?.calendarDay ?? 'checkin'
+      const result = await captureAndShare(
+        node,
+        `黃金八套餐-${day}.png`,
+        // 排除帶 data-screenshot-exclude 的節點（按鈕列不入鏡）
+        el => !(el.dataset && el.dataset.screenshotExclude === 'true'),
+      )
+      if (result.outcome === 'downloaded') {
+        toast.success('已下載截圖，可從相簿／下載查看')
+      } else if (result.outcome === 'show-image' && result.imageUrl) {
+        setShareImageUrl(result.imageUrl)
+      }
+      // 'shared' / 'cancelled' 皆不需提示
+    } catch {
+      toast.error('截圖失敗，請再試一次')
+    } finally {
+      setSharing(false)
+    }
+  }
+
   if (!data) return (
     <div className="space-y-4 max-w-lg mx-auto">
       <div className="h-28 rounded-xl bg-white/40 animate-pulse" />
@@ -220,7 +249,7 @@ export default function CheckInPage() {
 
       {/* 已打卡提示 */}
       {data.todayRecord.submitted && !isEditing ? (
-        <Card className="border-green-200 bg-green-50">
+        <Card className="border-green-200 bg-green-50" ref={doneCardRef}>
           <CardContent className="pt-4 text-center">
             <CheckCircle2 className="mx-auto w-10 h-10 text-green-500" />
             <div className="font-semibold text-green-800 mt-1">今日已打卡！得分：{data.todayRecord.totalScore} 分</div>
@@ -254,14 +283,28 @@ export default function CheckInPage() {
                 ))}
               </div>
             )}
-            <Button
-              onClick={startEdit}
-              variant="outline"
-              size="sm"
-              className="mt-3 border-green-300 text-green-700 hover:bg-green-100"
+            <div
+              data-screenshot-exclude="true"
+              className="mt-3 flex items-center justify-center gap-2"
             >
-              <Pencil className="w-3.5 h-3.5 mr-1" /> 修改今日
-            </Button>
+              <Button
+                onClick={handleShareScreenshot}
+                disabled={sharing}
+                variant="outline"
+                size="sm"
+                className="border-green-300 text-green-700 hover:bg-green-100"
+              >
+                <Share2 className="w-3.5 h-3.5 mr-1" /> {sharing ? '產生中…' : '截圖分享'}
+              </Button>
+              <Button
+                onClick={startEdit}
+                variant="outline"
+                size="sm"
+                className="border-green-300 text-green-700 hover:bg-green-100"
+              >
+                <Pencil className="w-3.5 h-3.5 mr-1" /> 修改今日
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ) : (
@@ -474,6 +517,25 @@ export default function CheckInPage() {
           </div>
         </div>
       )}
+
+      {/* 截圖退化路徑：無法直接分享／下載時，顯示圖片供長按儲存 */}
+      <Dialog
+        open={shareImageUrl !== null}
+        onOpenChange={open => {
+          if (!open && shareImageUrl) {
+            URL.revokeObjectURL(shareImageUrl)
+            setShareImageUrl(null)
+          }
+        }}
+      >
+        <DialogContent className="max-w-xs text-center">
+          <div className="text-sm font-medium text-green-800">長按圖片即可儲存到相簿</div>
+          {shareImageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={shareImageUrl} alt="打卡截圖" className="mt-2 w-full rounded-lg border" />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
