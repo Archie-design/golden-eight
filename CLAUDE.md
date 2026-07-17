@@ -107,9 +107,10 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 JWT_SECRET=           # 32+ chars — also fallback pepper if PHONE_PEPPER unset
 PHONE_PEPPER=         # 32+ chars — HMAC pepper for phone_hash; do NOT rotate after first use
-LINE_CHANNEL_ID=      # LINE Login OAuth
+LINE_CHANNEL_ID=      # LINE Login OAuth — 綁定用（取得 line_user_id）
 LINE_CHANNEL_SECRET=
 LINE_CALLBACK_URL=    # https://<host>/api/auth/line/callback
+LINE_CHANNEL_ACCESS_TOKEN=  # Messaging API channel — 推播用；與上方 Login channel 不同用途，勿混用
 CRON_SECRET=          # Bearer token verified by all /api/cron/* routes
 ```
 
@@ -124,10 +125,14 @@ All routes return `ApiResult<T>`:
 
 | Path | Schedule (UTC) | Taipei | Purpose |
 |------|---------------|--------|---------|
-| `/api/cron/daily-reminder` | `0 22 * * *` | 06:00 next day | Identifies members who haven't checked in (LINE push hook is TODO) |
+| `/api/cron/daily-digest` | `30 4 * * *` | 12:30 daily | Snapshots每位活躍成員當日狀態到 `daily_status_snapshot`，比對前一日產生變化事件，推播摘要給已綁 LINE 的管理員 |
 | `/api/cron/monthly-settlement` | `0 5 1 * *` | 13:00 on day 1 | Calls `runSettlement` for previous month |
 
-**Critical timing**: monthly-settlement *must* run after 12:00 Taipei because the check-in day boundary is noon — 4/30's logical day extends to 5/1 12:00 Taipei. The 13:00 schedule keeps a 1-hour buffer. Settlement is idempotent (upsert on `(member_id, year_month)`), safe to retrigger manually.
+**Critical timing**: both crons *must* run after 12:00 Taipei because the check-in day boundary is noon — 4/30's logical day extends to 5/1 12:00 Taipei. Settlement's 13:00 keeps a 1-hour buffer; daily-digest's 12:30 keeps 30 minutes.
+
+**daily-digest off-by-one**: the target logical day is `getCheckinDayTaipei()` **minus one day**. Running after noon, `getCheckinDayTaipei()` has already rolled to today; the day that just closed is the previous one. Using today's value would flag every member as missing.
+
+Both crons are idempotent: settlement upserts on `(member_id, year_month)`; daily-digest upserts on `(date, member_id)` and skips re-push when `pushed_at` is already set (a failed push leaves it null so a re-run retries).
 
 ### Diagnostic / Backfill Scripts (`scripts/`)
 

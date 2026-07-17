@@ -159,6 +159,23 @@ CREATE TABLE IF NOT EXISTS encouragements (
   UNIQUE (from_id, to_id, date)
 );
 
+-- 10. 每日狀態快照（每位活躍成員 × 每個邏輯日一列）
+-- rate / passing 為「當下事實」，事後不重算——補登、月結、工時修正都會改變歷史分數，
+-- 故與 monthly_summary.level 同一防污染原則：歷史以當下記錄為準，不由現況回推。
+-- 起算日未到的成員不產生列（不是漏卡，是還沒加入）。
+CREATE TABLE IF NOT EXISTS daily_status_snapshot (
+  id          BIGSERIAL PRIMARY KEY,
+  date        DATE NOT NULL,                    -- 邏輯日（12:00 為界，非日曆日）
+  member_id   TEXT NOT NULL REFERENCES members(id),
+  missed      BOOLEAN NOT NULL,                 -- 該邏輯日是否無打卡紀錄
+  miss_streak INT NOT NULL DEFAULT 0,           -- 截至該日的連續缺卡天數（有打卡為 0）
+  rate        NUMERIC(5,2),                     -- 該日當下的累計月達成率（事實快照）
+  passing     BOOLEAN,                          -- 該日當下是否達其階梯門檻（事實快照）
+  pushed_at   TIMESTAMPTZ,                      -- 摘要推播完成時間；NULL = 未推播，可重試
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(date, member_id)
+);
+
 -- ============================================================
 -- 會員 ID 序列 + next_member_id() RPC
 -- ============================================================
@@ -277,6 +294,8 @@ CREATE INDEX IF NOT EXISTS idx_schedule_member     ON schedule_template(member_i
 CREATE INDEX IF NOT EXISTS idx_tag_member          ON tag_library(member_id);
 CREATE INDEX IF NOT EXISTS idx_members_status_active
   ON members(status) WHERE status = '活躍';
+CREATE INDEX IF NOT EXISTS idx_daily_status_date        ON daily_status_snapshot(date DESC);
+CREATE INDEX IF NOT EXISTS idx_daily_status_member_date ON daily_status_snapshot(member_id, date DESC);
 
 -- ============================================================
 -- Row Level Security（審查報告 P1-8）
@@ -294,3 +313,4 @@ ALTER TABLE checkin_edit_logs  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE partner_requests   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE encouragements     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE taiwan_holidays    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE daily_status_snapshot ENABLE ROW LEVEL SECURITY;
