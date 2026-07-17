@@ -9,7 +9,7 @@
 
 關鍵限制：打卡邏輯日以中午 12:00 為界，06:00 時前一邏輯日尚未截止，「未打卡」名單含仍可補打者，不是事實。
 
-> **⚠️ 假設已被實測推翻（見「實作發現」）**：上述第 2、3 點隱含「已收集的 `line_user_id` 可用於 Messaging API 推播」。實測證明**不成立**——該 userId 由 LINE Login channel 發出，與 Bot 所屬 Provider 不同，對推播無效。摘要的產生與快照留存不受影響，僅投遞管道受阻。
+> **⚠️ 假設一度被實測推翻、後由方案 Y 修復（見「實作發現」）**：上述第 2、3 點隱含「已收集的 `line_user_id` 可用於 Messaging API 推播」。最初的 Bot（舊 `@581etqxs`）與 Login 不同 Provider，該假設不成立；改在同一 Provider 下新建 Bot（`@341stkih`）後，現有 `line_user_id` 即可用，推播已實測送達。摘要產生與快照留存全程不受此曲折影響。
 
 ## Goals / Non-Goals
 
@@ -84,13 +84,25 @@
 
 **影響範圍**：僅投遞管道。快照產生、事件判定、摘要組版皆已驗證正常（邏輯測試 14/14、冪等測試通過）；`daily_status_snapshot` 每日仍忠實記錄狀態軌跡，其價值獨立於推播。管道接通後無需改動程式碼，摘要即自動送出。
 
-**後續方案**（另立變更處理，不在本變更範圍）：
+### ✅ 已解決（方案 Y）
 
-| | A：搬 Login channel | B：webhook 取得 userId（建議） |
-|---|---|---|
-| 作法 | 於 Bot 所屬 Provider 下新建 Login channel，換 `LINE_CHANNEL_ID/SECRET` | 啟用 Bot webhook，接 `follow` 事件取得該 Provider 下正確 userId，存為新欄位（如 `line_bot_user_id`） |
-| 代價 | **20 位成員全部重新綁定**，現有 10 人綁定作廢 | 新增 webhook 路由 + 欄位；Bot 現為 `chatMode: chat`，webhook 預設關閉需調整 |
-| 評估 | 「重綁 + 加好友」兩道工——加好友本就是推播硬前提，故 A 並未省下該步驟 | 只需「加好友」一道工；且為 LINE 推播的正規路徑，未來推播給學員同樣適用 |
+實際採用第三條路，比原先評估的 A/B 都省：**在 Login channel 所屬 Provider（「星光黃金八套餐小幫手」）下新建一個 Messaging Bot**「黃金八套餐小幫手」(`@341stkih`, `chatMode: bot`)。
+
+- Login 與新 Bot 同 Provider → **現有 `line_user_id` 立即有效**，不需重綁、不需 webhook、不需新欄位。
+- 實測：管理員柯啟鴻 `/v2/bot/profile` 可查到，且 push **實際送達手機**（截圖確認）。
+- **程式碼零改動**：digest 收件人本就是 `line_user_id`，方案 Y 讓它回到「原本就正確」的狀態。
+- 唯一前提：每位收件人須加**新** Bot `@341stkih` 好友（勿加舊的星光 `@581etqxs`，兩者名稱僅差「星光」二字，極易加錯）。
+
+原評估的方案 A（搬 Login）／B（webhook）與獨立提案 `add-line-bot-webhook` 皆不再需要，應歸檔/作廢。
+
+**教訓**：兩個同名 channel 分屬不同 Provider（Login 在「星光黃金八套餐」、舊 Messaging 在「星光西遊」），是 Provider-scoped 陷阱的根源。動工前應先目視確認 channel 的 Provider 歸屬，而非假設「有官方帳號 = userId 可用」。
+
+### LINE 推播額度（成本天花板）
+
+新 Bot 為免費方案：**200 則/月**（`/v2/bot/message/quota` 回 `{type: limited, value: 200}`）。計費按「訊息 × 收件人」，1 則發給 3 人 = 3 則。
+
+- 現況（3 位管理員日報）：`3 × 30 = 90 則/月` ✅ 充裕。
+- **未來擴大到全體學員（20 人日報）= `20 × 30 = 600 則/月`，超額 3 倍** ❌。屆時需擇一：只在有 ⚡ 變化時推、改週報、broadcast（不佔 push 額度但發給全體好友、無法個人化）、或升級付費方案。
 
 ## Open Questions
 

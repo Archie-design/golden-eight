@@ -33,7 +33,8 @@
 - [x] 5.5 首日無 `snapshot[D-1]`：驗證不產生任何變化事件、不爆量
 - [x] 5.6 長期缺席摺疊：驗證 `miss_streak >= 7` 者不在漏卡/風險明細、僅計入摺疊行（可用 M044 蕭奕薌 6 月資料情境驗證）
 - [x] 5.7 冪等：同日連續觸發兩次，確認快照無重複列且僅推播一次
-- [ ] 5.8 端到端：以本機 dev server + `CRON_SECRET` 觸發 `/api/cron/daily-digest`，確認 3 位管理員收到 LINE 摘要且內容符合預期
-      **⚠️ 受阻（非程式碼問題）**：已實測觸發，快照寫入與失敗隔離均正常，但推播三位管理員全數 `HTTP 400 / profile 404`。
-      根因為 LINE userId 是 Provider-scoped——Login channel 發出的 `line_user_id` 對 Bot 所屬 Provider 無效（已加好友重測仍 404，排除未加好友）。
-      詳見 design.md「實作發現」。需待另立的 webhook 變更取得正確 userId 後才能完成此驗證；屆時無需改動本變更的程式碼。
+- [x] 5.8 端到端：以本機 dev server + `CRON_SECRET` 觸發 `/api/cron/daily-digest`，確認管理員收到 LINE 摘要且內容符合預期
+      **已通過（方案 Y 解決 Provider 問題）**：在 Login channel 所屬 Provider 下新建 Messaging Bot「黃金八套餐小幫手」(`@341stkih`, `chatMode: bot`)，
+      現有 `line_user_id` 對新 Bot 立即有效——管理員柯啟鴻 profile 可查、實測 push **實際送達手機**（截圖確認）。程式碼零改動（收件人仍用 `line_user_id`）。
+      注意：其餘管理員需各自加「@341stkih」好友（勿加舊的星光 @581etqxs）方能收到；此為 LINE 推播硬前提，非程式問題。
+      額度：LINE 免費方案 200 則/月，3 位管理員日報約 90 則/月，充裕。**未來擴大到全體學員（20 人日報 = 600 則）將超額**，見 design.md。
