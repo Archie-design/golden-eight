@@ -217,6 +217,15 @@ export default function AdminPage() {
               </div>
             </CardHeader>
             <CardContent>
+              {!progressShowSettled && (
+                <div className="mb-3 flex flex-wrap gap-x-3 gap-y-1 text-[0.7rem] text-muted-foreground">
+                  <span className="text-red-600">🔴 真的要救</span>
+                  <span className="text-orange-500">🟠 溫水（看似跟上，月底會被罰）</span>
+                  <span className="text-yellow-600">🟡 起步慢（追趕中）</span>
+                  <span className="text-green-600">✅ 安全</span>
+                  <span className="w-full text-[0.65rem] opacity-80">狀態旁為「月底預估完成率」；達標門檻 青銅60% / 白銀70% / 黃金80%</span>
+                </div>
+              )}
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b text-muted-foreground">
@@ -259,12 +268,15 @@ export default function AdminPage() {
                                   {passing ? <><CheckCircle2 className="w-4 h-4" /> 達標</> : <><X className="w-4 h-4" /> 未達標</>}
                                 </span>
                               ) : r.paceStatus && r.paceStatus !== 'exempt' ? (
-                                // 本月：二維四象限 + 輔助數字
+                                // 本月：二維四象限 + 月底預估（手機看得到，不靠 tooltip）
                                 <span
-                                  className={`font-semibold ${PACE_QUADRANT_UI[r.paceStatus].className}`}
+                                  className={`inline-flex items-center gap-1 font-semibold ${PACE_QUADRANT_UI[r.paceStatus].className}`}
                                   title={`月率 ${r.rate}% ・ pace ${r.pace}% ・ 月底預估 ${r.projRate}%`}
                                 >
                                   {PACE_QUADRANT_UI[r.paceStatus].label}
+                                  {r.projRate != null && (
+                                    <span className="text-[0.65rem] font-normal opacity-75">月底 {r.projRate}%</span>
+                                  )}
                                 </span>
                               ) : '—'}
                           </td>
