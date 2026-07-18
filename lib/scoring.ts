@@ -118,9 +118,18 @@ export type PaceQuadrant = 'rescue' | 'lukewarm' | 'slow_start' | 'safe' | 'exem
 export interface PaceStatus {
   /** 回顧軸：總分 ÷ 到今日達標線，百分比（四捨五入）。exempt 時為 0。 */
   pace: number
-  /** 前瞻軸：照當前速度線性外推的月底完成率，百分比（四捨五入）。exempt 時為 0。 */
+  /** 前瞻軸：近 7 天速度外推的月底完成率，百分比（四捨五入）。exempt 時為 0。 */
   projRate: number
   quadrant: PaceQuadrant
+}
+
+/** 近 7 天窗口（含 refDate 當天）每日 total_score 加總；缺卡日無紀錄即 0。 */
+function sumRecentScore(records: CheckInRecord[], refDate: string, windowDays: number): number {
+  const [y, m, d] = refDate.split('-').map(Number)
+  const from = new Date(Date.UTC(y, m - 1, d - (windowDays - 1))).toISOString().slice(0, 10)
+  return records
+    .filter(r => r.date >= from && r.date <= refDate)
+    .reduce((s, r) => s + r.total_score, 0)
 }
 
 /**
@@ -130,14 +139,20 @@ export interface PaceStatus {
  * 分母（應打天數 = 已過天數）以 expectedCheckinDays 個人起算，與 calcMonthStats
  * 的 maxScore 對齊，避免月中新進者被整月天數稀釋。
  *
+ * 月底預估（projRate）用「近 7 天速度」外推，反映當前趨勢而非整月平均：
+ *   已拿總分 + (近7天日均 × 剩餘未來天數)。近7天日均 = 近7天總分 ÷ 7（缺卡算 0 分）。
+ *   已過天數 < 7 時 fallback 回全月均分（避免月初雜訊）。
+ *
  * @param member  成員
  * @param stats   calcMonthStats(member, recs, refDate) 的結果（含 totalScore/maxScore）
+ * @param records 該成員當月逐日紀錄（近 7 天速度需要）
  * @param refDate 評估基準日（本月為今日）
  * @param yearMonth 'YYYY-MM'
  */
 export function calcPaceStatus(
   member: Member,
   stats: { totalScore: number; maxScore: number },
+  records: CheckInRecord[],
   refDate: string,
   yearMonth: string,
 ): PaceStatus {
@@ -153,11 +168,14 @@ export function calcPaceStatus(
   const paceLine = expectedDays * 8 * threshold
   const pace = paceLine > 0 ? (stats.totalScore / paceLine) * 100 : 0
 
-  // 前瞻軸：線性外推月底完成率 = (總分/已過天數×整月應打天數) / 月滿分
-  // 已過天數 = expectedDays（同源）；整月應打天數 = maxScore/8
-  const fullDays = stats.maxScore / 8
-  const projScore = (stats.totalScore / expectedDays) * fullDays
-  const projRate = stats.maxScore > 0 ? (projScore / stats.maxScore) * 100 : 0
+  // 前瞻軸：近 7 天速度外推。已拿總分 + 近7天日均×剩餘未來天數。
+  const fullDays   = stats.maxScore / 8         // 整月應打天數（個人 window）
+  const futureDays = Math.max(0, fullDays - expectedDays)
+  const dailyRate  = expectedDays >= 7
+    ? sumRecentScore(records, refDate, 7) / 7   // 缺卡算 0 分（除以 7）
+    : stats.totalScore / expectedDays           // fallback：全月均分
+  const projScore = stats.totalScore + dailyRate * futureDays
+  const projRate  = stats.maxScore > 0 ? (projScore / stats.maxScore) * 100 : 0
 
   const paceOk = pace >= PACE_OK_THRESHOLD * 100
   const projOk = projRate >= threshold * 100

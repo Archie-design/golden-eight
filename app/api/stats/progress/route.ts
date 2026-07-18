@@ -60,7 +60,7 @@ export async function GET(req: Request) {
     const dawnKing   = isDawnKing(m, recs, yearMonth, refDate)
     const summary    = summaryByMember[m.id]
     // 二維落隊偵測：僅本月現時視圖計算（歷史月看月結結果，pace/預估無意義）
-    const paceStatus = isCurrentMonth ? calcPaceStatus(m, stats, refDate, yearMonth) : null
+    const paceStatus = isCurrentMonth ? calcPaceStatus(m, stats, recs, refDate, yearMonth) : null
     return {
       id:         m.id,
       name:       m.name,
