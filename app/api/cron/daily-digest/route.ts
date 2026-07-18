@@ -99,9 +99,15 @@ export async function GET(req: NextRequest) {
     .filter(m => m.is_admin && m.line_user_id)
     .map(m => m.line_user_id as string)
 
+  // 無綁定管理員：daily-digest 的用途就是推給管理員，一個都沒有代表設定異常
+  // （管理員未綁 LINE，或 is_admin 標記遺失）。回 500 讓 Vercel Cron 頁面標紅，
+  // 避免「每天靜默不推、卻以為正常」——本次事件（CRON_SECRET 漏設）暴露的弱點。
   if (!recipients.length) {
-    console.warn('[cron/daily-digest] 無已綁定 LINE 的管理員，略過推播')
-    return NextResponse.json({ ok: true, date: targetDate, events: events.length, pushed: 0, message })
+    console.error('[cron/daily-digest] 無已綁定 LINE 的管理員，無法推播（設定異常）')
+    return NextResponse.json(
+      { ok: false, date: targetDate, msg: '無已綁定 LINE 的管理員，無法推播', pushed: 0 },
+      { status: 500 },
+    )
   }
 
   const push = await pushTextToUsers(recipients, message)
@@ -118,6 +124,16 @@ export async function GET(req: NextRequest) {
     `snapshot=${snapshot.length}`, `events=${events.length}`,
     `sent=${push.sent.length}`, `failed=${push.failed.length}`,
   )
+
+  // 有收件人卻一個都沒推成功：推播管道故障（token 失效／未加好友／LINE API 異常）。
+  // 快照已寫入、pushed_at 未標記（下次重跑會補送），此處回 500 讓失敗可見。
+  if (push.sent.length === 0) {
+    console.error('[cron/daily-digest] 推播全數失敗', JSON.stringify(push.failed))
+    return NextResponse.json(
+      { ok: false, date: targetDate, msg: '推播全數失敗', pushed: 0, failed: push.failed },
+      { status: 500 },
+    )
+  }
 
   return NextResponse.json({
     ok: true, date: targetDate,
