@@ -183,7 +183,8 @@ export function formatDigestMessage(
     const m = membersById[s.member_id]
     if (!m) continue
     const stats = calcMonthStats(m, recordsByMember[m.id] ?? [], date)
-    const ps    = calcPaceStatus(m, stats, recordsByMember[m.id] ?? [], date, date.substring(0, 7))
+    // refDateComplete=true：日報的基準日為「已截止日」，該日已完整結束
+    const ps    = calcPaceStatus(m, stats, recordsByMember[m.id] ?? [], date, date.substring(0, 7), true)
     const mark  = QUADRANT_DIGEST[ps.quadrant]
     if (!mark) continue   // 只保留 rescue / lukewarm
     atRisk.push({ id: s.member_id, mark, projRate: ps.projRate, order: ps.quadrant === 'rescue' ? 0 : 1 })
