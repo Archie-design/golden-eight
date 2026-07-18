@@ -17,6 +17,7 @@ import { createServerClient } from '@/lib/supabase/server'
 import { getCheckinDayTaipei, getTodayTaipei, getYearMonth, getMonthEnd } from '@/lib/api-helper'
 import { calcMonthStats, calcPenalty, isDawnKing } from '@/lib/scoring'
 import { replyMessage } from '@/lib/line-push'
+import { buildWelcomeFlex, POSTBACK_MY_STATS } from '@/lib/line-flex'
 import {
   parseCommand,
   isPublicCommand,
@@ -47,6 +48,7 @@ interface LineEvent {
   replyToken?: string
   source?:     LineSource
   message?:    { type: string; text?: string }
+  postback?:   { data: string }
 }
 
 /** 驗證 x-line-signature：Base64(HMAC-SHA256(secret, rawBody)) */
@@ -58,18 +60,21 @@ function verifySignature(rawBody: string, signature: string | null, secret: stri
   return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))
 }
 
-/** 依站台網址組出綁定引導連結（由 LINE_CALLBACK_URL 推站台根，fallback 相對路徑提示）。 */
-function bindUrl(): string {
+/** 站台根網址（由 LINE_CALLBACK_URL 推 origin）；推不出時回 null。 */
+function siteOrigin(): string | null {
   const cb = process.env.LINE_CALLBACK_URL
-  if (cb) {
-    try {
-      const u = new URL(cb)
-      return `${u.origin}/dashboard`
-    } catch {
-      // ignore malformed URL
-    }
+  if (!cb) return null
+  try {
+    return new URL(cb).origin
+  } catch {
+    return null
   }
-  return '請開啟系統網站並登入後於「個人資料」綁定 LINE'
+}
+
+/** 綁定引導連結（站台網址 → /dashboard；推不出時給文字提示）。 */
+function bindUrl(): string {
+  const origin = siteOrigin()
+  return origin ? `${origin}/dashboard` : '請開啟系統網站並登入後於「個人資料」綁定 LINE'
 }
 
 export async function POST(req: Request) {
@@ -109,8 +114,38 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true })
 }
 
+/** 事件分派：依 type 分流 message / follow / postback。 */
 async function handleEvent(ev: LineEvent): Promise<void> {
-  if (ev.type !== 'message' || ev.message?.type !== 'text') return
+  switch (ev.type) {
+    case 'message':  return handleMessage(ev)
+    case 'follow':   return handleFollow(ev)
+    case 'postback': return handlePostback(ev)
+    default:         return
+  }
+}
+
+/** follow（加好友）：推歡迎卡。follow 事件帶 replyToken，用 reply（免費）。 */
+async function handleFollow(ev: LineEvent): Promise<void> {
+  const replyToken = ev.replyToken
+  if (!replyToken) return
+  await replyMessage(replyToken, [buildWelcomeFlex(siteOrigin() ?? '')])
+}
+
+/** postback：目前僅「個人統計」。沿用個人資料的隱私分流與綁定檢查。 */
+async function handlePostback(ev: LineEvent): Promise<void> {
+  const replyToken = ev.replyToken
+  const source     = ev.source
+  const data       = ev.postback?.data
+  if (!replyToken || !source || !data) return
+
+  if (data === POSTBACK_MY_STATS) {
+    await replyPersonal(replyToken, source, 'my_status')
+  }
+}
+
+/** message.text：指令解析 → 分流。 */
+async function handleMessage(ev: LineEvent): Promise<void> {
+  if (ev.message?.type !== 'text') return
   const replyToken = ev.replyToken
   const source     = ev.source
   const text       = ev.message.text
@@ -128,6 +163,12 @@ async function handleEvent(ev: LineEvent): Promise<void> {
     return
   }
 
+  // ── 選單：回歡迎卡（群組/私訊皆可，卡內個人按鈕自帶隱私分流）──────────
+  if (kind === 'menu') {
+    await replyMessage(replyToken, [buildWelcomeFlex(siteOrigin() ?? '')])
+    return
+  }
+
   const db = createServerClient()
 
   // ── 公開指令：不需成員對應 ──────────────────────────────────────────
@@ -141,14 +182,28 @@ async function handleEvent(ev: LineEvent): Promise<void> {
     return
   }
 
-  // ── 個人指令（此處保證 isPrivate；防呆再確認一次）─────────────────────
-  if (!isPrivate) {
+  // ── 個人指令（my_status / today）：共用個人回覆路徑 ─────────────────
+  await replyPersonal(replyToken, source, kind)
+}
+
+/**
+ * 個人資料回覆共用路徑（my_status / today）：
+ * 隱私分流（非 user → 導向私訊）+ line_user_id 綁定檢查 + 未綁定引導。
+ * text 指令與 postback 個人統計皆走此。
+ */
+async function replyPersonal(
+  replyToken: string,
+  source: LineSource,
+  kind: 'my_status' | 'today',
+): Promise<void> {
+  if (source.type !== 'user') {
     await replyMessage(replyToken, [{ type: 'text', text: formatGroupPrivacyRedirect() }])
     return
   }
   const lineUserId = source.userId
   if (!lineUserId) return
 
+  const db = createServerClient()
   const { data: member } = await db
     .from('members')
     .select(MEMBER_COLS_STATS)
@@ -160,8 +215,8 @@ async function handleEvent(ev: LineEvent): Promise<void> {
     return
   }
 
-  const text2 = await buildPersonalReply(db, member as Member, kind)
-  await replyMessage(replyToken, [{ type: 'text', text: text2 }])
+  const text = await buildPersonalReply(db, member as Member, kind)
+  await replyMessage(replyToken, [{ type: 'text', text }])
 }
 
 /** 排行榜 / 破曉王：撈活躍成員 + 當月 records，複用 scoring 相同序列。 */

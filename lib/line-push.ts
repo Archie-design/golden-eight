@@ -14,6 +14,12 @@ const LINE_REPLY_ENDPOINT = 'https://api.line.me/v2/bot/message/reply'
 /** LINE 文字訊息物件 */
 export type LineTextMessage = { type: 'text'; text: string }
 
+/** LINE Flex 訊息物件（altText 為不支援 Flex 環境的替代文字，contents 為 bubble/carousel JSON） */
+export type LineFlexMessage = { type: 'flex'; altText: string; contents: object }
+
+/** 可送出的 LINE 訊息（文字或 Flex） */
+export type LineMessage = LineTextMessage | LineFlexMessage
+
 export interface PushResult {
   sent:   string[]
   failed: { userId: string; msg: string }[]
@@ -81,7 +87,7 @@ export interface ReplyResult {
  */
 export async function replyMessage(
   replyToken: string,
-  messages: LineTextMessage[],
+  messages: LineMessage[],
 ): Promise<ReplyResult> {
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN
   if (!token) {

@@ -16,6 +16,7 @@ export type CommandKind =
   | 'leaderboard'
   | 'dawn_king'
   | 'help'
+  | 'menu'
   | null
 
 /** LINE 事件來源型別 */
@@ -41,6 +42,10 @@ const COMMAND_ALIASES: Record<string, Exclude<CommandKind, null>> = {
   'help':     'help',
   '?':        'help',
   '？':       'help',
+  '選單':     'menu',
+  '主選單':   'menu',
+  '開始':     'menu',
+  'menu':     'menu',
 }
 
 /**
@@ -58,7 +63,8 @@ export function parseCommand(text: string): CommandKind {
 
 /** 該指令是否為公開資料（可於群組回覆）。null 視為非公開。 */
 export function isPublicCommand(kind: CommandKind): boolean {
-  return kind === 'leaderboard' || kind === 'dawn_king' || kind === 'help'
+  return kind === 'leaderboard' || kind === 'dawn_king' || kind === 'help' || kind === 'menu'
+  // menu：歡迎卡本身公開；卡片內的「個人統計」postback 自帶隱私分流。
 }
 
 // ─── 回覆文字組裝 ──────────────────────────────────────────────
