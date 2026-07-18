@@ -53,6 +53,11 @@ export function buildWelcomeFlex(siteUrl: string): LineFlexMessage {
         { type: 'text', text: '⏰ 每日 12:00（台北）前完成當日打卡\n📅 每月月結，未達標依階級計罰', size: 'xs', color: '#999999', wrap: true, margin: 'md' },
 
         { type: 'text', text: '💪 堅持就是勝利！', weight: 'bold', size: 'sm', align: 'center', margin: 'md', color: '#B8860B' },
+
+        { type: 'separator', margin: 'md' },
+
+        { type: 'text', text: '更多指令（直接輸入文字）', weight: 'bold', size: 'sm', margin: 'md' },
+        { type: 'text', text: '📊 我的狀態　📅 今日\n🏆 排行榜　🌅 破曉王\n輸入「幫助」看完整說明', size: 'xs', color: '#555555', wrap: true },
       ],
     },
     footer: {
