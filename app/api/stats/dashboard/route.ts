@@ -69,6 +69,25 @@ export async function GET(request: NextRequest) {
     if (lastRec?.tasks[1]) punchStreak = (lastRec as { punch_streak?: number }).punch_streak ?? 0
   }
 
+  // ── 日均達標門檻（前瞻提醒）：僅本月現時視圖、非豁免時計算 ──────────────
+  // daysLeft 含今天（月底當天=1，不除零）；dailyNeeded = 距目標差 ÷ 剩餘天數。
+  // targetStatus：achieved（已達標）/ unreachable（>8 分，超單日上限）/ on_track。
+  let daysLeft: number | null = null
+  let dailyNeeded: number | null = null
+  let targetStatus: 'achieved' | 'on_track' | 'unreachable' | null = null
+  if (isCurrentMonth && stats.maxScore > 0) {
+    const monthEndDay = parseInt(getMonthEnd(yearMonth).split('-')[2], 10)
+    daysLeft = monthEndDay - day + 1
+    if (stats.remaining <= 0) {
+      targetStatus = 'achieved'
+      dailyNeeded  = 0
+    } else {
+      const needed = stats.remaining / daysLeft
+      dailyNeeded  = Math.round(needed * 10) / 10
+      targetStatus = needed > 8 ? 'unreachable' : 'on_track'
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     yearMonth,
@@ -79,6 +98,9 @@ export async function GET(request: NextRequest) {
     rate:         stats.rate,
     targetScore:  stats.targetScore,
     remaining:    stats.remaining,
+    daysLeft,
+    dailyNeeded,
+    targetStatus,
     punchStreak,
     maxPunchMonth: maxStreak,
     calendar,

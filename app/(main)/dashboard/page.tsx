@@ -26,6 +26,10 @@ interface DashboardData {
   rate: number
   targetScore: number
   remaining: number
+  // 日均達標門檻（本月現時視圖；歷史月/豁免為 null）
+  daysLeft: number | null
+  dailyNeeded: number | null
+  targetStatus: 'achieved' | 'on_track' | 'unreachable' | null
   punchStreak: number
   maxPunchMonth: number
   calendar: { date: string; day: number; score: number | null; color: string; note?: string }[]
@@ -268,6 +272,17 @@ export default function DashboardPage() {
                 <span>{data.user.level}</span>
                 <span>目標 {data.targetScore} 分</span>
               </div>
+              {data.targetStatus === 'achieved' && (
+                <div className="text-xs text-green-600 font-medium mb-2">✅ 已達標，繼續保持！</div>
+              )}
+              {data.targetStatus === 'on_track' && (
+                <div className="text-xs text-amber-600 font-medium mb-2">
+                  還有 {data.daysLeft} 天，平均每天需 {data.dailyNeeded} 分達標 💪
+                </div>
+              )}
+              {data.targetStatus === 'unreachable' && (
+                <div className="text-xs text-muted-foreground mb-2">本月已難達標，下月再拼！</div>
+              )}
               <DailyRateChart
                 calendar={data.calendar}
                 threshold={LEVEL_THRESHOLDS[data.user.level] ?? 0.60}
