@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
-import { calcMonthStats, calcMaxPunchStreakFromSorted, isDawnKing } from '@/lib/scoring'
+import { calcMonthStats, calcMaxPunchStreakFromSorted, isDawnKing, calcPaceStatus } from '@/lib/scoring'
 import { MEMBER_COLS_STATS, RECORD_COLS_STATS } from '@/lib/db-columns'
 import type { Member, CheckInRecord } from '@/types'
 
@@ -59,6 +59,8 @@ export async function GET(req: Request) {
     const maxStreak  = calcMaxPunchStreakFromSorted(recs)
     const dawnKing   = isDawnKing(m, recs, yearMonth, refDate)
     const summary    = summaryByMember[m.id]
+    // 二維落隊偵測：僅本月現時視圖計算（歷史月看月結結果，pace/預估無意義）
+    const paceStatus = isCurrentMonth ? calcPaceStatus(m, stats, refDate, yearMonth) : null
     return {
       id:         m.id,
       name:       m.name,
@@ -70,6 +72,10 @@ export async function GET(req: Request) {
       maxStreak,
       isDawnKing: dawnKing,
       exempted:   stats.maxScore === 0,
+      // 本月：pace（回顧）/ projRate（前瞻）/ quadrant（四象限）；歷史月為 null
+      pace:       paceStatus ? paceStatus.pace : null,
+      projRate:   paceStatus ? paceStatus.projRate : null,
+      paceStatus: paceStatus ? paceStatus.quadrant : null,
       // 月結後欄位（未月結為 null）
       settledTotal:   summary?.total_score          ?? null,
       settledRate:    summary?.rate                 ?? null,

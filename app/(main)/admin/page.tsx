@@ -15,12 +15,23 @@ import { Switch } from '@/components/ui/switch'
 import { UnselectedNextLevelList } from '@/components/admin/UnselectedNextLevelList'
 
 interface Member      { id: string; name: string; join_date: string; level: string; next_level?: string | null; status: string }
+type PaceQuadrant = 'rescue' | 'lukewarm' | 'slow_start' | 'safe' | 'exempt'
 interface ProgressRow {
   id: string; name: string; level: string
   totalScore: number; maxScore: number; rate: number; passing: boolean
   maxStreak: number; isDawnKing: boolean; exempted: boolean
+  // 本月二維落隊偵測；歷史月為 null
+  pace: number | null; projRate: number | null; paceStatus: PaceQuadrant | null
   settledTotal: number | null; settledRate: number | null
   settledPassing: boolean | null; whDeduction: number | null; penalty: number | null
+}
+
+// 四象限呈現：emoji + 標籤 + 文字色
+const PACE_QUADRANT_UI: Record<Exclude<PaceQuadrant, 'exempt'>, { label: string; className: string }> = {
+  rescue:     { label: '🔴 真的要救', className: 'text-red-600' },
+  lukewarm:   { label: '🟠 溫水',     className: 'text-orange-500' },
+  slow_start: { label: '🟡 起步慢',   className: 'text-yellow-600' },
+  safe:       { label: '✅ 安全',     className: 'text-green-600' },
 }
 interface PenaltyRow  {
   name: string; level: string; rate: number; penalty: number
@@ -241,11 +252,21 @@ export default function AdminPage() {
                             )}
                           </td>
                           <td className="text-center">
-                            {notSettled ? '—' : (
-                              <span className={`inline-flex items-center gap-1 font-semibold ${passing ? 'text-green-600' : 'text-red-500'}`}>
-                                {passing ? <><CheckCircle2 className="w-4 h-4" /> 達標</> : <><X className="w-4 h-4" /> 未達標</>}
-                              </span>
-                            )}
+                            {notSettled ? '—'
+                              : useSettled ? (
+                                // 歷史月：維持月結達標/未達標
+                                <span className={`inline-flex items-center gap-1 font-semibold ${passing ? 'text-green-600' : 'text-red-500'}`}>
+                                  {passing ? <><CheckCircle2 className="w-4 h-4" /> 達標</> : <><X className="w-4 h-4" /> 未達標</>}
+                                </span>
+                              ) : r.paceStatus && r.paceStatus !== 'exempt' ? (
+                                // 本月：二維四象限 + 輔助數字
+                                <span
+                                  className={`font-semibold ${PACE_QUADRANT_UI[r.paceStatus].className}`}
+                                  title={`月率 ${r.rate}% ・ pace ${r.pace}% ・ 月底預估 ${r.projRate}%`}
+                                >
+                                  {PACE_QUADRANT_UI[r.paceStatus].label}
+                                </span>
+                              ) : '—'}
                           </td>
                           <td className="text-right">
                             <span className="inline-flex items-center justify-end gap-1">

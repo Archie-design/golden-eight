@@ -3,7 +3,7 @@
 // ============================================================
 
 import { CheckInRecord, Member } from '@/types'
-import { ACHIEVEMENT_LIST, LEVEL_PENALTIES, LEVEL_THRESHOLDS } from './constants'
+import { ACHIEVEMENT_LIST, LEVEL_PENALTIES, LEVEL_THRESHOLDS, PACE_OK_THRESHOLD } from './constants'
 
 /**
  * base_score 在 DB 是 NUMERIC(3,1)，Supabase JS client 可能以字串回傳（如 "8.0"），
@@ -109,6 +109,66 @@ export function expectedCheckinDays(member: Member, yearMonth: string, refDate: 
   const a = new Date(effectiveStartStr + 'T00:00:00+08:00')
   const b = new Date(refDate + 'T00:00:00+08:00')
   return Math.floor((b.getTime() - a.getTime()) / 86_400_000) + 1
+}
+
+// ─── Pace 二維落隊偵測（管理員後台全員進度狀態欄）─────────────────
+
+export type PaceQuadrant = 'rescue' | 'lukewarm' | 'slow_start' | 'safe' | 'exempt'
+
+export interface PaceStatus {
+  /** 回顧軸：總分 ÷ 到今日達標線，百分比（四捨五入）。exempt 時為 0。 */
+  pace: number
+  /** 前瞻軸：照當前速度線性外推的月底完成率，百分比（四捨五入）。exempt 時為 0。 */
+  projRate: number
+  quadrant: PaceQuadrant
+}
+
+/**
+ * 二維落隊偵測：pace（回顧）× 月底預估（前瞻）→ 四象限。
+ * 只用於本月現時視圖；歷史月不呼叫（月已結束，pace/預估無意義）。
+ *
+ * 分母（應打天數 = 已過天數）以 expectedCheckinDays 個人起算，與 calcMonthStats
+ * 的 maxScore 對齊，避免月中新進者被整月天數稀釋。
+ *
+ * @param member  成員
+ * @param stats   calcMonthStats(member, recs, refDate) 的結果（含 totalScore/maxScore）
+ * @param refDate 評估基準日（本月為今日）
+ * @param yearMonth 'YYYY-MM'
+ */
+export function calcPaceStatus(
+  member: Member,
+  stats: { totalScore: number; maxScore: number },
+  refDate: string,
+  yearMonth: string,
+): PaceStatus {
+  // 豁免（本月不計分）：maxScore=0 或應打天數=0
+  const expectedDays = expectedCheckinDays(member, yearMonth, refDate)
+  if (stats.maxScore <= 0 || expectedDays <= 0) {
+    return { pace: 0, projRate: 0, quadrant: 'exempt' }
+  }
+
+  const threshold = LEVEL_THRESHOLDS[member.level] ?? 0.6
+
+  // 回顧軸：總分 ÷ (到今日達標線)。達標線 = 應打天數×8×門檻
+  const paceLine = expectedDays * 8 * threshold
+  const pace = paceLine > 0 ? (stats.totalScore / paceLine) * 100 : 0
+
+  // 前瞻軸：線性外推月底完成率 = (總分/已過天數×整月應打天數) / 月滿分
+  // 已過天數 = expectedDays（同源）；整月應打天數 = maxScore/8
+  const fullDays = stats.maxScore / 8
+  const projScore = (stats.totalScore / expectedDays) * fullDays
+  const projRate = stats.maxScore > 0 ? (projScore / stats.maxScore) * 100 : 0
+
+  const paceOk = pace >= PACE_OK_THRESHOLD * 100
+  const projOk = projRate >= threshold * 100
+
+  const quadrant: PaceQuadrant =
+    paceOk && projOk   ? 'safe'
+    : paceOk && !projOk ? 'lukewarm'
+    : !paceOk && projOk ? 'slow_start'
+    : 'rescue'
+
+  return { pace: Math.round(pace), projRate: Math.round(projRate), quadrant }
 }
 
 /**
