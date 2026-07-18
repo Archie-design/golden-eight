@@ -18,9 +18,14 @@ export const POSTBACK_MY_STATS = 'action=my_stats'
 
 /**
  * 組出歡迎卡（Flex bubble）。
- * @param siteUrl 站台根網址（如 https://golden-eight-set.vercel.app，無尾斜線）
+ *
+ * Flex 內容送出即定型、無法依觀看者動態變化，故在群組情境直接送「不含個人統計
+ * 按鈕」的版本——該按鈕在群組只會回「請私訊查詢」，留著徒增無效點擊。
+ *
+ * @param siteUrl  站台根網址（如 https://golden-eight-set.vercel.app，無尾斜線）
+ * @param isPrivate 是否為一對一私訊情境（true 才放「個人統計」按鈕）
  */
-export function buildWelcomeFlex(siteUrl: string): LineFlexMessage {
+export function buildWelcomeFlex(siteUrl: string, isPrivate = true): LineFlexMessage {
   const root     = siteUrl.replace(/\/+$/, '')      // 去尾斜線
   const joinUri  = `${root}/`
   const doneUri  = `${root}/checkin`
@@ -57,7 +62,9 @@ export function buildWelcomeFlex(siteUrl: string): LineFlexMessage {
         { type: 'separator', margin: 'md' },
 
         { type: 'text', text: '更多指令（直接輸入文字）', weight: 'bold', size: 'sm', margin: 'md' },
-        { type: 'text', text: '📊 我的狀態　📅 今日\n🏆 排行榜　🌅 破曉王\n輸入「幫助」看完整說明', size: 'xs', color: '#555555', wrap: true },
+        isPrivate
+          ? { type: 'text', text: '📊 我的狀態　📅 今日\n🏆 排行榜　🌅 破曉王\n輸入「幫助」看完整說明', size: 'xs', color: '#555555', wrap: true }
+          : { type: 'text', text: '🏆 排行榜　🌅 破曉王\n輸入「幫助」看完整說明\n（我的狀態／今日請私訊我查詢）', size: 'xs', color: '#555555', wrap: true },
       ],
     },
     footer: {
@@ -73,10 +80,11 @@ export function buildWelcomeFlex(siteUrl: string): LineFlexMessage {
           type: 'button', style: 'primary', color: '#5B8A51', height: 'sm',
           action: { type: 'uri', label: '✅ 完成定課', uri: doneUri },
         },
-        {
+        // 個人統計為 postback，群組點了只會回「請私訊查詢」→ 群組版不放此按鈕
+        ...(isPrivate ? [{
           type: 'button', style: 'secondary', height: 'sm',
           action: { type: 'postback', label: '📊 個人統計', data: POSTBACK_MY_STATS, displayText: '個人統計' },
-        },
+        }] : []),
       ],
     },
   }

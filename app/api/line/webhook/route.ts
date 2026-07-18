@@ -128,7 +128,8 @@ async function handleEvent(ev: LineEvent): Promise<void> {
 async function handleFollow(ev: LineEvent): Promise<void> {
   const replyToken = ev.replyToken
   if (!replyToken) return
-  await replyMessage(replyToken, [buildWelcomeFlex(siteOrigin() ?? '')])
+  // follow 事件必為 1:1 加好友，故為私訊版（含個人統計按鈕）
+  await replyMessage(replyToken, [buildWelcomeFlex(siteOrigin() ?? '', true)])
 }
 
 /** postback：目前僅「個人統計」。沿用個人資料的隱私分流與綁定檢查。 */
@@ -165,7 +166,8 @@ async function handleMessage(ev: LineEvent): Promise<void> {
 
   // ── 選單：回歡迎卡（群組/私訊皆可，卡內個人按鈕自帶隱私分流）──────────
   if (kind === 'menu') {
-    await replyMessage(replyToken, [buildWelcomeFlex(siteOrigin() ?? '')])
+    // 群組版不含「個人統計」按鈕（點了也只會回請私訊，徒增無效點擊）
+    await replyMessage(replyToken, [buildWelcomeFlex(siteOrigin() ?? '', isPrivate)])
     return
   }
 
