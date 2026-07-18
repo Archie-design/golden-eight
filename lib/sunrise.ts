@@ -54,12 +54,16 @@ export async function getSunriseTime(dateStr: string): Promise<string> {
   }
 }
 
-/** 從 HH:MM 再加 n 分鐘 */
+/**
+ * 從 HH:MM 加 n 分鐘（n 可為負，往回推）。
+ * 以 mod 1440 正規化到 [0,1440) 再拆時分——JS 的 % 對負數回負值，
+ * 故不能直接 total%60，否則往回跨午夜會算出負時分。
+ */
 export function addMinutes(hhmm: string, minutes: number): string {
   const [h, m] = hhmm.split(':').map(Number)
-  const total = h * 60 + m + minutes
+  const total = ((h * 60 + m + minutes) % 1440 + 1440) % 1440
   return (
-    String(Math.floor(total / 60) % 24).padStart(2, '0') + ':' +
+    String(Math.floor(total / 60)).padStart(2, '0') + ':' +
     String(total % 60).padStart(2, '0')
   )
 }
@@ -67,4 +71,17 @@ export function addMinutes(hhmm: string, minutes: number): string {
 /** 取得建議開始打拳時間（日出後 12 分鐘） */
 export async function getPunchStartTime(dateStr: string): Promise<string> {
   return addMinutes(await getSunriseTime(dateStr), 12)
+}
+
+/** 建議入睡前的緩衝與睡眠時長（往回推算建議入睡時間用） */
+export const SLEEP_BUFFER_MIN = 20   // 打拳前緩衝
+export const SLEEP_HOURS      = 6    // 建議睡眠時長
+
+/**
+ * 取得建議入睡時間（前一晚）：建議打拳時間往回推 20 分緩衝 + 6 小時睡眠。
+ * 任何合理日出，算出的入睡皆落在前一晚，故呈現端固定標「前一晚」。
+ */
+export async function getSuggestedSleepTime(dateStr: string): Promise<string> {
+  const punchStart = await getPunchStartTime(dateStr)
+  return addMinutes(punchStart, -(SLEEP_BUFFER_MIN + SLEEP_HOURS * 60))
 }

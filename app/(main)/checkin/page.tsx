@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  Sunrise, Flame, CheckCircle2, Trophy, Pencil, Share2,
+  Sunrise, Moon, Flame, CheckCircle2, Trophy, Pencil, Share2,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,7 @@ interface TodayData {
   calendarDay: string  // 實際日曆日（顯示用）
   sunrise: string
   punchStart: string
+  suggestedSleep: string
   punchStreak: number
   monthRate: number
   todayRecord: { submitted: boolean; totalScore?: number; submitTime?: string; tasks?: boolean[]; note?: string; work_hours?: number | null; early_sleep_half?: boolean }
@@ -233,6 +234,12 @@ export default function CheckInPage() {
                 <Sunrise className="w-4 h-4 shrink-0" />
                 本日日出 {data.sunrise}，建議開始打拳時間為 {data.punchStart}
               </div>
+              {data.suggestedSleep && (
+                <div className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1">
+                  <Moon className="w-4 h-4 shrink-0" />
+                  想睡滿六小時，建議前一晚 {data.suggestedSleep} 前入睡
+                </div>
+              )}
             </div>
             <div className="text-right">
               {data.punchStreak > 0 && (

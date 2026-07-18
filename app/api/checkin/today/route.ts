@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getCurrentMember, getCheckinDayTaipei, getTodayTaipei, getPrevDayStr, getMonthEnd } from '@/lib/api-helper'
-import { getSunriseTime, addMinutes } from '@/lib/sunrise'
+import { getSunriseTime, addMinutes, SLEEP_BUFFER_MIN, SLEEP_HOURS } from '@/lib/sunrise'
 import { calcMonthStats } from '@/lib/scoring'
 import { RECORD_COLS_STATS } from '@/lib/db-columns'
 
@@ -30,12 +30,17 @@ export async function GET() {
     ? (todayRec.data as { punch_streak?: number }).punch_streak ?? 0
     : (prevRec.data as { punch_streak?: number } | null)?.punch_streak ?? 0
 
+  const punchStart = addMinutes(sunrise, 12)
+  // 建議入睡時間（前一晚）：建議打拳往回推 20 分緩衝 + 6 小時睡眠
+  const suggestedSleep = addMinutes(punchStart, -(SLEEP_BUFFER_MIN + SLEEP_HOURS * 60))
+
   return NextResponse.json({
     ok: true,
     today,
     calendarDay,
     sunrise,
-    punchStart: addMinutes(sunrise, 12),
+    punchStart,
+    suggestedSleep,
     punchStreak,
     monthRate:  monthStats.rate,
     todayRecord: todayRec.data
