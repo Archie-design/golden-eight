@@ -66,9 +66,11 @@ export async function GET(req: NextRequest) {
 
   const nameById:  Record<string, string> = {}
   const levelById: Record<string, string> = {}
+  const membersById: Record<string, Member> = {}
   for (const m of members) {
     nameById[m.id]  = m.name
     levelById[m.id] = m.level
+    membersById[m.id] = m
   }
 
   // 1. 建立當日快照（起算日未到者不產生列）
@@ -92,7 +94,7 @@ export async function GET(req: NextRequest) {
 
   // 4. 變化事件（首日無前一日快照 → 空陣列，避免全員誤報）
   const events  = diffStatusEvents(prevByMember, snapshot, nameById)
-  const message = formatDigestMessage(snapshot, events, nameById, levelById, targetDate)
+  const message = formatDigestMessage(snapshot, events, nameById, levelById, targetDate, membersById, recsByMember)
 
   // 5. 推播給已綁定 LINE 的管理員
   const recipients = members

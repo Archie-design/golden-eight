@@ -2,7 +2,7 @@
 // 黃金八套餐 — 每日狀態快照與變化事件（純函式，無副作用）
 // ============================================================
 
-import { calcMonthStats } from './scoring'
+import { calcMonthStats, calcPaceStatus, type PaceQuadrant } from './scoring'
 import { LEVEL_THRESHOLDS, LONG_ABSENCE_DAYS } from './constants'
 import type { Member, CheckInRecord } from '@/types'
 
@@ -150,12 +150,20 @@ function formatDateLabel(date: string): string {
  * 長期缺席者（miss_streak >= LONG_ABSENCE_DAYS）從漏卡/風險明細移除，摺疊為單行。
  * 管理員自身不排除——管理員同時是學員，其漏卡與風險照常列入。
  */
+// 四象限在日報的呈現：只列 🔴 rescue / 🟠 lukewarm（要救 + 溫水）。
+const QUADRANT_DIGEST: Partial<Record<PaceQuadrant, string>> = {
+  rescue:   '🔴',
+  lukewarm: '🟠',
+}
+
 export function formatDigestMessage(
   snapshot: DailyStatus[],
   events: StatusEvent[],
   nameById: Record<string, string>,
   levelById: Record<string, string>,
   date: string,
+  membersById: Record<string, Member>,
+  recordsByMember: Record<string, CheckInRecord[]>,
 ): string {
   const nm = (id: string) => nameById[id] ?? id
   const total = snapshot.length
@@ -164,8 +172,23 @@ export function formatDigestMessage(
   const longIds    = new Set(longAbsent.map(s => s.member_id))
 
   const missed = snapshot.filter(s => s.missed && !longIds.has(s.member_id))
-  const atRisk = snapshot.filter(s => !s.passing && !longIds.has(s.member_id))
   const done   = snapshot.filter(s => !s.missed)
+
+  // 門檻風險改用二維四象限（與後台一致）：即時算 pace，只列 🔴 要救 / 🟠 溫水。
+  // pace 為當下呈現值、非留存事實，故不進 DailyStatus/DB，於此就地計算。
+  type RiskRow = { id: string; mark: string; projRate: number; order: number }
+  const atRisk: RiskRow[] = []
+  for (const s of snapshot) {
+    if (longIds.has(s.member_id)) continue
+    const m = membersById[s.member_id]
+    if (!m) continue
+    const stats = calcMonthStats(m, recordsByMember[m.id] ?? [], date)
+    const ps    = calcPaceStatus(m, stats, recordsByMember[m.id] ?? [], date, date.substring(0, 7))
+    const mark  = QUADRANT_DIGEST[ps.quadrant]
+    if (!mark) continue   // 只保留 rescue / lukewarm
+    atRisk.push({ id: s.member_id, mark, projRate: ps.projRate, order: ps.quadrant === 'rescue' ? 0 : 1 })
+  }
+  atRisk.sort((a, b) => a.order - b.order || a.projRate - b.projRate)   // 🔴 先、預估低者先
 
   const avg = total > 0
     ? Math.round(snapshot.reduce((sum, s) => sum + s.rate, 0) / total)
@@ -195,11 +218,11 @@ export function formatDigestMessage(
   L.push('')
 
   if (atRisk.length > 0) {
-    L.push('🎯 門檻風險')
-    for (const s of atRisk) {
-      const lv  = levelById[s.member_id] ?? ''
+    L.push('🎯 門檻風險（照近期速度預估月底）')
+    for (const r of atRisk) {
+      const lv  = levelById[r.id] ?? ''
       const thr = Math.round((LEVEL_THRESHOLDS[lv] ?? 0.6) * 100)
-      L.push(`　${nm(s.member_id)}　${s.rate}% / 需 ${thr}%`)
+      L.push(`　${r.mark} ${nm(r.id)}　月底預估 ${r.projRate}%（需 ${thr}%）`)
     }
     L.push('')
   }
