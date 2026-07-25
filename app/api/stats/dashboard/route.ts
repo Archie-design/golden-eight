@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   const refDate = isCurrentMonth ? today : getMonthEnd(yearMonth)
 
   const [monthRecsRes, achievementsRes, workingDays, latestRecRes] = await Promise.all([
-    db.from('checkin_records').select(RECORD_COLS_STATS)
+    db.from('checkin_records').select(RECORD_COLS_STATS + ', sunrise_photo_path')
       .eq('member_id', member.id)
       .gte('date', yearMonth + '-01')
       .lte('date', getMonthEnd(yearMonth))
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       : Promise.resolve({ data: null }),
   ])
 
-  const monthRecs = (monthRecsRes.data ?? []) as CheckInRecord[]
+  const monthRecs = (monthRecsRes.data ?? []) as unknown as CheckInRecord[]
   const stats     = calcMonthStats(member, monthRecs, refDate)
   // 跨月感知：取當月紀錄裡 punch_streak 欄位的最大值（欄位本身已累積跨月計數）
   const maxStreak = monthRecs
@@ -51,7 +51,12 @@ export async function GET(request: NextRequest) {
     const d    = `${yearMonth}-${String(i + 1).padStart(2, '0')}`
     const rec  = monthRecs.find(r => r.date === d)
     const score = rec ? rec.total_score : null
-    return { date: d, day: i + 1, score, color: getCalendarColor(score), note: rec?.note ?? '' }
+    // 日曆 hover 顯自己當日日出照（我的日曆）；無照為 null
+    const photoPath = (rec as (CheckInRecord & { sunrise_photo_path?: string | null }) | undefined)?.sunrise_photo_path
+    const sunrisePhotoUrl = photoPath
+      ? db.storage.from('sunrise-photos').getPublicUrl(photoPath).data.publicUrl
+      : null
+    return { date: d, day: i + 1, score, color: getCalendarColor(score), note: rec?.note ?? '', sunrisePhotoUrl }
   })
 
   const taskCounts = Array.from({ length: 8 }, (_, i) => monthRecs.filter(r => r.tasks[i]).length)

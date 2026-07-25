@@ -9,6 +9,7 @@ interface CalendarDay {
   score: number | null
   color: string
   note?: string
+  sunrisePhotoUrl?: string | null   // 自己當日日出照（hover 顯示）
 }
 
 interface CalendarGridProps {
@@ -53,7 +54,8 @@ export function CalendarGrid({ days }: CalendarGridProps) {
           <div key={'pad' + i} />
         ))}
         {days.map(day => {
-          const hasNote = !!day.note
+          const hasNote  = !!day.note
+          const hasPhoto = !!day.sunrisePhotoUrl
           const isSelected = selected?.date === day.date
           return (
             <div
@@ -61,15 +63,30 @@ export function CalendarGrid({ days }: CalendarGridProps) {
               title={day.score !== null ? `${day.date}: ${day.score} 分` : day.date}
               onClick={() => handleClick(day)}
               className={cn(
-                'relative flex aspect-square items-center justify-center rounded text-sm font-medium',
+                'group relative flex aspect-square items-center justify-center rounded text-sm font-medium',
                 day.color,
-                hasNote ? 'cursor-pointer' : 'cursor-default',
+                (hasNote || hasPhoto) ? 'cursor-pointer' : 'cursor-default',
                 isSelected && 'ring-2 ring-amber-400 ring-offset-1',
               )}
             >
               {day.day}
               {hasNote && (
                 <span className="absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-amber-500" />
+              )}
+              {hasPhoto && (
+                <>
+                  {/* 日出照角標 */}
+                  <span className="absolute left-0.5 top-0.5 text-[0.6rem] leading-none">🌅</span>
+                  {/* hover 預覽（桌機）：懸浮顯示自己當天的日出照 */}
+                  <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 hidden -translate-x-1/2 group-hover:block">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={day.sunrisePhotoUrl!}
+                      alt={`${day.date} 日出`}
+                      className="h-28 w-28 max-w-none rounded-lg border-2 border-white object-cover shadow-lg"
+                    />
+                  </div>
+                </>
               )}
             </div>
           )

@@ -58,6 +58,7 @@ export interface CheckInRecord {
   work_hours?: number | null
   note?: string
   submit_time: string
+  sunrise_photo_path?: string | null // 日出照 Storage path（nullable）
 }
 
 export interface MonthlySummary {

@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS checkin_records (
   note              TEXT,
   submit_time       TIMESTAMPTZ DEFAULT NOW(),
   early_sleep_half  BOOLEAN NOT NULL DEFAULT FALSE,  -- task 1 選「12點前入睡」時為 true
+  sunrise_photo_path TEXT,                            -- 日出照 Storage path（nullable）；3 個月後由 cron 清理
   UNIQUE(member_id, date)
 );
 

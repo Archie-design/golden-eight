@@ -16,7 +16,7 @@ export async function GET() {
 
   const [todayRec, prevRec, monthRecs, sunrise] = await Promise.all([
     db.from('checkin_records')
-      .select('total_score, submit_time, tasks, note, work_hours, punch_streak, early_sleep_half')
+      .select('total_score, submit_time, tasks, note, work_hours, punch_streak, early_sleep_half, sunrise_photo_path')
       .eq('member_id', member.id).eq('date', today).maybeSingle(),
     db.from('checkin_records').select('punch_streak').eq('member_id', member.id).eq('date', prevDay).maybeSingle(),
     db.from('checkin_records').select(RECORD_COLS_STATS).eq('member_id', member.id).gte('date', yearMonth + '-01').lte('date', getMonthEnd(yearMonth)),
@@ -34,6 +34,12 @@ export async function GET() {
   // 建議入睡時間（前一晚）：建議打拳往回推 20 分緩衝 + 6 小時睡眠
   const suggestedSleep = addMinutes(punchStart, -(SLEEP_BUFFER_MIN + SLEEP_HOURS * 60))
 
+  // 今日日出照（已上傳則帶 public URL，供頁面重載後仍顯示預覽）
+  const photoPath = (todayRec.data as { sunrise_photo_path?: string | null } | null)?.sunrise_photo_path
+  const sunrisePhotoUrl = photoPath
+    ? db.storage.from('sunrise-photos').getPublicUrl(photoPath).data.publicUrl
+    : null
+
   return NextResponse.json({
     ok: true,
     today,
@@ -41,6 +47,7 @@ export async function GET() {
     sunrise,
     punchStart,
     suggestedSleep,
+    sunrisePhotoUrl,
     punchStreak,
     monthRate:  monthStats.rate,
     todayRecord: todayRec.data

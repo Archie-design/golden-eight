@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  Sunrise, Moon, Flame, CheckCircle2, Trophy, Pencil, Share2,
+  Sunrise, Moon, Flame, CheckCircle2, Trophy, Pencil, Share2, ImagePlus,
 } from 'lucide-react'
+import { compressImage } from '@/lib/image-compress'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,6 +23,7 @@ interface TodayData {
   sunrise: string
   punchStart: string
   suggestedSleep: string
+  sunrisePhotoUrl: string | null
   punchStreak: number
   monthRate: number
   todayRecord: { submitted: boolean; totalScore?: number; submitTime?: string; tasks?: boolean[]; note?: string; work_hours?: number | null; early_sleep_half?: boolean }
@@ -46,6 +48,9 @@ export default function CheckInPage() {
   const doneCardRef    = useRef<HTMLDivElement | null>(null)
   const [sharing, setSharing]           = useState(false)
   const [shareImageUrl, setShareImageUrl] = useState<string | null>(null)
+  const sunriseInputRef = useRef<HTMLInputElement | null>(null)
+  const [sunriseUploading, setSunriseUploading] = useState(false)
+  const [sunrisePhotoUrl, setSunrisePhotoUrl]   = useState<string | null>(null)
 
   function loadData() {
     fetch('/api/checkin/today')
@@ -58,6 +63,7 @@ export default function CheckInPage() {
           setWorkHours('')
           setEarlySleepHalf(false)
           setIsEditing(false)
+          setSunrisePhotoUrl(json.sunrisePhotoUrl ?? null)
         } else {
           toast.error(json.msg)
         }
@@ -182,6 +188,31 @@ export default function CheckInPage() {
     const next = achQueue.slice(1)
     setAchQueue(next)
     if (next.length === 0) setShowAch(false)
+  }
+
+  // 日出照上傳（選填，與打卡解耦：失敗只提示，不影響打卡）
+  async function handleSunrisePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''   // 允許選同一張重傳
+    if (!file || sunriseUploading) return
+    setSunriseUploading(true)
+    try {
+      const blob = await compressImage(file)
+      const form = new FormData()
+      form.append('file', blob, 'sunrise.jpg')
+      const res  = await fetch('/api/checkin/sunrise-photo', { method: 'POST', body: form })
+      const json = await res.json()
+      if (json.ok) {
+        setSunrisePhotoUrl(json.data.url)
+        toast.success('日出照已上傳，一起早起破曉！🌅')
+      } else {
+        toast.error(json.msg ?? '上傳失敗，請再試一次')
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '上傳失敗，請再試一次')
+    } finally {
+      setSunriseUploading(false)
+    }
   }
 
   async function handleShareScreenshot() {
@@ -310,6 +341,35 @@ export default function CheckInPage() {
                 className="border-green-300 text-green-700 hover:bg-green-100"
               >
                 <Pencil className="w-3.5 h-3.5 mr-1" /> 修改今日
+              </Button>
+            </div>
+
+            {/* 日出照上傳（選填）：鼓勵一起早起破曉打拳 */}
+            <div data-screenshot-exclude="true" className="mt-2 flex flex-col items-center gap-2">
+              <input
+                ref={sunriseInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleSunrisePhoto}
+              />
+              {sunrisePhotoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={sunrisePhotoUrl}
+                  alt="今日日出"
+                  className="h-24 w-24 rounded-lg border border-green-200 object-cover"
+                />
+              )}
+              <Button
+                onClick={() => sunriseInputRef.current?.click()}
+                disabled={sunriseUploading}
+                variant="outline"
+                size="sm"
+                className="border-amber-300 text-amber-700 hover:bg-amber-50"
+              >
+                <ImagePlus className="w-3.5 h-3.5 mr-1" />
+                {sunriseUploading ? '上傳中…' : sunrisePhotoUrl ? '換一張日出照' : '上傳今日日出照（選填）'}
               </Button>
             </div>
           </CardContent>

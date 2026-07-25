@@ -5,10 +5,11 @@ import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   BarChart3, Calendar, TrendingUp, Dumbbell, Trophy, LinkIcon, Unlink,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Sunrise,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { CalendarGrid } from '@/components/CalendarGrid'
 import { AchievementWall } from '@/components/AchievementBadge'
 import { PartnersWidget } from '@/components/PartnersWidget'
@@ -32,7 +33,7 @@ interface DashboardData {
   targetStatus: 'achieved' | 'on_track' | 'unreachable' | null
   punchStreak: number
   maxPunchMonth: number
-  calendar: { date: string; day: number; score: number | null; color: string; note?: string }[]
+  calendar: { date: string; day: number; score: number | null; color: string; note?: string; sunrisePhotoUrl?: string | null }[]
   taskCounts: number[]
   monthWorkHours: number
   requiredWorkHours: number
@@ -111,6 +112,10 @@ export default function DashboardPage() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   })
   const [maxMonth, setMaxMonth] = useState('')
+  // 今日大家的日出（登入後彈窗）
+  const [sunriseOpen, setSunriseOpen] = useState(false)
+  const [sunriseLoading, setSunriseLoading] = useState(false)
+  const [sunrisePhotos, setSunrisePhotos] = useState<{ name: string; url: string }[]>([])
   const searchParams = useSearchParams()
 
   useEffect(() => {
@@ -200,6 +205,20 @@ export default function DashboardPage() {
     const json = await res.json()
     toast[json.ok ? 'success' : 'error'](json.msg)
     if (json.ok) setData(prev => prev ? { ...prev, user: { ...prev.user, nextLevel: level } } : prev)
+  }
+
+  async function openSunriseToday() {
+    setSunriseOpen(true)
+    setSunriseLoading(true)
+    try {
+      const res  = await fetch('/api/stats/sunrise-today')
+      const json = await res.json()
+      setSunrisePhotos(json.ok ? json.data.photos : [])
+    } catch {
+      setSunrisePhotos([])
+    } finally {
+      setSunriseLoading(false)
+    }
   }
 
   if (!data) return (
@@ -314,14 +333,52 @@ export default function DashboardPage() {
       {/* 月曆 */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="w-5 h-5" /> {monthTag}打卡月曆
-          </CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5" /> {monthTag}打卡月曆
+            </CardTitle>
+            {data.isCurrentMonth && (
+              <Button
+                onClick={openSunriseToday}
+                variant="outline"
+                size="sm"
+                className="border-amber-300 text-amber-700 hover:bg-amber-50"
+              >
+                <Sunrise className="w-3.5 h-3.5 mr-1" /> 今日大家的日出
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <CalendarGrid days={data.calendar} />
         </CardContent>
       </Card>
+
+      {/* 今日大家的日出彈窗 */}
+      <Dialog open={sunriseOpen} onOpenChange={setSunriseOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sunrise className="w-5 h-5 text-amber-500" /> 今日大家的日出
+            </DialogTitle>
+          </DialogHeader>
+          {sunriseLoading ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">載入中…</p>
+          ) : sunrisePhotos.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">今天還沒有人上傳日出照，快來當第一個！🌅</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {sunrisePhotos.map(p => (
+                <div key={p.name} className="flex flex-col items-center gap-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={p.url} alt={`${p.name} 的日出`} className="aspect-square w-full rounded-lg object-cover" />
+                  <span className="text-xs text-muted-foreground">{p.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* 各項任務完成次數 */}
       <Card>
