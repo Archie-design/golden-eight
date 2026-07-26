@@ -30,6 +30,8 @@ export const CheckInSubmitSchema = z.object({
   note:             z.string().max(500).optional(),
   work_hours:       z.number().min(0).max(24).optional(),
   early_sleep_half: z.boolean().optional().default(false),
+  run_minutes:      z.number().int().min(0).max(1440).optional(),   // 丹氣慢跑分鐘（純記錄）
+  run_km:           z.number().min(0).max(999.99).optional(),       // 丹氣慢跑公里（2 位小數，純記錄）
 }).refine(
   // 破曉打拳(tasks[1])前置條件：須同時完成早睡早起/子時入睡(tasks[0])。
   // 同一筆打卡內判定，不跨日；早睡只要勾選即算(1 分或 0.5 分皆可)。

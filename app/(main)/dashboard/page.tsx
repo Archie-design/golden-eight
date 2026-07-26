@@ -37,6 +37,7 @@ interface DashboardData {
   taskCounts: number[]
   monthWorkHours: number
   requiredWorkHours: number
+  runLog: { sumMinutes: number; sumKm: number; runDays: number }
   workingDays: number
   achievements: { code: string }[]
   showcaseCodes: string[]
@@ -405,6 +406,11 @@ export default function DashboardPage() {
                 </div>
                 <div className="w-6 text-right text-sm text-muted-foreground">{data.taskCounts[i]}</div>
               </div>
+              {i === 2 && data.runLog && (
+                <div className="ml-[7.5rem] mt-0.5 text-xs text-muted-foreground">
+                  🏃 {monthTag}慢跑：{data.runLog.sumMinutes} 分鐘・{data.runLog.sumKm} 公里（{data.runLog.runDays} 天）
+                </div>
+              )}
               {i === 4 && (
                 <div className="ml-[7.5rem] mt-0.5 text-xs text-muted-foreground">
                   {monthTag}工時：{data.monthWorkHours} / {data.requiredWorkHours} 小時（{data.workingDays} 工作日）

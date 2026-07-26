@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   const refDate = isCurrentMonth ? today : getMonthEnd(yearMonth)
 
   const [monthRecsRes, achievementsRes, workingDays, latestRecRes] = await Promise.all([
-    db.from('checkin_records').select(RECORD_COLS_STATS + ', sunrise_photo_path')
+    db.from('checkin_records').select(RECORD_COLS_STATS + ', sunrise_photo_path, run_minutes, run_km')
       .eq('member_id', member.id)
       .gte('date', yearMonth + '-01')
       .lte('date', getMonthEnd(yearMonth))
@@ -63,6 +63,20 @@ export async function GET(request: NextRequest) {
 
   const monthWorkHours    = monthRecs.reduce((s, r) => s + ((r as CheckInRecord & { work_hours?: number | null }).work_hours ?? 0), 0)
   const requiredWorkHours = workingDays * 8
+
+  // 本月慢跑累積：總分鐘、總公里（2 位小數）、有跑天數（有填任一慢跑欄）
+  type RunRec = CheckInRecord & { run_minutes?: number | null; run_km?: number | null }
+  const runLog = monthRecs.reduce(
+    (acc, r) => {
+      const rr = r as RunRec
+      const mins = rr.run_minutes ?? 0
+      const km   = rr.run_km ?? 0
+      const has  = rr.run_minutes != null || rr.run_km != null
+      return { sumMinutes: acc.sumMinutes + mins, sumKm: acc.sumKm + km, runDays: acc.runDays + (has ? 1 : 0) }
+    },
+    { sumMinutes: 0, sumKm: 0, runDays: 0 },
+  )
+  runLog.sumKm = Number(runLog.sumKm.toFixed(2))   // 浮點加總規範
 
   // 本月視角：用「該成員最新一筆紀錄」（跨月）；歷史視角：用該月最後一筆
   let punchStreak = 0
@@ -112,6 +126,7 @@ export async function GET(request: NextRequest) {
     taskCounts,
     monthWorkHours,
     requiredWorkHours,
+    runLog,
     workingDays,
     achievements:     achievementsRes.data ?? [],
     showcaseCodes:    member.showcase_codes ?? [],

@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
   const parsed = await parseBody(request, CheckInSubmitSchema)
   if (parsed instanceof NextResponse) return parsed
-  const { tasks, note, work_hours, early_sleep_half } = parsed.data
+  const { tasks, note, work_hours, early_sleep_half, run_minutes, run_km } = parsed.data
 
   const target  = getCheckinDayTaipei()
   const prevDay = getPrevDayStr(target)
@@ -74,6 +74,8 @@ export async function POST(request: NextRequest) {
     note:             note || '',
     work_hours:       typeof work_hours === 'number' ? work_hours : null,
     early_sleep_half: early_sleep_half,
+    run_minutes:      typeof run_minutes === 'number' ? run_minutes : null,
+    run_km:           typeof run_km === 'number' ? Number(run_km.toFixed(2)) : null,
   })
   if (insertError) {
     if ((insertError as { code?: string }).code === '23505') {
@@ -166,7 +168,7 @@ export async function PATCH(request: NextRequest) {
 
   const parsed = await parseBody(request, CheckInSubmitSchema)
   if (parsed instanceof NextResponse) return parsed
-  const { tasks, note, work_hours, early_sleep_half } = parsed.data
+  const { tasks, note, work_hours, early_sleep_half, run_minutes, run_km } = parsed.data
 
   const target  = getCheckinDayTaipei()
   const prevDay = getPrevDayStr(target)
@@ -179,9 +181,9 @@ export async function PATCH(request: NextRequest) {
     )
   }
 
-  // 必須有既有記錄
+  // 必須有既有記錄（含慢跑欄，供「未帶值則保留」判斷）
   const { data: existingRow } = await db
-    .from('checkin_records').select(RECORD_COLS_STATS)
+    .from('checkin_records').select(RECORD_COLS_STATS + ', run_minutes, run_km')
     .eq('member_id', member.id).eq('date', target).maybeSingle()
   const existing = existingRow as CheckInRecord | null
   if (!existing) {
@@ -212,6 +214,11 @@ export async function PATCH(request: NextRequest) {
     ? work_hours
     : (existing as CheckInRecord & { work_hours?: number | null }).work_hours ?? null
 
+  // 慢跑：有帶值則更新，未帶則保留既有（避免編輯打卡時洗掉已填的慢跑記錄）
+  const existingRun = existing as CheckInRecord & { run_minutes?: number | null; run_km?: number | null }
+  const updatedRunMinutes = typeof run_minutes === 'number' ? run_minutes : existingRun.run_minutes ?? null
+  const updatedRunKm      = typeof run_km === 'number' ? Number(run_km.toFixed(2)) : existingRun.run_km ?? null
+
   const { error: updateError } = await db.from('checkin_records').update({
     tasks:            normalizedTasks,
     base_score:       baseScore,
@@ -220,6 +227,8 @@ export async function PATCH(request: NextRequest) {
     note:             note ?? existing.note ?? '',
     work_hours:       updatedWorkHours,
     early_sleep_half: early_sleep_half,
+    run_minutes:      updatedRunMinutes,
+    run_km:           updatedRunKm,
   }).eq('member_id', member.id).eq('date', target)
 
   if (updateError) {

@@ -26,7 +26,7 @@ interface TodayData {
   sunrisePhotoUrl: string | null
   punchStreak: number
   monthRate: number
-  todayRecord: { submitted: boolean; totalScore?: number; submitTime?: string; tasks?: boolean[]; note?: string; work_hours?: number | null; early_sleep_half?: boolean }
+  todayRecord: { submitted: boolean; totalScore?: number; submitTime?: string; tasks?: boolean[]; note?: string; work_hours?: number | null; early_sleep_half?: boolean; run_minutes?: number | null; run_km?: number | null }
 }
 
 interface NewAchievement { code: string; name: string; badge: string }
@@ -51,6 +51,9 @@ export default function CheckInPage() {
   const sunriseInputRef = useRef<HTMLInputElement | null>(null)
   const [sunriseUploading, setSunriseUploading] = useState(false)
   const [sunrisePhotoUrl, setSunrisePhotoUrl]   = useState<string | null>(null)
+  const [runMinutes, setRunMinutes] = useState('')
+  const [runKm, setRunKm]           = useState('')
+  const [runSaving, setRunSaving]   = useState(false)
 
   function loadData() {
     fetch('/api/checkin/today')
@@ -64,6 +67,8 @@ export default function CheckInPage() {
           setEarlySleepHalf(false)
           setIsEditing(false)
           setSunrisePhotoUrl(json.sunrisePhotoUrl ?? null)
+          setRunMinutes(json.todayRecord?.run_minutes != null ? String(json.todayRecord.run_minutes) : '')
+          setRunKm(json.todayRecord?.run_km != null ? String(json.todayRecord.run_km) : '')
         } else {
           toast.error(json.msg)
         }
@@ -212,6 +217,37 @@ export default function CheckInPage() {
       toast.error(err instanceof Error ? err.message : '上傳失敗，請再試一次')
     } finally {
       setSunriseUploading(false)
+    }
+  }
+
+  // 慢跑記錄送出（打卡完成後）：PATCH 帶回已提交的 tasks + 慢跑值，不改分數（純記錄）
+  async function handleSaveRun() {
+    const rec = (dataRef.current ?? data)?.todayRecord
+    if (!rec?.submitted || runSaving) return
+    // 兩欄各自獨立選填：空字串 → 該欄不帶（後端保留既有 / 視為未填）
+    const m = runMinutes.trim()
+    const k = runKm.trim()
+    setRunSaving(true)
+    try {
+      const res = await fetch('/api/checkin/submit', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tasks: rec.tasks ?? Array(8).fill(false),
+          note:  rec.note ?? '',
+          early_sleep_half: rec.early_sleep_half ?? false,
+          ...(rec.work_hours != null ? { work_hours: rec.work_hours } : {}),
+          ...(m !== '' ? { run_minutes: Math.round(Number(m)) } : {}),
+          ...(k !== '' ? { run_km: Number(Number(k).toFixed(2)) } : {}),
+        }),
+      })
+      const json = await res.json()
+      if (json.ok) toast.success('慢跑記錄已儲存 🏃')
+      else toast.error(json.msg ?? '儲存失敗，請再試一次')
+    } catch {
+      toast.error('儲存失敗，請再試一次')
+    } finally {
+      setRunSaving(false)
     }
   }
 
@@ -371,6 +407,42 @@ export default function CheckInPage() {
                 <ImagePlus className="w-3.5 h-3.5 mr-1" />
                 {sunriseUploading ? '上傳中…' : sunrisePhotoUrl ? '換一張日出照' : '上傳今日日出照（選填）'}
               </Button>
+            </div>
+
+            {/* 丹氣慢跑記錄（選填，純記錄，不影響分數）*/}
+            <div data-screenshot-exclude="true" className="mt-3 border-t border-green-200 pt-3">
+              <div className="mb-2 text-center text-xs font-medium text-green-800">🏃 丹氣慢跑記錄（選填）</div>
+              <div className="flex items-center justify-center gap-2">
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number" inputMode="numeric" min={0} step={1}
+                    value={runMinutes}
+                    onChange={e => setRunMinutes(e.target.value)}
+                    placeholder="分鐘"
+                    className="h-9 w-20 text-center"
+                  />
+                  <span className="text-xs text-muted-foreground">分</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number" inputMode="decimal" min={0} step={0.01}
+                    value={runKm}
+                    onChange={e => setRunKm(e.target.value)}
+                    placeholder="公里"
+                    className="h-9 w-20 text-center"
+                  />
+                  <span className="text-xs text-muted-foreground">公里</span>
+                </div>
+                <Button
+                  onClick={handleSaveRun}
+                  disabled={runSaving}
+                  variant="outline"
+                  size="sm"
+                  className="border-green-300 text-green-700 hover:bg-green-100"
+                >
+                  {runSaving ? '儲存中…' : '儲存'}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

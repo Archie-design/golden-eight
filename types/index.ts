@@ -59,6 +59,8 @@ export interface CheckInRecord {
   note?: string
   submit_time: string
   sunrise_photo_path?: string | null // 日出照 Storage path（nullable）
+  run_minutes?: number | null        // 丹氣慢跑分鐘數（選填，純記錄）
+  run_km?: number | null             // 丹氣慢跑公里數（選填，2 位小數，純記錄）
 }
 
 export interface MonthlySummary {
