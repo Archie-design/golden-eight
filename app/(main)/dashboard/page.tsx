@@ -169,21 +169,11 @@ export default function DashboardPage() {
     const json = await res.json()
     if (!json.ok) { toast.error(json.msg); return }
 
-    window.open(json.url, '_blank')
-
-    const controller = new AbortController()
-    setTimeout(() => controller.abort(), 5 * 60 * 1000)
-
-    window.addEventListener('message', (e: MessageEvent) => {
-      if (e.origin !== window.location.origin) return
-      if (e.data?.type !== 'line_bound') return
-      controller.abort()
-      toast.success('LINE 帳號綁定成功')
-      setData(prev => prev ? {
-        ...prev,
-        line: { bound: true, displayName: e.data.displayName, pictureUrl: e.data.pictureUrl },
-      } : prev)
-    }, { signal: controller.signal })
+    // 當前頁整頁跳轉 LINE 授權（不開新視窗）。
+    // 手機（PWA standalone / LINE 內建瀏覽器）會靜默擋掉 window.open('_blank')，
+    // 造成「點了沒反應」；整頁跳轉最可靠。綁定完 callback 會 redirect 回
+    // /dashboard?line=bound，由上方 useEffect 顯示成功 toast 並重抓綁定狀態。
+    window.location.href = json.url
   }
 
   async function unbindLine() {
