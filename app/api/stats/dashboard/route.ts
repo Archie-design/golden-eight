@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentMember, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
-import { calcMonthStats } from '@/lib/scoring'
+import { calcMonthStats, recommendLevel } from '@/lib/scoring'
 import { getCalendarColor } from '@/lib/constants'
 import { getWorkingDaysInMonth } from '@/lib/working-days'
 import { RECORD_COLS_STATS } from '@/lib/db-columns'
@@ -78,6 +78,23 @@ export async function GET(request: NextRequest) {
   )
   runLog.sumKm = Number(runLog.sumKm.toFixed(2))   // 浮點加總規範
 
+  // 下月階梯推薦：依「上月」（相對當前月的前一個已月結月）完成率
+  // 上月字串以日期運算推導，正確跨年（1 月看去年 12 月）
+  const [cy, cm] = currentYearMonth.split('-').map(Number)
+  const prevMonthDate = new Date(Date.UTC(cy, cm - 2, 1))   // cm-2：JS 月份 0-based 再退一月
+  const prevYm = `${prevMonthDate.getUTCFullYear()}-${String(prevMonthDate.getUTCMonth() + 1).padStart(2, '0')}`
+  const { data: prevSummary } = await db
+    .from('monthly_summary')
+    .select('rate, max_score')
+    .eq('member_id', member.id).eq('year_month', prevYm)
+    .maybeSingle()
+  const prevRate     = (prevSummary as { rate?: number } | null)?.rate ?? null
+  const prevMaxScore = (prevSummary as { max_score?: number } | null)?.max_score ?? 0
+  const rec = recommendLevel(prevRate, prevMaxScore)
+  const levelRecommendation = rec.level
+    ? { level: rec.level, lastMonthRate: prevRate }
+    : null
+
   // 本月視角：用「該成員最新一筆紀錄」（跨月）；歷史視角：用該月最後一筆
   let punchStreak = 0
   if (isCurrentMonth) {
@@ -131,6 +148,7 @@ export async function GET(request: NextRequest) {
     achievements:     achievementsRes.data ?? [],
     showcaseCodes:    member.showcase_codes ?? [],
     showNextLevelBtn: isCurrentMonth && day >= 25,
+    levelRecommendation,   // { level, lastMonthRate } | null（無上月資料/豁免為 null）
     line: {
       bound:       !!member.line_user_id,
       displayName: member.line_display_name ?? null,

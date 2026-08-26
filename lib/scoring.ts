@@ -208,6 +208,29 @@ export function calcPaceStatus(
   return { pace: Math.round(pace), projRate: Math.round(projRate), quadrant }
 }
 
+// ─── 下月階梯推薦 ──────────────────────────────────────────────
+
+/**
+ * 依上月完成率推薦下月階梯：取「能穩穩達標的最高階」。
+ * 哲學為「站穩你做得到的那一階」——不玩精算最少罰金，照建議走下月極可能達標。
+ *
+ * 無上月資料 / 豁免（maxScore<=0，如上月新進不計分的 stub 列）→ 回 level:null，
+ * 呼叫端顯「首月自由選」。切勿把豁免的 rate=0 當「完成率 0% → 青銅」。
+ *
+ * @param rate     上月完成率（0–100）；null 表無資料
+ * @param maxScore 上月 monthly_summary 的 max_score；<=0 表豁免/無有效資料
+ */
+export function recommendLevel(
+  rate: number | null,
+  maxScore: number,
+): { level: string | null } {
+  if (maxScore <= 0 || rate == null) return { level: null }
+  // 由高到低取第一個達標的階（門檻用 LEVEL_THRESHOLDS 換算百分比）
+  if (rate >= LEVEL_THRESHOLDS['黃金戰士'] * 100) return { level: '黃金戰士' }
+  if (rate >= LEVEL_THRESHOLDS['白銀戰士'] * 100) return { level: '白銀戰士' }
+  return { level: '青銅戰士' }   // < 白銀門檻（含 < 青銅門檻）先站穩青銅
+}
+
 /**
  * 破曉王判定（三條件，統一定義；三個 call site 共用：settlement / leaderboard / progress）。
  * 成員必須同時滿足：

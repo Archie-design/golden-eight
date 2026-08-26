@@ -42,7 +42,25 @@ interface DashboardData {
   achievements: { code: string }[]
   showcaseCodes: string[]
   showNextLevelBtn: boolean
+  levelRecommendation: { level: string; lastMonthRate: number | null } | null
   line: { bound: boolean; displayName: string | null; pictureUrl: string | null }
+}
+
+// 依建議階 vs 現階組情境成長文案（循序成長，非評判；降階婉轉不用「退步」）
+function recommendationText(recLevel: string, currentLevel: string, lastRate: number | null): string {
+  const order: Record<string, number> = { 青銅戰士: 0, 白銀戰士: 1, 黃金戰士: 2 }
+  const rateStr = lastRate != null ? `上月完成率 ${Math.round(lastRate)}%，` : ''
+  if (order[recLevel] > order[currentLevel]) {
+    return `${rateStr}表現亮眼，可挑戰${recLevel}！💪`
+  }
+  if (order[recLevel] < order[currentLevel]) {
+    return `${rateStr}建議${recLevel}，先把基礎打穩再往上 🌱`
+  }
+  // 維持；青銅時給「離白銀多遠」的成長方向
+  if (recLevel === '青銅戰士' && lastRate != null && lastRate < 70) {
+    return `${rateStr}穩住青銅，離白銀差 ${Math.max(0, Math.round(70 - lastRate))}%，下月衝白銀 🔥`
+  }
+  return `${rateStr}穩住${recLevel}，繼續保持 ✨`
 }
 
 interface HistoryPoint {
@@ -307,13 +325,35 @@ export default function DashboardPage() {
                 <Calendar className="w-4 h-4 shrink-0" />
                 每月 25 日後可選擇下月階梯：
               </div>
+
+              {/* 推薦提示：有上月資料才顯建議 + 成長文案；無資料顯首月自由選 */}
+              {data.levelRecommendation ? (
+                <p className="mb-2 text-xs text-amber-700">
+                  ⭐ 建議{data.levelRecommendation.level}：
+                  {recommendationText(data.levelRecommendation.level, data.user.level, data.levelRecommendation.lastMonthRate)}
+                </p>
+              ) : (
+                <p className="mb-2 text-xs text-muted-foreground">首月尚無參考資料，依自己信心選擇 🙂</p>
+              )}
+
               {data.user.nextLevel ? (
                 <p className="text-sm font-medium text-green-700">✓ 下月已選：{data.user.nextLevel}</p>
               ) : (
                 <div className="flex gap-2 flex-wrap">
-                  {['黃金戰士', '白銀戰士', '青銅戰士'].map(lv => (
-                    <Button key={lv} size="sm" variant="outline" onClick={() => setNextLevel(lv)}>{lv}</Button>
-                  ))}
+                  {['黃金戰士', '白銀戰士', '青銅戰士'].map(lv => {
+                    const isRec = data.levelRecommendation?.level === lv
+                    return (
+                      <Button
+                        key={lv}
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setNextLevel(lv)}
+                        className={isRec ? 'border-amber-400 text-amber-700 font-semibold' : ''}
+                      >
+                        {isRec && '⭐ '}{lv}
+                      </Button>
+                    )
+                  })}
                 </div>
               )}
             </div>
