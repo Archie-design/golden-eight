@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  Sunrise, Moon, Flame, CheckCircle2, Trophy, Pencil, Share2, ImagePlus,
+  Sunrise, Moon, Flame, CheckCircle2, Trophy, Pencil, ImagePlus,
 } from 'lucide-react'
 import { compressImage } from '@/lib/image-compress'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -251,6 +251,8 @@ export default function CheckInPage() {
     }
   }
 
+  // 截圖分享暫停：觸發按鈕已移除，此 handler 與退化 Dialog 保留備用（加回按鈕即恢復）
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async function handleShareScreenshot() {
     const node = doneCardRef.current
     if (!node || sharing) return
@@ -361,15 +363,7 @@ export default function CheckInPage() {
               data-screenshot-exclude="true"
               className="mt-3 flex items-center justify-center gap-2"
             >
-              <Button
-                onClick={handleShareScreenshot}
-                disabled={sharing}
-                variant="outline"
-                size="sm"
-                className="border-green-300 text-green-700 hover:bg-green-100"
-              >
-                <Share2 className="w-3.5 h-3.5 mr-1" /> {sharing ? '產生中…' : '截圖分享'}
-              </Button>
+              {/* 截圖分享按鈕暫停（handleShareScreenshot/share-image.ts 保留，加回本鈕即恢復）*/}
               <Button
                 onClick={startEdit}
                 variant="outline"

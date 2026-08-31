@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 const NAV_LINKS = [
   { href: '/checkin',     label: '打卡' },
   { href: '/dashboard',   label: '儀表板' },
-  { href: '/schedule',    label: '行程' },
+  // 行程功能暫停對外入口（頁面/API/資料保留，日後加回本行即恢復）
   { href: '/partners',    label: '夥伴' },
   { href: '/leaderboard', label: '排行' },
 ]
