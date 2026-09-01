@@ -59,6 +59,8 @@ export default function CheckInPage() {
   const [leaveReasons, setLeaveReasons] = useState<string[]>([])
   const [leaveReason, setLeaveReason]   = useState('')
   const [leaveSaving, setLeaveSaving]   = useState(false)
+  const [leaveStart, setLeaveStart]     = useState('')   // 起訖日；空時預設今日邏輯日
+  const [leaveEnd, setLeaveEnd]         = useState('')
 
   function loadData() {
     fetch('/api/checkin/today')
@@ -259,19 +261,22 @@ export default function CheckInPage() {
     }
   }
 
-  // 請假：今日請假 / 取消請假
+  // 請假：起訖日區間請假（可一次多天）/ 取消請假
   async function handleRequestLeave() {
     if (!leaveReason || leaveSaving) { if (!leaveReason) toast.error('請先選擇請假事由'); return }
     const day = (dataRef.current ?? data)?.today
     if (!day) return
+    const startDate = leaveStart || day       // 未填起始 → 今日
+    const endDate   = leaveEnd || startDate    // 未填結束 → 當日（單日）
+    if (endDate < startDate) { toast.error('結束日不能早於開始日'); return }
     setLeaveSaving(true)
     try {
       const res = await fetch('/api/checkin/leave', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: day, reason: leaveReason }),
+        body: JSON.stringify({ startDate, endDate, reason: leaveReason }),
       })
       const json = await res.json()
-      if (json.ok) { toast.success(json.msg); loadData() }
+      if (json.ok) { toast.success(json.msg); setLeaveStart(''); setLeaveEnd(''); loadData() }
       else toast.error(json.msg)
     } catch { toast.error('請假失敗，請再試一次') }
     finally { setLeaveSaving(false) }
@@ -499,29 +504,52 @@ export default function CheckInPage() {
         </Card>
       ) : (
         <>
-          {/* 今日請假入口（選填；請假後該日不計分）*/}
+          {/* 請假入口（選填；可一次請多天，請假後該區間不計分）*/}
           {!isEditing && (
             <Card className="mb-3 border-blue-100">
-              <CardContent className="flex flex-wrap items-center gap-2 py-3">
-                <span className="text-sm text-muted-foreground">今日無法打卡？</span>
-                <select
-                  value={leaveReason}
-                  onChange={e => setLeaveReason(e.target.value)}
-                  className="h-9 rounded-md border px-2 text-sm"
-                  disabled={leaveReasons.length === 0}
-                >
-                  <option value="">{leaveReasons.length === 0 ? '暫無可選事由' : '選擇請假事由'}</option>
-                  {leaveReasons.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-                <Button
-                  onClick={handleRequestLeave}
-                  disabled={leaveSaving || leaveReasons.length === 0}
-                  variant="outline"
-                  size="sm"
-                  className="border-blue-300 text-blue-700 hover:bg-blue-50"
-                >
-                  {leaveSaving ? '處理中…' : '今日請假'}
-                </Button>
+              <CardContent className="py-3">
+                <div className="mb-2 text-sm text-muted-foreground">無法打卡？可請假（可一次請多天）</div>
+                <div className="flex flex-wrap items-end gap-2">
+                  <label className="flex flex-col text-xs text-muted-foreground">
+                    開始日
+                    <input
+                      type="date"
+                      value={leaveStart || data.today}
+                      min={data.today}
+                      onChange={e => setLeaveStart(e.target.value)}
+                      className="mt-1 h-9 rounded-md border px-2 text-sm"
+                    />
+                  </label>
+                  <label className="flex flex-col text-xs text-muted-foreground">
+                    結束日
+                    <input
+                      type="date"
+                      value={leaveEnd || leaveStart || data.today}
+                      min={leaveStart || data.today}
+                      onChange={e => setLeaveEnd(e.target.value)}
+                      className="mt-1 h-9 rounded-md border px-2 text-sm"
+                    />
+                  </label>
+                  <select
+                    value={leaveReason}
+                    onChange={e => setLeaveReason(e.target.value)}
+                    className="h-9 rounded-md border px-2 text-sm"
+                    disabled={leaveReasons.length === 0}
+                  >
+                    <option value="">{leaveReasons.length === 0 ? '暫無可選事由' : '選擇事由'}</option>
+                    {leaveReasons.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                  <Button
+                    onClick={handleRequestLeave}
+                    disabled={leaveSaving || leaveReasons.length === 0}
+                    variant="outline"
+                    size="sm"
+                    className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                  >
+                    {leaveSaving ? '處理中…' : '送出請假'}
+                  </Button>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground opacity-80">單日請假：開始與結束選同一天即可。只能請今日或未來。</p>
               </CardContent>
             </Card>
           )}

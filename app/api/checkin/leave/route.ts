@@ -34,27 +34,48 @@ export async function POST(request: NextRequest) {
   if (result instanceof NextResponse) return result
   const { member, db } = result
 
-  let body: { date?: string; reason?: string }
+  let body: { date?: string; startDate?: string; endDate?: string; reason?: string }
   try { body = await request.json() } catch {
     return NextResponse.json({ ok: false, msg: '格式錯誤' }, { status: 400 })
   }
-  const date   = typeof body.date === 'string' ? body.date : ''
+  // 相容單日（date）與區間（startDate/endDate）；單日視為 start=end
+  const start  = typeof body.startDate === 'string' ? body.startDate : (typeof body.date === 'string' ? body.date : '')
+  const end    = typeof body.endDate === 'string' ? body.endDate : start
   const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+  if (!DATE_RE.test(start) || !DATE_RE.test(end)) {
     return NextResponse.json({ ok: false, msg: '日期格式錯誤' }, { status: 400 })
+  }
+  if (end < start) {
+    return NextResponse.json({ ok: false, msg: '結束日不能早於開始日' }, { status: 400 })
+  }
+
+  // ── 展開區間為每日日期（不設天數上限，誠信原則）────────────────────────
+  const days: string[] = []
+  {
+    const [sy, sm, sd] = start.split('-').map(Number)
+    const [ey, em, ed] = end.split('-').map(Number)
+    let t = Date.UTC(sy, sm - 1, sd)
+    const endT = Date.UTC(ey, em - 1, ed)
+    while (t <= endT) {
+      days.push(new Date(t).toISOString().slice(0, 10))
+      t += 86_400_000
+    }
   }
 
   // ── 只能請今日或未來（擋事後追認過去/漏卡日）─────────────────────────
   const todayLogical = getCheckinDayTaipei()
-  if (date < todayLogical) {
+  if (days[0] < todayLogical) {
     return NextResponse.json({ ok: false, msg: '只能請今日或未來的假，不能追認過去' }, { status: 400 })
   }
 
-  // ── 該月未月結 ────────────────────────────────────────────────────────
-  const ym = date.substring(0, 7)
-  if (await isMonthSettled(db, member.id, ym)) {
-    return NextResponse.json({ ok: false, msg: '該月已結算，無法請假' }, { status: 409 })
+  // ── 涉及的月份都不能已月結 ────────────────────────────────────────────
+  const months = [...new Set(days.map(d => d.substring(0, 7)))]
+  for (const ym of months) {
+    if (await isMonthSettled(db, member.id, ym)) {
+      return NextResponse.json({ ok: false, msg: `${ym} 已結算，無法請假` }, { status: 409 })
+    }
   }
 
   // ── reason 必須是 active 事由（存 label 快照）───────────────────────────
@@ -65,9 +86,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, msg: '請選擇有效的請假事由' }, { status: 400 })
   }
 
-  // ── upsert（一日一筆，重複請假視為已請）────────────────────────────────
+  // ── 批次 upsert（一日一筆，同事由；重複日視為已請）────────────────────
   const { error } = await db.from('leave_records').upsert(
-    { member_id: member.id, date, reason },
+    days.map(date => ({ member_id: member.id, date, reason })),
     { onConflict: 'member_id,date' },
   )
   if (error) {
@@ -75,7 +96,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, msg: '請假失敗，請再試一次' }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, msg: `已為 ${date} 請假（${reason}）` })
+  const span = days.length === 1 ? days[0] : `${days[0]} ～ ${days[days.length - 1]}（共 ${days.length} 天）`
+  return NextResponse.json({ ok: true, msg: `已請假：${span}（${reason}）` })
 }
 
 export async function DELETE(request: NextRequest) {
