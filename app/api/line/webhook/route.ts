@@ -16,6 +16,7 @@ import crypto from 'crypto'
 import { createServerClient } from '@/lib/supabase/server'
 import { getCheckinDayTaipei, getTodayTaipei, getYearMonth, getMonthEnd } from '@/lib/api-helper'
 import { calcMonthStats, calcPenalty, isDawnKing } from '@/lib/scoring'
+import { fetchLeaveDates } from '@/lib/leave'
 import { replyMessage } from '@/lib/line-push'
 import { buildWelcomeFlex, POSTBACK_MY_STATS } from '@/lib/line-flex'
 import {
@@ -246,10 +247,12 @@ async function buildPublicReply(
     (recsByMember[r.member_id] ??= []).push(r)
   })
 
+  const leaveByMember = await fetchLeaveDates(db, (members as Member[]).map(m => m.id), ym)
+
   if (kind === 'leaderboard') {
     const rows = (members as Member[])
       .map(m => {
-        const stats = calcMonthStats(m, recsByMember[m.id] ?? [], today)
+        const stats = calcMonthStats(m, recsByMember[m.id] ?? [], today, leaveByMember[m.id])
         return { name: m.name, rate: stats.rate, exempted: stats.maxScore === 0 }
       })
       .filter(r => !r.exempted)          // 豁免者不列入排行
@@ -260,7 +263,7 @@ async function buildPublicReply(
 
   // dawn_king
   const candidates = (members as Member[])
-    .filter(m => isDawnKing(m, recsByMember[m.id] ?? [], ym, today))
+    .filter(m => isDawnKing(m, recsByMember[m.id] ?? [], ym, today, leaveByMember[m.id]))
     .map(m => m.name)
   return formatDawnKing(candidates)
 }
@@ -290,7 +293,8 @@ async function buildPersonalReply(
     .gte('date', ym + '-01').lte('date', getMonthEnd(ym))
     .order('date')
 
-  const stats    = calcMonthStats(member, (recs ?? []) as CheckInRecord[], today)
+  const leaveByMember = await fetchLeaveDates(db, [member.id], ym)
+  const stats    = calcMonthStats(member, (recs ?? []) as CheckInRecord[], today, leaveByMember[member.id])
   const exempted = stats.maxScore === 0
   const penalty  = calcPenalty(member.level, stats.passing)
 

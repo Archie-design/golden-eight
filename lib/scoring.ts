@@ -37,7 +37,8 @@ export function calcPunchStreak(
 export function calcMonthStats(
   member: Member,
   records: CheckInRecord[],
-  today: string
+  today: string,
+  leaveDates?: Set<string>,   // 該成員該月請假日；請假日從分母移除
 ) {
   const yearMonth   = today.substring(0, 7)
   const monthStart  = new Date(yearMonth + '-01T00:00:00+08:00')
@@ -52,14 +53,25 @@ export function calcMonthStats(
   const monthEndDate = new Date(`${yearMonth}-${String(lastDay).padStart(2, '0')}T00:00:00+08:00`)
 
   // 從 effectiveStart 到月底（含）的完整天數 → 月底目標的基準
-  const fullMonthDays = Math.max(
+  const rawFullMonthDays = Math.max(
     0,
     Math.floor((monthEndDate.getTime() - effectiveStart.getTime()) / 86400000) + 1
   )
+  // 扣除落在 [effectiveStart, monthEnd] 內的請假日 → 分母縮減（那些日子視為不存在）
+  const effectiveStartStrForLeave = startDate > monthStart ? startStr : yearMonth + '-01'
+  const monthEndStr = `${yearMonth}-${String(lastDay).padStart(2, '0')}`
+  let leaveInWindow = 0
+  if (leaveDates) {
+    for (const d of leaveDates) {
+      if (d >= effectiveStartStrForLeave && d <= monthEndStr) leaveInWindow++
+    }
+  }
+  const fullMonthDays = Math.max(0, rawFullMonthDays - leaveInWindow)
   const maxScore        = fullMonthDays * 8
   const effectiveStartStr = startDate > monthStart ? startStr : yearMonth + '-01'
   const totalScore      = records
     .filter(r => r.date >= effectiveStartStr)
+    .filter(r => !leaveDates?.has(r.date))   // 請假日得分不計分子（分子分母皆移）
     .reduce((s, r) => s + r.total_score, 0)
   const rate       = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0
   const threshold  = LEVEL_THRESHOLDS[member.level] ?? 0.6
@@ -101,14 +113,27 @@ export function calcTaskStreak(
  * - refDate 為「當下台北日期」或「歷史月份的月底」
  * - 若起算日晚於 refDate（新進尚未開始），回傳 0
  */
-export function expectedCheckinDays(member: Member, yearMonth: string, refDate: string): number {
+export function expectedCheckinDays(
+  member: Member,
+  yearMonth: string,
+  refDate: string,
+  leaveDates?: Set<string>,   // 請假日不算「應打卡卻未打」，從應打天數扣除
+): number {
   const startStr   = member.effective_start_date ?? member.join_date
   const monthStart = `${yearMonth}-01`
   const effectiveStartStr = startStr > monthStart ? startStr : monthStart
   if (effectiveStartStr > refDate) return 0
   const a = new Date(effectiveStartStr + 'T00:00:00+08:00')
   const b = new Date(refDate + 'T00:00:00+08:00')
-  return Math.floor((b.getTime() - a.getTime()) / 86_400_000) + 1
+  const raw = Math.floor((b.getTime() - a.getTime()) / 86_400_000) + 1
+  // 扣除 [effectiveStart, refDate] 內的請假日
+  let leaveInWindow = 0
+  if (leaveDates) {
+    for (const d of leaveDates) {
+      if (d >= effectiveStartStr && d <= refDate) leaveInWindow++
+    }
+  }
+  return Math.max(0, raw - leaveInWindow)
 }
 
 // ─── Pace 二維落隊偵測（管理員後台全員進度狀態欄）─────────────────
@@ -171,9 +196,10 @@ export function calcPaceStatus(
   refDate: string,
   yearMonth: string,
   refDateComplete = false,
+  leaveDates?: Set<string>,   // 請假日：expectedDays 與 stats.maxScore 皆已據此扣減
 ): PaceStatus {
   // 豁免（本月不計分）：maxScore=0 或應打天數=0
-  const expectedDays = expectedCheckinDays(member, yearMonth, refDate)
+  const expectedDays = expectedCheckinDays(member, yearMonth, refDate, leaveDates)
   if (stats.maxScore <= 0 || expectedDays <= 0) {
     return { pace: 0, projRate: 0, quadrant: 'exempt' }
   }
@@ -246,11 +272,13 @@ export function isDawnKing(
   records: CheckInRecord[],
   yearMonth: string,
   refDate: string,
+  leaveDates?: Set<string>,   // 請假日不算應打卡；不列入 records 比對
 ): boolean {
-  const expectedDays = expectedCheckinDays(member, yearMonth, refDate)
+  const expectedDays = expectedCheckinDays(member, yearMonth, refDate, leaveDates)
   if (expectedDays <= 0) return false
-  if (records.length !== expectedDays) return false
-  return records.every(r => r.tasks[1] === true)
+  const effective = leaveDates ? records.filter(r => !leaveDates.has(r.date)) : records
+  if (effective.length !== expectedDays) return false
+  return effective.every(r => r.tasks[1] === true)
 }
 
 // ─── 月最長連續打拳天數 ────────────────────────────────────────

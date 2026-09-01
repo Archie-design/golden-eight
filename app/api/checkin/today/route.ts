@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getCurrentMember, getCheckinDayTaipei, getTodayTaipei, getPrevDayStr, getMonthEnd } from '@/lib/api-helper'
 import { getSunriseTime, addMinutes, SLEEP_BUFFER_MIN, SLEEP_HOURS } from '@/lib/sunrise'
 import { calcMonthStats } from '@/lib/scoring'
+import { fetchLeaveDates } from '@/lib/leave'
 import { RECORD_COLS_STATS } from '@/lib/db-columns'
 
 export async function GET() {
@@ -24,7 +25,8 @@ export async function GET() {
     getSunriseTime(calendarDay),
   ])
 
-  const monthStats = calcMonthStats(member, monthRecs.data ?? [], today)
+  const leaveByMember = await fetchLeaveDates(db, [member.id], yearMonth)
+  const monthStats = calcMonthStats(member, monthRecs.data ?? [], today, leaveByMember[member.id])
 
   const punchStreak = todayRec.data
     ? (todayRec.data as { punch_streak?: number }).punch_streak ?? 0
@@ -40,6 +42,12 @@ export async function GET() {
     ? db.storage.from('sunrise-photos').getPublicUrl(photoPath).data.publicUrl
     : null
 
+  // 今日是否已請假（供打卡頁顯示請假狀態、不催打卡）
+  const { data: leaveRow } = await db
+    .from('leave_records').select('reason')
+    .eq('member_id', member.id).eq('date', today).maybeSingle()
+  const todayLeave = leaveRow ? { reason: (leaveRow as { reason: string }).reason } : null
+
   return NextResponse.json({
     ok: true,
     today,
@@ -49,6 +57,7 @@ export async function GET() {
     suggestedSleep,
     sunrisePhotoUrl,
     punchStreak,
+    todayLeave,
     monthRate:  monthStats.rate,
     todayRecord: todayRec.data
       ? {

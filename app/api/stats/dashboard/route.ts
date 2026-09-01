@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentMember, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
 import { calcMonthStats, recommendLevel } from '@/lib/scoring'
+import { fetchLeaveDates } from '@/lib/leave'
 import { getCalendarColor } from '@/lib/constants'
 import { getWorkingDaysInMonth } from '@/lib/working-days'
 import { RECORD_COLS_STATS } from '@/lib/db-columns'
@@ -40,7 +41,10 @@ export async function GET(request: NextRequest) {
   ])
 
   const monthRecs = (monthRecsRes.data ?? []) as unknown as CheckInRecord[]
-  const stats     = calcMonthStats(member, monthRecs, refDate)
+  // 請假日從分母移除
+  const leaveByMember = await fetchLeaveDates(db, [member.id], yearMonth)
+  const leaveDates    = leaveByMember[member.id]
+  const stats     = calcMonthStats(member, monthRecs, refDate, leaveDates)
   // 跨月感知：取當月紀錄裡 punch_streak 欄位的最大值（欄位本身已累積跨月計數）
   const maxStreak = monthRecs
     .filter(r => r.tasks[1])

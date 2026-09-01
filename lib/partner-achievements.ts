@@ -10,6 +10,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ACHIEVEMENT_LIST } from './constants'
 import { calcMonthStats, calcPartnerSyncStreak } from './scoring'
+import { fetchLeaveDates } from './leave'
 import { RECORD_COLS_STATS, MEMBER_COLS_STATS } from './db-columns'
 import type { CheckInRecord, Member } from '@/types'
 
@@ -108,7 +109,9 @@ export async function awardOnCheckin(
   if (partnerIds.length === 0) return []
 
   const unlocked  = await getUnlockedCodes(db, me.id)
-  const myStats   = calcMonthStats(me, myMonthRecords, today)
+  // 請假日從分母移除：撈我與夥伴當月請假日
+  const leaveByMember = await fetchLeaveDates(db, [me.id, ...partnerIds], today.substring(0, 7))
+  const myStats   = calcMonthStats(me, myMonthRecords, today, leaveByMember[me.id])
   const myStreak  = myTodayRec.punch_streak ?? 0
   const myMonth   = today.substring(0, 7) + '-01'
 
@@ -146,7 +149,7 @@ export async function awardOnCheckin(
   for (const p of partners) {
     const pRecs = recsByMid[p.id] ?? []
     const pMonthRecs = pRecs.filter(r => r.date >= myMonth)
-    const pStats = calcMonthStats(p, pMonthRecs, today)
+    const pStats = calcMonthStats(p, pMonthRecs, today, leaveByMember[p.id])
     if (myStats.rate > pStats.rate)            beatRate = true
     const pStreak = pRecs[pRecs.length - 1]?.punch_streak ?? 0
     if (myStreak > pStreak && myStreak > 0)    beatStreak = true

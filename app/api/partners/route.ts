@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCurrentMember, getCheckinDayTaipei } from '@/lib/api-helper'
 import { calcMonthStats } from '@/lib/scoring'
+import { fetchLeaveDates } from '@/lib/leave'
 import { RECORD_COLS_STATS } from '@/lib/db-columns'
 import { MEMBER_COLS_STATS } from '@/lib/db-columns'
 import type { CheckInRecord, Member, PartnerCard } from '@/types'
@@ -61,13 +62,14 @@ export async function GET() {
     encours.filter(e => e.to_id === member.id).map(e => [e.from_id, e.message] as const),
   )
 
-  // 4. 組成 PartnerCard 陣列
+  // 4. 組成 PartnerCard 陣列（請假日從分母移除）
+  const leaveByMember = await fetchLeaveDates(db, partnerIds, today.substring(0, 7))
   const partners: PartnerCard[] = partnerIds.map(pid => {
     const m   = memberById.get(pid)
     const recs = recordsByMid[pid] ?? []
     const todayRec = recs.find(r => r.date === today) ?? null
     const lastRec  = recs[recs.length - 1] ?? null
-    const stats    = m ? calcMonthStats(m, recs, today) : { rate: 0 }
+    const stats    = m ? calcMonthStats(m, recs, today, leaveByMember[pid]) : { rate: 0 }
 
     return {
       id:                pid,

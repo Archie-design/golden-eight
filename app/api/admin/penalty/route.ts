@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
 import { calcMonthStats } from '@/lib/scoring'
+import { fetchLeaveDates } from '@/lib/leave'
 import { MEMBER_COLS_STATS, RECORD_COLS_STATS } from '@/lib/db-columns'
 import type { Member, CheckInRecord } from '@/types'
 
@@ -49,8 +50,9 @@ export async function GET(req: NextRequest) {
     ;((recRes.data ?? []) as CheckInRecord[]).forEach(r => {
       (recsByMember[r.member_id] ??= []).push(r)
     })
+    const leaveByMember = await fetchLeaveDates(db, memberIds, yearMonth)
     for (const m of memList) {
-      const stats = calcMonthStats(m, recsByMember[m.id] ?? [], refDate)
+      const stats = calcMonthStats(m, recsByMember[m.id] ?? [], refDate, leaveByMember[m.id])
       liveByMember[m.id] = { rate: stats.rate, total: stats.totalScore }
     }
   }

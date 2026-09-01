@@ -67,6 +67,28 @@ export default function AdminPage() {
   const [mPhone, setMPhone] = useState('')
   const [mLevel, setMLevel] = useState('黃金戰士')
 
+  // 請假事由管理
+  const [reasons, setReasons] = useState<{ id: number; label: string; active: boolean }[]>([])
+  const [newReason, setNewReason] = useState('')
+  const loadReasons = useCallback(() =>
+    fetch('/api/admin/leave-reasons').then(r => r.json()).then(j => { if (j.ok) setReasons(j.data) }), [])
+  async function addReason() {
+    const label = newReason.trim()
+    if (!label) return
+    const res = await fetch('/api/admin/leave-reasons', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label }) })
+    const j = await res.json()
+    toast[j.ok ? 'success' : 'error'](j.msg)
+    if (j.ok) { setNewReason(''); loadReasons() }
+  }
+  async function toggleReason(id: number, active: boolean) {
+    const res = await fetch('/api/admin/leave-reasons', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, active }) })
+    const j = await res.json(); if (j.ok) loadReasons(); else toast.error(j.msg)
+  }
+  async function removeReason(id: number) {
+    const res = await fetch(`/api/admin/leave-reasons?id=${id}`, { method: 'DELETE' })
+    const j = await res.json(); toast[j.ok ? 'success' : 'error'](j.msg); if (j.ok) loadReasons()
+  }
+
   const loadMembers  = useCallback(() =>
     fetch('/api/admin/members').then(r => r.json()).then(j => { if (j.ok) setMembers(j.members) }), [])
   const loadProgress = useCallback((ym: string) =>
@@ -98,6 +120,7 @@ export default function AdminPage() {
   }, [])
 
   useEffect(() => { loadMembers() }, [loadMembers])
+  useEffect(() => { loadReasons() }, [loadReasons])
   useEffect(() => { loadProgress(progressYM) }, [loadProgress, progressYM])
 
   function shiftProgressMonth(delta: number) {
@@ -184,6 +207,7 @@ export default function AdminPage() {
           <TabsTrigger value="penalty"      className="flex-1">罰款總結</TabsTrigger>
           <TabsTrigger value="achievements" className="flex-1">成就統計</TabsTrigger>
           <TabsTrigger value="members"      className="flex-1">會員管理</TabsTrigger>
+          <TabsTrigger value="leave"        className="flex-1">請假事由</TabsTrigger>
         </TabsList>
 
         {/* 全員進度 */}
@@ -640,6 +664,46 @@ export default function AdminPage() {
                   </tbody>
                 </table>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* 請假事由 */}
+        <TabsContent value="leave">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">請假事由清單</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  value={newReason}
+                  onChange={e => setNewReason(e.target.value)}
+                  placeholder="新增事由（如：生病、出差）"
+                  maxLength={20}
+                  className="max-w-xs"
+                />
+                <Button size="sm" onClick={addReason}>新增</Button>
+              </div>
+              {reasons.length === 0 ? (
+                <p className="text-sm text-muted-foreground">尚無事由，請新增至少一個，學員才能請假。</p>
+              ) : (
+                <ul className="divide-y">
+                  {reasons.map(r => (
+                    <li key={r.id} className="flex items-center justify-between py-2">
+                      <span className={r.active ? '' : 'text-muted-foreground line-through'}>{r.label}</span>
+                      <span className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => toggleReason(r.id, !r.active)}>
+                          {r.active ? '停用' : '啟用'}
+                        </Button>
+                        <Button size="sm" variant="outline" className="text-red-500 hover:text-red-600" onClick={() => removeReason(r.id)}>
+                          移除
+                        </Button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

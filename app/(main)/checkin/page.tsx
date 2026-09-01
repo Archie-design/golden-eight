@@ -26,6 +26,7 @@ interface TodayData {
   sunrisePhotoUrl: string | null
   punchStreak: number
   monthRate: number
+  todayLeave: { reason: string } | null
   todayRecord: { submitted: boolean; totalScore?: number; submitTime?: string; tasks?: boolean[]; note?: string; work_hours?: number | null; early_sleep_half?: boolean; run_minutes?: number | null; run_km?: number | null }
 }
 
@@ -54,6 +55,10 @@ export default function CheckInPage() {
   const [runMinutes, setRunMinutes] = useState('')
   const [runKm, setRunKm]           = useState('')
   const [runSaving, setRunSaving]   = useState(false)
+  // 請假
+  const [leaveReasons, setLeaveReasons] = useState<string[]>([])
+  const [leaveReason, setLeaveReason]   = useState('')
+  const [leaveSaving, setLeaveSaving]   = useState(false)
 
   function loadData() {
     fetch('/api/checkin/today')
@@ -93,6 +98,9 @@ export default function CheckInPage() {
   }
 
   useEffect(() => { loadData() }, [])
+  useEffect(() => {
+    fetch('/api/checkin/leave-reasons').then(r => r.json()).then(j => { if (j.ok) setLeaveReasons(j.data) }).catch(() => {})
+  }, [])
 
   // 台北中午 12:00 換日：自動重新載入
   useEffect(() => {
@@ -249,6 +257,36 @@ export default function CheckInPage() {
     } finally {
       setRunSaving(false)
     }
+  }
+
+  // 請假：今日請假 / 取消請假
+  async function handleRequestLeave() {
+    if (!leaveReason || leaveSaving) { if (!leaveReason) toast.error('請先選擇請假事由'); return }
+    const day = (dataRef.current ?? data)?.today
+    if (!day) return
+    setLeaveSaving(true)
+    try {
+      const res = await fetch('/api/checkin/leave', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: day, reason: leaveReason }),
+      })
+      const json = await res.json()
+      if (json.ok) { toast.success(json.msg); loadData() }
+      else toast.error(json.msg)
+    } catch { toast.error('請假失敗，請再試一次') }
+    finally { setLeaveSaving(false) }
+  }
+  async function handleCancelLeave() {
+    const day = (dataRef.current ?? data)?.today
+    if (!day || leaveSaving) return
+    setLeaveSaving(true)
+    try {
+      const res  = await fetch(`/api/checkin/leave?date=${day}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (json.ok) { toast.success(json.msg); loadData() }
+      else toast.error(json.msg)
+    } catch { toast.error('取消失敗，請再試一次') }
+    finally { setLeaveSaving(false) }
   }
 
   // 截圖分享暫停：觸發按鈕已移除，此 handler 與退化 Dialog 保留備用（加回按鈕即恢復）
@@ -440,8 +478,54 @@ export default function CheckInPage() {
             </div>
           </CardContent>
         </Card>
+      ) : data.todayLeave ? (
+        // 今日已請假：顯示狀態，不催打卡
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="py-6 text-center">
+            <div className="text-3xl">🌙</div>
+            <div className="mt-2 font-semibold text-blue-800">今日已請假</div>
+            <div className="text-sm text-blue-700">事由：{data.todayLeave.reason}</div>
+            <div className="mt-1 text-xs text-muted-foreground">此日不參與計分（分母已移除）</div>
+            <Button
+              onClick={handleCancelLeave}
+              disabled={leaveSaving}
+              variant="outline"
+              size="sm"
+              className="mt-3 border-blue-300 text-blue-700 hover:bg-blue-100"
+            >
+              {leaveSaving ? '處理中…' : '取消請假'}
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <>
+          {/* 今日請假入口（選填；請假後該日不計分）*/}
+          {!isEditing && (
+            <Card className="mb-3 border-blue-100">
+              <CardContent className="flex flex-wrap items-center gap-2 py-3">
+                <span className="text-sm text-muted-foreground">今日無法打卡？</span>
+                <select
+                  value={leaveReason}
+                  onChange={e => setLeaveReason(e.target.value)}
+                  className="h-9 rounded-md border px-2 text-sm"
+                  disabled={leaveReasons.length === 0}
+                >
+                  <option value="">{leaveReasons.length === 0 ? '暫無可選事由' : '選擇請假事由'}</option>
+                  {leaveReasons.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+                <Button
+                  onClick={handleRequestLeave}
+                  disabled={leaveSaving || leaveReasons.length === 0}
+                  variant="outline"
+                  size="sm"
+                  className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                >
+                  {leaveSaving ? '處理中…' : '今日請假'}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {/* 八項任務 */}
           <Card>
             <CardHeader className="pb-2">

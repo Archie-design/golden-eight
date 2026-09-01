@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getTokenPayload, getTodayTaipei, getYearMonth, getMonthEnd } from '@/lib/api-helper'
 import { createServerClient } from '@/lib/supabase/server'
 import { calcMonthStats, calcMaxPunchStreakFromSorted, isDawnKing } from '@/lib/scoring'
+import { fetchLeaveDates } from '@/lib/leave'
 import { MEMBER_COLS_STATS, RECORD_COLS_STATS } from '@/lib/db-columns'
 import type { Member, CheckInRecord } from '@/types'
 
@@ -78,9 +79,11 @@ export async function GET(req: Request) {
       summaryByMember[s.member_id] = s
     })
 
+    const leaveByMember = await fetchLeaveDates(db, members.map((m: Member) => m.id), ym)
     rows = members.map((m: Member) => {
       const recs      = recsByMember[m.id] ?? []
-      const stats     = calcMonthStats(m, recs, refDate)
+      const lv        = leaveByMember[m.id]
+      const stats     = calcMonthStats(m, recs, refDate, lv)
       const maxS      = calcMaxPunchStreakFromSorted(recs)
       const summary   = summaryByMember[m.id]
       return {
@@ -92,7 +95,7 @@ export async function GET(req: Request) {
         rate:             stats.rate,
         passing:          stats.passing,
         maxStreak:        maxS,
-        isDawnKing:       isDawnKing(m, recs, ym, refDate),
+        isDawnKing:       isDawnKing(m, recs, ym, refDate, lv),
         achievementCount: achCount[m.id] ?? 0,
         yearMonth:        ym,
         exempted:         stats.maxScore === 0,

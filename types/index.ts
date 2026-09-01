@@ -148,6 +148,22 @@ export interface ScheduleEntry {
   updated_at: string
 }
 
+// 請假
+export interface LeaveRecord {
+  id: number
+  member_id: string
+  date: string              // 邏輯日 'YYYY-MM-DD'
+  reason: string            // 事由 label 快照
+  created_at: string
+}
+
+export interface LeaveReason {
+  id: number
+  label: string
+  active: boolean
+  sort_order: number
+}
+
 // API response shapes
 export interface ApiOk<T = void> {
   ok: true

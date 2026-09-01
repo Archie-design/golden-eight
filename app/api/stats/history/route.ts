@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCurrentMember, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
 import { calcMonthStats } from '@/lib/scoring'
+import { fetchLeaveDates } from '@/lib/leave'
 import { MEMBER_COLS_STATS, RECORD_COLS_STATS } from '@/lib/db-columns'
 import type { Member, CheckInRecord } from '@/types'
 
@@ -82,12 +83,19 @@ export async function GET() {
       ;(recsByMemberMonth[r.member_id][ym] ??= []).push(r)
     })
 
+    // 請假日：本 fallback 路徑涉及的月份各撈一次（快取），分母據此扣減
+    const leaveCache: Record<string, Record<string, Set<string>>> = {}
+    const involvedMonths = new Set<string>([...userMissingMonths, ...groupNeedFallback])
+    for (const ym of involvedMonths) {
+      leaveCache[ym] = await fetchLeaveDates(db, idsToFetch, ym)
+    }
+
     // 自己的缺月
     for (const ym of userMissingMonths) {
       const recs = recsByMemberMonth[member.id]?.[ym] ?? []
       if (!recs.length) continue
       const refDate = ym === currentYm ? today : getMonthEnd(ym)
-      const stats   = calcMonthStats(member, recs, refDate)
+      const stats   = calcMonthStats(member, recs, refDate, leaveCache[ym]?.[member.id])
       userByMonth[ym] = { rate: stats.rate, totalScore: stats.totalScore, passing: stats.passing }
     }
 
@@ -98,7 +106,7 @@ export async function GET() {
         if (summaryDone[ym]?.has(m.id)) continue  // 已有 summary，避免重複加總
         const recs = recsByMemberMonth[m.id]?.[ym] ?? []
         if (!recs.length) continue
-        const stats = calcMonthStats(m, recs, refDate)
+        const stats = calcMonthStats(m, recs, refDate, leaveCache[ym]?.[m.id])
         if (!groupSums[ym]) groupSums[ym] = { sum: 0, count: 0 }
         groupSums[ym].sum   += stats.rate
         groupSums[ym].count += 1

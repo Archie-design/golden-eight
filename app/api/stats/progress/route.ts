@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
 import { calcMonthStats, calcMaxPunchStreakFromSorted, isDawnKing, calcPaceStatus } from '@/lib/scoring'
+import { fetchLeaveDates } from '@/lib/leave'
 import { MEMBER_COLS_STATS, RECORD_COLS_STATS } from '@/lib/db-columns'
 import type { Member, CheckInRecord } from '@/types'
 
@@ -53,15 +54,19 @@ export async function GET(req: Request) {
     summaryByMember[s.member_id] = s
   })
 
+  // 請假日：全員一次撈，分母（calcMonthStats/isDawnKing/calcPaceStatus）皆據此扣減
+  const leaveByMember = await fetchLeaveDates(db, memberList.map(m => m.id), yearMonth)
+
   const rows = memberList.map(m => {
     const recs       = recsByMember[m.id] ?? []
-    const stats      = calcMonthStats(m, recs, refDate)
+    const lv         = leaveByMember[m.id]
+    const stats      = calcMonthStats(m, recs, refDate, lv)
     const maxStreak  = calcMaxPunchStreakFromSorted(recs)
-    const dawnKing   = isDawnKing(m, recs, yearMonth, refDate)
+    const dawnKing   = isDawnKing(m, recs, yearMonth, refDate, lv)
     const summary    = summaryByMember[m.id]
     // 二維落隊偵測：僅本月現時視圖計算（歷史月看月結結果，pace/預估無意義）
     // refDateComplete=false：即時視圖的「今天」仍在進行中，速度窗口取到昨天為止
-    const paceStatus = isCurrentMonth ? calcPaceStatus(m, stats, recs, refDate, yearMonth, false) : null
+    const paceStatus = isCurrentMonth ? calcPaceStatus(m, stats, recs, refDate, yearMonth, false, lv) : null
     return {
       id:         m.id,
       name:       m.name,

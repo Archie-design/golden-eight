@@ -57,6 +57,7 @@ export function buildDailySnapshot(
   recordsByMember: Record<string, CheckInRecord[]>,
   prevByMember: Record<string, DailyStatus>,
   date: string,
+  leaveByMember?: Record<string, Set<string>>,   // 請假日從分母移除
 ): DailyStatus[] {
   const out: DailyStatus[] = []
 
@@ -71,7 +72,7 @@ export function buildDailySnapshot(
     const miss_streak = hasToday ? 0 : (prev?.miss_streak ?? 0) + 1
 
     // 當下事實：以該邏輯日為基準日計算累計月達成率與是否達標
-    const stats     = calcMonthStats(m, records, date)
+    const stats     = calcMonthStats(m, records, date, leaveByMember?.[m.id])
     const threshold = LEVEL_THRESHOLDS[m.level] ?? 0.6
     const passing   = stats.maxScore > 0 && stats.rate >= threshold * 100
 
@@ -164,6 +165,7 @@ export function formatDigestMessage(
   date: string,
   membersById: Record<string, Member>,
   recordsByMember: Record<string, CheckInRecord[]>,
+  leaveByMember?: Record<string, Set<string>>,   // 請假日從分母移除（門檻風險 pace 一致）
 ): string {
   const nm = (id: string) => nameById[id] ?? id
   const total = snapshot.length
@@ -182,9 +184,10 @@ export function formatDigestMessage(
     if (longIds.has(s.member_id)) continue
     const m = membersById[s.member_id]
     if (!m) continue
-    const stats = calcMonthStats(m, recordsByMember[m.id] ?? [], date)
+    const lv    = leaveByMember?.[m.id]
+    const stats = calcMonthStats(m, recordsByMember[m.id] ?? [], date, lv)
     // refDateComplete=true：日報的基準日為「已截止日」，該日已完整結束
-    const ps    = calcPaceStatus(m, stats, recordsByMember[m.id] ?? [], date, date.substring(0, 7), true)
+    const ps    = calcPaceStatus(m, stats, recordsByMember[m.id] ?? [], date, date.substring(0, 7), true, lv)
     const mark  = QUADRANT_DIGEST[ps.quadrant]
     if (!mark) continue   // 只保留 rescue / lukewarm
     atRisk.push({ id: s.member_id, mark, projRate: ps.projRate, order: ps.quadrant === 'rescue' ? 0 : 1 })

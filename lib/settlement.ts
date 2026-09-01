@@ -4,6 +4,7 @@ import {
   calcMonthlyAchievements, calcWorkHoursDeduction, isDawnKing,
 } from './scoring'
 import { countWorkingDays, fetchWeekdayHolidaySet } from './working-days'
+import { fetchLeaveDates } from './leave'
 import { LEVEL_THRESHOLDS, WORK_HOURS_TRACKING_START } from './constants'
 import { MEMBER_COLS_SETTLEMENT, RECORD_COLS_SETTLEMENT } from './db-columns'
 import type { Member, CheckInRecord } from '@/types'
@@ -105,9 +106,13 @@ export async function runSettlement(
   const monthEnd = getMonthEnd(yearMonth)
   const refDate  = today > monthEnd ? monthEnd : today
 
+  // 請假日：leave_records 持久化 → 月結扣分母且重跑一致（可重現）
+  const leaveByMember = await fetchLeaveDates(dbAny, memberIds, yearMonth)
+
   for (const m of memberList) {
     const records = recsByMember[m.id] ?? []
-    const stats   = calcMonthStats(m, records, refDate)
+    const lv      = leaveByMember[m.id]
+    const stats   = calcMonthStats(m, records, refDate, lv)
 
     // 當月生效階梯：優先用已存的當月快照（重跑歷史月時忠於當月階梯），
     // 首次結算無快照則用現在的 members.level。門檻 / 罰金 / 月成就 / 快照都以此為準。
@@ -139,7 +144,7 @@ export async function runSettlement(
     }
 
     const maxStreak       = calcMaxPunchStreakFromSorted(records)
-    const memberIsDawnKing = isDawnKing(m, records, yearMonth, refDate)
+    const memberIsDawnKing = isDawnKing(m, records, yearMonth, refDate, lv)
 
     // 工時補扣窗口起點：在群組窗口（4 月限 4/29；5 月起月初）之上，再以個人起算日縮減，
     // 讓月中新進成員的工時分母只計其實際在職的工作日（對齊 calcMonthStats 的分數分母）。

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { getCheckinDayTaipei, getPrevDayStr, getMonthEnd } from '@/lib/api-helper'
 import { buildDailySnapshot, diffStatusEvents, formatDigestMessage, type DailyStatus } from '@/lib/daily-status'
+import { fetchLeaveDates } from '@/lib/leave'
 import { pushTextToUsers } from '@/lib/line-push'
 import { RECORD_COLS_STATS } from '@/lib/db-columns'
 import type { Member, CheckInRecord } from '@/types'
@@ -74,7 +75,9 @@ export async function GET(req: NextRequest) {
   }
 
   // 1. 建立當日快照（起算日未到者不產生列）
-  const snapshot = buildDailySnapshot(members, recsByMember, prevByMember, targetDate)
+  // 請假日：目標月一次撈，分母（snapshot + 門檻風險 pace）皆據此扣減
+  const leaveByMember = await fetchLeaveDates(db, memberIds, targetDate.substring(0, 7))
+  const snapshot = buildDailySnapshot(members, recsByMember, prevByMember, targetDate, leaveByMember)
 
   // 2. 先寫快照、後推播 —— 推播失敗不應使已確立的事實遺失
   const { error: upsertErr } = await db.from('daily_status_snapshot').upsert(
@@ -94,7 +97,7 @@ export async function GET(req: NextRequest) {
 
   // 4. 變化事件（首日無前一日快照 → 空陣列，避免全員誤報）
   const events  = diffStatusEvents(prevByMember, snapshot, nameById)
-  const message = formatDigestMessage(snapshot, events, nameById, levelById, targetDate, membersById, recsByMember)
+  const message = formatDigestMessage(snapshot, events, nameById, levelById, targetDate, membersById, recsByMember, leaveByMember)
 
   // 5. 推播給已綁定 LINE 的管理員
   const recipients = members
