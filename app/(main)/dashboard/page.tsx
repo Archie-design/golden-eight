@@ -34,6 +34,8 @@ interface DashboardData {
   punchStreak: number
   maxPunchMonth: number
   calendar: { date: string; day: number; score: number | null; color: string; note?: string; sunrisePhotoUrl?: string | null }[]
+  lastMonthDailyRates: { day: number; rate: number | null }[]
+  historicalAvgDailyRates: { day: number; rate: number | null }[]
   taskCounts: number[]
   monthWorkHours: number
   requiredWorkHours: number
@@ -314,6 +316,8 @@ export default function DashboardPage() {
               <DailyRateChart
                 calendar={data.calendar}
                 threshold={LEVEL_THRESHOLDS[data.user.level] ?? 0.60}
+                lastMonthRates={data.isCurrentMonth ? data.lastMonthDailyRates : undefined}
+                historicalAvgRates={data.isCurrentMonth ? data.historicalAvgDailyRates : undefined}
               />
             </>
           )}

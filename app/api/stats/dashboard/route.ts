@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentMember, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
-import { calcMonthStats, recommendLevel } from '@/lib/scoring'
+import { calcMonthStats, recommendLevel, calcDailyRateByDay, calcHistoricalAvgDailyRate } from '@/lib/scoring'
 import { fetchLeaveDates } from '@/lib/leave'
 import { getCalendarColor } from '@/lib/constants'
 import { getWorkingDaysInMonth } from '@/lib/working-days'
 import { RECORD_COLS_STATS } from '@/lib/db-columns'
 import type { CheckInRecord } from '@/types'
+
+// 歷史累積平均折線的回溯上限（月），避免資深會員每次都全量掃歷史紀錄
+const HISTORICAL_AVG_LOOKBACK_MONTHS = 12
 
 export async function GET(request: NextRequest) {
   const result = await getCurrentMember()
@@ -99,6 +102,36 @@ export async function GET(request: NextRequest) {
     ? { level: rec.level, lastMonthRate: prevRate }
     : null
 
+  // 進度折線圖比較線（僅本月現時視圖）：上月每日達成率 + 歷史累積每日平均達成率
+  let lastMonthDailyRates: { day: number; rate: number | null }[] = []
+  let historicalAvgDailyRates: { day: number; rate: number | null }[] = []
+  if (isCurrentMonth) {
+    const prevDaysInMonth = new Date(prevMonthDate.getUTCFullYear(), prevMonthDate.getUTCMonth() + 1, 0).getDate()
+
+    // 歷史回溯起點：成員起算日與「近 N 個月」上限取較晚者，避免資深會員每次全量掃描
+    const startStr = member.effective_start_date ?? member.join_date
+    const lookbackDate = new Date(Date.UTC(cy, cm - 1 - HISTORICAL_AVG_LOOKBACK_MONTHS, 1))
+    const lookbackStr  = `${lookbackDate.getUTCFullYear()}-${String(lookbackDate.getUTCMonth() + 1).padStart(2, '0')}-01`
+    const historyStart = startStr > lookbackStr ? startStr : lookbackStr
+    const historyEnd    = getMonthEnd(prevYm)   // 上月月底（不含本月，避免本月未結束的資料混入平均）
+
+    const [lastMonthRes, historyRes] = await Promise.all([
+      db.from('checkin_records').select('date, total_score')
+        .eq('member_id', member.id)
+        .gte('date', prevYm + '-01')
+        .lte('date', getMonthEnd(prevYm)),
+      historyStart <= historyEnd
+        ? db.from('checkin_records').select('date, total_score')
+            .eq('member_id', member.id)
+            .gte('date', historyStart)
+            .lte('date', historyEnd)
+        : Promise.resolve({ data: [] }),
+    ])
+
+    lastMonthDailyRates     = calcDailyRateByDay((lastMonthRes.data ?? []) as { date: string; total_score: number }[], prevDaysInMonth)
+    historicalAvgDailyRates = calcHistoricalAvgDailyRate((historyRes.data ?? []) as { date: string; total_score: number }[])
+  }
+
   // 本月視角：用「該成員最新一筆紀錄」（跨月）；歷史視角：用該月最後一筆
   let punchStreak = 0
   if (isCurrentMonth) {
@@ -144,6 +177,8 @@ export async function GET(request: NextRequest) {
     punchStreak,
     maxPunchMonth: maxStreak,
     calendar,
+    lastMonthDailyRates,       // 上月每日達成率（僅本月現時視圖；歷史月份為 []）
+    historicalAvgDailyRates,   // 歷史累積每日平均達成率（僅本月現時視圖；歷史月份為 []）
     taskCounts,
     monthWorkHours,
     requiredWorkHours,

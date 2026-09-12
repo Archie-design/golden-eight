@@ -8,19 +8,52 @@ const INNER_W = W - PAD.left - PAD.right
 const INNER_H = H - PAD.top  - PAD.bottom
 const Y_TICKS = [0, 25, 50, 75, 100]
 
+type RatePoint = { day: number; rate: number | null }
+
+/** 依 startDay/endDay 篩選一組 { day, rate } 序列，並轉成 SVG 折線段落（null 斷線，不外插） */
+function buildSegments(
+  points: RatePoint[],
+  startDay: number,
+  endDay: number,
+  xPos: (day: number) => number,
+  yPos: (pct: number) => number,
+): string[][] {
+  const filtered = points.filter(p => p.day >= startDay && p.day <= endDay)
+  const segments: string[][] = []
+  let cur: string[] = []
+  for (const p of filtered) {
+    if (p.rate !== null) {
+      cur.push(`${xPos(p.day)},${yPos(p.rate)}`)
+    } else {
+      if (cur.length) { segments.push(cur); cur = [] }
+    }
+  }
+  if (cur.length) segments.push(cur)
+  return segments
+}
+
 export function DailyRateChart({
   calendar,
   threshold,
+  lastMonthRates,
+  historicalAvgRates,
 }: {
   calendar: { day: number; score: number | null }[]
   threshold: number
+  /** 上月每日達成率（day, rate 0-100 或 null）；未提供或全 null 時該線不畫 */
+  lastMonthRates?: { day: number; rate: number | null }[]
+  /** 歷史累積每日平均達成率（day, rate 0-100 或 null）；未提供或全 null 時該線不畫 */
+  historicalAvgRates?: { day: number; rate: number | null }[]
 }) {
   const total = calendar.length
   const [startDay, setStartDay] = useState(1)
   const [endDay,   setEndDay]   = useState(total)
 
-  // 純座標計算：startDay/endDay/calendar/threshold 不變時不重算
-  const { segments, dots, xLabelDays, threshPct, threshY, xPos } = useMemo(() => {
+  const hasLastMonth = !!lastMonthRates?.some(p => p.rate !== null)
+  const hasHistAvg   = !!historicalAvgRates?.some(p => p.rate !== null)
+
+  // 純座標計算：startDay/endDay/calendar/threshold/比較線資料不變時不重算
+  const { segments, lastMonthSegments, histAvgSegments, dots, xLabelDays, threshPct, threshY, xPos } = useMemo(() => {
     const span = endDay - startDay
     const xPos = (day: number) => PAD.left + ((day - startDay) / Math.max(span, 1)) * INNER_W
     const yPos = (pct: number) => PAD.top  + (1 - pct / 100) * INNER_H
@@ -30,16 +63,13 @@ export function DailyRateChart({
 
     const filtered = calendar.filter(d => d.day >= startDay && d.day <= endDay)
 
-    const segments: string[][] = []
-    let cur: string[] = []
-    for (const d of filtered) {
-      if (d.score !== null) {
-        cur.push(`${xPos(d.day)},${yPos(Math.round((d.score / 8) * 100))}`)
-      } else {
-        if (cur.length) { segments.push(cur); cur = [] }
-      }
-    }
-    if (cur.length) segments.push(cur)
+    const currentPoints: RatePoint[] = calendar.map(d => ({
+      day: d.day,
+      rate: d.score !== null ? Math.round((d.score / 8) * 100) : null,
+    }))
+    const segments = buildSegments(currentPoints, startDay, endDay, xPos, yPos)
+    const lastMonthSegments = hasLastMonth ? buildSegments(lastMonthRates!, startDay, endDay, xPos, yPos) : []
+    const histAvgSegments   = hasHistAvg   ? buildSegments(historicalAvgRates!, startDay, endDay, xPos, yPos) : []
 
     const dots = filtered
       .filter(d => d.score !== null)
@@ -58,8 +88,8 @@ export function DailyRateChart({
       if (xLabelDays[xLabelDays.length - 1] !== endDay) xLabelDays.push(endDay)
     }
 
-    return { segments, dots, xLabelDays, threshPct, threshY, xPos }
-  }, [calendar, startDay, endDay, threshold])
+    return { segments, lastMonthSegments, histAvgSegments, dots, xLabelDays, threshPct, threshY, xPos }
+  }, [calendar, startDay, endDay, threshold, lastMonthRates, historicalAvgRates, hasLastMonth, hasHistAvg])
 
   const presets: { label: string; s: number; e: number }[] = useMemo(() => [
     { label: '全月', s: 1, e: total },
@@ -107,6 +137,35 @@ export function DailyRateChart({
         />
         <text x={W - PAD.right + 3} y={threshY + 4} fontSize={9} fill="#f97316">{threshPct}%</text>
 
+        {/* 歷史累積平均折線（最底層，較淡） */}
+        {histAvgSegments.map((seg, i) => seg.length > 1 && (
+          <polyline
+            key={`hist-${i}`}
+            points={seg.join(' ')}
+            fill="none"
+            stroke="#a78bfa"
+            strokeWidth={1.5}
+            strokeDasharray="2 3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ))}
+
+        {/* 上月折線 */}
+        {lastMonthSegments.map((seg, i) => seg.length > 1 && (
+          <polyline
+            key={`last-${i}`}
+            points={seg.join(' ')}
+            fill="none"
+            stroke="#94a3b8"
+            strokeWidth={1.5}
+            strokeDasharray="5 3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ))}
+
+        {/* 本月折線（最上層，最醒目） */}
         {segments.map((seg, i) => seg.length > 1 && (
           <polyline
             key={i}
@@ -136,6 +195,21 @@ export function DailyRateChart({
           <text key={d} x={xPos(d)} y={H - 4} fontSize={9} fill="#9ca3af" textAnchor="middle">{d}</text>
         ))}
       </svg>
+
+      {/* 圖例：本月 / 上月 / 歷史累積平均 */}
+      <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground flex-wrap">
+        <span className="flex items-center gap-1">
+          <span className="w-6 h-0.5 bg-amber-500 inline-block rounded" /> 本月
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-6 h-0.5 bg-slate-400 inline-block rounded border-dashed border-t border-slate-400" />
+          上月{!hasLastMonth && '（暫無資料）'}
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-6 h-0.5 bg-violet-400 inline-block rounded border-dashed border-t border-violet-400" />
+          歷史累積平均{!hasHistAvg && '（暫無資料）'}
+        </span>
+      </div>
     </div>
   )
 }

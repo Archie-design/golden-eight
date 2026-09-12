@@ -82,6 +82,51 @@ export function calcMonthStats(
   return { maxScore, totalScore, rate, targetScore, remaining, passing }
 }
 
+// ─── 每日達成率序列（進度折線圖：本月 / 上月 / 歷史平均比較）───────
+
+/**
+ * 將一個月份的 checkin_records 轉成依日序排列的每日達成率陣列。
+ * 無記錄的日子 rate = null（前端據此斷線，不外插不補 0）。
+ */
+export function calcDailyRateByDay(
+  records: { date: string; total_score: number }[],
+  daysInMonth: number,
+): { day: number; rate: number | null }[] {
+  const byDay = new Map<number, number>()
+  for (const r of records) {
+    const day = parseInt(r.date.split('-')[2], 10)
+    byDay.set(day, r.total_score)
+  }
+  return Array.from({ length: daysInMonth }, (_, i) => {
+    const day = i + 1
+    const score = byDay.get(day)
+    return { day, rate: score !== undefined ? Math.round((score / 8) * 100) : null }
+  })
+}
+
+/**
+ * 歷史所有已結束月份的 checkin_records，依「月中第幾天」分桶取平均達成率。
+ * 例如所有月份第 5 天的達成率取平均，作為第 5 天的參考值。
+ * 該天完全沒有歷史紀錄則 rate = null。
+ */
+export function calcHistoricalAvgDailyRate(
+  recordsAcrossMonths: { date: string; total_score: number }[],
+): { day: number; rate: number | null }[] {
+  const sums   = new Map<number, number>()
+  const counts = new Map<number, number>()
+  for (const r of recordsAcrossMonths) {
+    const day  = parseInt(r.date.split('-')[2], 10)
+    const rate = Math.round((r.total_score / 8) * 100)
+    sums.set(day, (sums.get(day) ?? 0) + rate)
+    counts.set(day, (counts.get(day) ?? 0) + 1)
+  }
+  return Array.from({ length: 31 }, (_, i) => {
+    const day   = i + 1
+    const count = counts.get(day) ?? 0
+    return { day, rate: count > 0 ? Math.round((sums.get(day)! / count)) : null }
+  })
+}
+
 // ─── 任務連續天數 ──────────────────────────────────────────────
 
 /** 從已排序（升序）紀錄中計算指定任務截至 endDate 的連續天數 */
