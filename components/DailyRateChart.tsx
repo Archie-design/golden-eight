@@ -52,6 +52,9 @@ export function DailyRateChart({
   const hasLastMonth = !!lastMonthRates?.some(p => p.rate !== null)
   const hasHistAvg   = !!historicalAvgRates?.some(p => p.rate !== null)
 
+  // 全月（>10 天）時資料點密集，逐點百分比文字會互相重疊，僅在切到 ≤10 天分段時顯示
+  const showDotLabels = (endDay - startDay) <= 10
+
   // 純座標計算：startDay/endDay/calendar/threshold/比較線資料不變時不重算
   const { segments, lastMonthSegments, histAvgSegments, dots, xLabelDays, threshPct, threshY, xPos } = useMemo(() => {
     const span = endDay - startDay
@@ -184,9 +187,12 @@ export function DailyRateChart({
           return (
             <g key={i}>
               <circle cx={p.x} cy={p.y} r={3.5} fill={color} stroke="white" strokeWidth={1.5} />
-              <text x={p.x} y={labelY} fontSize={8} fill={color} textAnchor="middle" fontWeight="600">
-                {p.rate}%
-              </text>
+              {/* 全月（>10 天）時點數太密，數字會互相重疊，僅在切到 ≤10 天分段時顯示 */}
+              {showDotLabels && (
+                <text x={p.x} y={labelY} fontSize={8} fill={color} textAnchor="middle" fontWeight="600">
+                  {p.rate}%
+                </text>
+              )}
             </g>
           )
         })}
