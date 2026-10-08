@@ -15,8 +15,8 @@ import { AchievementWall } from '@/components/AchievementBadge'
 import { PartnersWidget } from '@/components/PartnersWidget'
 import { ShowcaseCard } from '@/components/ShowcaseCard'
 import { TaskIcon } from '@/lib/icons'
-import { TASKS, LEVEL_THRESHOLDS } from '@/lib/constants'
-import { DailyRateChart } from '@/components/DailyRateChart'
+import { TASKS } from '@/lib/constants'
+import { MonthProgressCard } from '@/components/MonthProgressCard'
 
 interface DashboardData {
   yearMonth: string
@@ -272,55 +272,20 @@ export default function DashboardPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {data.maxScore === 0 ? (
-            <div className="text-center py-6 text-muted-foreground text-sm">
-              <p className="font-medium">本月新進，不參與計分</p>
-              <p className="mt-1 text-xs">下個月起正式開始計分</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center mb-4">
-              <div>
-                <div className="text-3xl font-bold text-yellow-500">{data.totalScore}</div>
-                <div className="text-xs text-muted-foreground">累計得分</div>
-              </div>
-              <div>
-                <div className="text-3xl font-bold">{data.rate}%</div>
-                <div className="text-xs text-muted-foreground">達成率</div>
-              </div>
-              <div>
-                <div className="text-3xl font-bold text-red-500">
-                  {data.remaining > 0 ? `-${data.remaining}` : '✓'}
-                </div>
-                <div className="text-xs text-muted-foreground">距目標差</div>
-              </div>
-            </div>
-          )}
-
-          {data.maxScore > 0 && (
-            <>
-              <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                <span>{data.user.level}</span>
-                <span>目標 {data.targetScore} 分</span>
-              </div>
-              {data.targetStatus === 'achieved' && (
-                <div className="text-xs text-green-600 font-medium mb-2">✅ 已達標，繼續保持！</div>
-              )}
-              {data.targetStatus === 'on_track' && (
-                <div className="text-xs text-amber-600 font-medium mb-2">
-                  還有 {data.daysLeft} 天，平均每天需 {data.dailyNeeded} 分達標 💪
-                </div>
-              )}
-              {data.targetStatus === 'unreachable' && (
-                <div className="text-xs text-muted-foreground mb-2">本月已難達標，下月再拼！</div>
-              )}
-              <DailyRateChart
-                calendar={data.calendar}
-                threshold={LEVEL_THRESHOLDS[data.user.level] ?? 0.60}
-                lastMonthRates={data.isCurrentMonth ? data.lastMonthDailyRates : undefined}
-                historicalAvgRates={data.isCurrentMonth ? data.historicalAvgDailyRates : undefined}
-              />
-            </>
-          )}
+          <MonthProgressCard
+            totalScore={data.totalScore}
+            maxScore={data.maxScore}
+            rate={data.rate}
+            targetScore={data.targetScore}
+            remaining={data.remaining}
+            daysLeft={data.daysLeft}
+            dailyNeeded={data.dailyNeeded}
+            targetStatus={data.targetStatus}
+            level={data.user.level}
+            calendar={data.calendar}
+            lastMonthDailyRates={data.isCurrentMonth ? data.lastMonthDailyRates : undefined}
+            historicalAvgDailyRates={data.isCurrentMonth ? data.historicalAvgDailyRates : undefined}
+          />
 
           {/* 下月階梯選擇（僅當月顯示） */}
           {data.showNextLevelBtn && (

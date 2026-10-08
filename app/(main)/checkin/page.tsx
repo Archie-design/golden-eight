@@ -16,6 +16,7 @@ import { AppIcon, TaskIcon } from '@/lib/icons'
 import { TASKS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { captureAndShare } from '@/lib/share-image'
+import { MonthProgressCard, type MonthProgressCardProps } from '@/components/MonthProgressCard'
 
 interface TodayData {
   today: string        // 打卡邏輯日
@@ -61,6 +62,12 @@ export default function CheckInPage() {
   const [leaveSaving, setLeaveSaving]   = useState(false)
   const [leaveStart, setLeaveStart]     = useState('')   // 起訖日；空時預設今日邏輯日
   const [leaveEnd, setLeaveEnd]         = useState('')
+  // 首次打卡後的本月進度彈窗（見 checkin-progress-popup 變更）
+  const [showProgress, setShowProgress]     = useState(false)
+  const [progressLoading, setProgressLoading] = useState(false)
+  const [progressData, setProgressData]     = useState<MonthProgressCardProps | null>(null)
+  const pendingProgressRef  = useRef(false)   // 成就佇列跑完後是否需接著開進度彈窗
+  const progressAbortRef    = useRef<AbortController | null>(null)
 
   function loadData() {
     fetch('/api/checkin/today')
@@ -153,6 +160,46 @@ export default function CheckInPage() {
     expandTimerRef.current = setTimeout(() => setExpandedTask(null), 800)
   }
 
+  // 首次打卡成功後載入本月進度彈窗資料（僅 POST，不含 PATCH 修改路徑）。
+  // 與成就彈窗序列化：由呼叫端決定何時呼叫（無成就時立即呼叫；有成就則等 achQueue 清空後呼叫）。
+  async function loadProgressPopup() {
+    progressAbortRef.current?.abort()
+    const ac = new AbortController()
+    progressAbortRef.current = ac
+    setShowProgress(true)
+    setProgressLoading(true)
+    setProgressData(null)
+    try {
+      const res  = await fetch('/api/stats/dashboard', { signal: ac.signal })
+      const json = await res.json()
+      if (json.ok) {
+        setProgressData({
+          totalScore:   json.totalScore,
+          maxScore:     json.maxScore,
+          rate:         json.rate,
+          targetScore:  json.targetScore,
+          remaining:    json.remaining,
+          daysLeft:     json.daysLeft,
+          dailyNeeded:  json.dailyNeeded,
+          targetStatus: json.targetStatus,
+          level:        json.user.level,
+          calendar:     json.calendar,
+          lastMonthDailyRates:     json.lastMonthDailyRates,
+          historicalAvgDailyRates: json.historicalAvgDailyRates,
+        })
+      } else {
+        toast.error(json.msg ?? '進度載入失敗，請再試一次')
+        setShowProgress(false)
+      }
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') return
+      toast.error('進度載入失敗，請再試一次')
+      setShowProgress(false)
+    } finally {
+      setProgressLoading(false)
+    }
+  }
+
   async function handleSubmit() {
     // 破曉打拳需先完成早睡早起/子時入睡：送出前先攔截（後端為主防線）
     if (checked[1] && !checked[0]) {
@@ -188,6 +235,7 @@ export default function CheckInPage() {
         setShowAch(true)
       }
       loadData()
+      // PATCH（修改今日打卡）不觸發本月進度彈窗
       return
     }
 
@@ -195,6 +243,9 @@ export default function CheckInPage() {
     if (json.newAchievements?.length) {
       setAchQueue(json.newAchievements)
       setShowAch(true)
+      pendingProgressRef.current = true   // 成就彈窗跑完後才接著開進度彈窗
+    } else {
+      loadProgressPopup()
     }
     loadData()
   }
@@ -202,7 +253,13 @@ export default function CheckInPage() {
   function dismissAch() {
     const next = achQueue.slice(1)
     setAchQueue(next)
-    if (next.length === 0) setShowAch(false)
+    if (next.length === 0) {
+      setShowAch(false)
+      if (pendingProgressRef.current) {
+        pendingProgressRef.current = false
+        loadProgressPopup()
+      }
+    }
   }
 
   // 日出照上傳（選填，與打卡解耦：失敗只提示，不影響打卡）
@@ -746,6 +803,30 @@ export default function CheckInPage() {
                 太棒了！
               </Button>
             </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 本月進度彈窗（首次打卡成功後顯示） */}
+      <Dialog
+        open={showProgress}
+        onOpenChange={open => {
+          if (!open) {
+            progressAbortRef.current?.abort()
+            setProgressData(null)
+          }
+          setShowProgress(open)
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <h3 className="font-bold text-lg text-center">🎉 本月進度</h3>
+          {progressLoading || !progressData ? (
+            <div className="space-y-3 py-6">
+              <div className="h-16 rounded-lg bg-gray-100 animate-pulse" />
+              <div className="h-40 rounded-lg bg-gray-100 animate-pulse" />
+            </div>
+          ) : (
+            <MonthProgressCard {...progressData} />
           )}
         </DialogContent>
       </Dialog>
