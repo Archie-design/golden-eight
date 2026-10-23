@@ -59,6 +59,7 @@ export default function AdminPage() {
   const [detailMemberId, setDetailMemberId] = useState<string>('')
   const [detailRecords,  setDetailRecords]  = useState<DayRecord[] | null>(null)
   const [detailMember,   setDetailMember]   = useState<DetailMember | null>(null)
+  const [detailLeaveByDate, setDetailLeaveByDate] = useState<Record<string, string>>({})
   const [detailLoading,  setDetailLoading]  = useState(false)
   const [detailYearMonth, setDetailYearMonth] = useState(() => new Date().toISOString().slice(0, 7))
 
@@ -111,10 +112,10 @@ export default function AdminPage() {
     }), [])
 
   const loadMemberDetail = useCallback(async (memberId: string, yearMonth: string) => {
-    if (!memberId) { setDetailRecords(null); setDetailMember(null); return }
+    if (!memberId) { setDetailRecords(null); setDetailMember(null); setDetailLeaveByDate({}); return }
     setDetailLoading(true)
     const j = await fetch(`/api/admin/member-records?memberId=${memberId}&yearMonth=${yearMonth}`).then(r => r.json())
-    if (j.ok) { setDetailRecords(j.records); setDetailMember(j.member) }
+    if (j.ok) { setDetailRecords(j.records); setDetailMember(j.member); setDetailLeaveByDate(j.leaveByDate ?? {}) }
     else toast.error(j.msg)
     setDetailLoading(false)
   }, [])
@@ -329,7 +330,7 @@ export default function AdminPage() {
                   const val = id ?? ''
                   setDetailMemberId(val)
                   if (val) loadMemberDetail(val, detailYearMonth)
-                  else { setDetailRecords(null); setDetailMember(null) }
+                  else { setDetailRecords(null); setDetailMember(null); setDetailLeaveByDate({}) }
                 }}>
                   <SelectTrigger className="w-36"><SelectValue placeholder="選擇成員…" /></SelectTrigger>
                   <SelectContent>
@@ -373,17 +374,26 @@ export default function AdminPage() {
                 const recMap = Object.fromEntries(detailRecords.map(r => [r.date, r]))
                 const TASK_ABBR = ['早睡', '打拳', '跑步', '曬陽', '工作', '不肉', '觀心', '淨心']
 
+                // 請假日比照 calcMonthStats：分子分母皆移除（如同該日不存在），
+                // 與儀表板/罰款總結等其餘「累計率」計算口徑一致
                 let runningScore = 0
-                const rows = dates.map((date, i) => {
+                let countedDays  = 0
+                const rows = dates.map(date => {
+                  const leaveReason = detailLeaveByDate[date]
+                  if (leaveReason) {
+                    const cumRate = countedDays > 0 ? Math.round(runningScore / (countedDays * 8) * 100) : 0
+                    return { date, rec: undefined, score: 0, cumRate, leaveReason }
+                  }
                   const rec   = recMap[date]
                   const score = rec?.total_score ?? 0
                   runningScore += score
-                  const cumRate = Math.round(runningScore / ((i + 1) * 8) * 100)
-                  return { date, rec, score, cumRate }
+                  countedDays++
+                  const cumRate = Math.round(runningScore / (countedDays * 8) * 100)
+                  return { date, rec, score, cumRate, leaveReason: undefined as string | undefined }
                 })
 
                 const totalScore = runningScore
-                const maxScore   = dates.length * 8
+                const maxScore   = countedDays * 8
 
                 return (
                   <>
@@ -401,11 +411,13 @@ export default function AdminPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {rows.map(({ date, rec, score, cumRate }) => (
+                          {rows.map(({ date, rec, score, cumRate, leaveReason }) => (
                             <tr key={date} className="border-b last:border-0">
                               <td className="py-1.5 text-xs whitespace-nowrap pr-3">{date.slice(5)}</td>
                               <td className="py-1">
-                                {rec ? (
+                                {leaveReason ? (
+                                  <span className="text-xs text-blue-600 font-medium">請假（{leaveReason}）</span>
+                                ) : rec ? (
                                   <div className="flex gap-0.5">
                                     {rec.tasks.map((done, i) => (
                                       <div
@@ -421,7 +433,7 @@ export default function AdminPage() {
                                   <span className="text-xs text-muted-foreground">（無記錄）</span>
                                 )}
                               </td>
-                              <td className="text-right text-xs tabular-nums">{score}</td>
+                              <td className="text-right text-xs tabular-nums">{leaveReason ? '—' : score}</td>
                               <td className={`text-right text-xs font-medium pl-3 tabular-nums ${cumRate >= 80 ? 'text-green-600' : cumRate >= 60 ? 'text-amber-500' : 'text-red-500'}`}>
                                 {cumRate}%
                               </td>

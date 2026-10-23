@@ -33,7 +33,7 @@ interface DashboardData {
   targetStatus: 'achieved' | 'on_track' | 'unreachable' | null
   punchStreak: number
   maxPunchMonth: number
-  calendar: { date: string; day: number; score: number | null; color: string; note?: string; sunrisePhotoUrl?: string | null }[]
+  calendar: { date: string; day: number; score: number | null; color: string; note?: string; sunrisePhotoUrl?: string | null; isLeave?: boolean; leaveReason?: string | null }[]
   lastMonthDailyRates: { day: number; rate: number | null }[]
   historicalAvgDailyRates: { day: number; rate: number | null }[]
   taskCounts: number[]

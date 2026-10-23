@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
 import { RECORD_COLS_STATS } from '@/lib/db-columns'
+import { fetchLeaveRecords } from '@/lib/leave'
 import type { CheckInRecord } from '@/types'
 
 export async function GET(req: NextRequest) {
@@ -34,13 +35,17 @@ export async function GET(req: NextRequest) {
   const monthEnd       = getMonthEnd(yearMonth)
   const rangeStart     = effectiveStart > monthStart ? effectiveStart : monthStart
 
-  const { data: recs } = await db
-    .from('checkin_records')
-    .select(RECORD_COLS_STATS)
-    .eq('member_id', memberId)
-    .gte('date', rangeStart)
-    .lte('date', monthEnd)
-    .order('date')
+  const [{ data: recs }, leaveByMember] = await Promise.all([
+    db.from('checkin_records')
+      .select(RECORD_COLS_STATS)
+      .eq('member_id', memberId)
+      .gte('date', rangeStart)
+      .lte('date', monthEnd)
+      .order('date'),
+    fetchLeaveRecords(db, [memberId], yearMonth),
+  ])
+
+  const leaveByDate = Object.fromEntries(leaveByMember[memberId] ?? new Map())
 
   return NextResponse.json({
     ok: true,
@@ -52,5 +57,6 @@ export async function GET(req: NextRequest) {
     },
     yearMonth,
     records: (recs ?? []) as CheckInRecord[],
+    leaveByDate,   // { 'YYYY-MM-DD': reason }；該月請假日集合
   })
 }

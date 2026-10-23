@@ -137,6 +137,7 @@ export const CALENDAR_COLORS = {
   mid:    'bg-orange-100 text-orange-700',
   good:   'bg-green-100 text-green-700',
   gold:   'bg-yellow-300 text-yellow-900',
+  leave:  'bg-blue-100 text-blue-700',
 }
 
 export function getCalendarColor(score: number | null): string {

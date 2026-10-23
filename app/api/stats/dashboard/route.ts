@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentMember, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
 import { calcMonthStats, recommendLevel, calcDailyRateByDay, calcHistoricalAvgDailyRate } from '@/lib/scoring'
-import { fetchLeaveDates } from '@/lib/leave'
+import { fetchLeaveRecords } from '@/lib/leave'
 import { getCalendarColor } from '@/lib/constants'
 import { getWorkingDaysInMonth } from '@/lib/working-days'
 import { RECORD_COLS_STATS } from '@/lib/db-columns'
@@ -44,9 +44,10 @@ export async function GET(request: NextRequest) {
   ])
 
   const monthRecs = (monthRecsRes.data ?? []) as unknown as CheckInRecord[]
-  // 請假日從分母移除
-  const leaveByMember = await fetchLeaveDates(db, [member.id], yearMonth)
-  const leaveDates    = leaveByMember[member.id]
+  // 請假紀錄（含事由）：分母計算與 calendar[] 顯示共用同一份查詢結果
+  const leaveByMember = await fetchLeaveRecords(db, [member.id], yearMonth)
+  const leaveRecords  = leaveByMember[member.id] ?? new Map<string, string>()
+  const leaveDates    = new Set(leaveRecords.keys())
   const stats     = calcMonthStats(member, monthRecs, refDate, leaveDates)
   // 跨月感知：取當月紀錄裡 punch_streak 欄位的最大值（欄位本身已累積跨月計數）
   const maxStreak = monthRecs
@@ -63,7 +64,11 @@ export async function GET(request: NextRequest) {
     const sunrisePhotoUrl = photoPath
       ? db.storage.from('sunrise-photos').getPublicUrl(photoPath).data.publicUrl
       : null
-    return { date: d, day: i + 1, score, color: getCalendarColor(score), note: rec?.note ?? '', sunrisePhotoUrl }
+    const leaveReason = leaveRecords.get(d) ?? null
+    return {
+      date: d, day: i + 1, score, color: getCalendarColor(score), note: rec?.note ?? '', sunrisePhotoUrl,
+      isLeave: leaveReason !== null, leaveReason,
+    }
   })
 
   const taskCounts = Array.from({ length: 8 }, (_, i) => monthRecs.filter(r => r.tasks[i]).length)

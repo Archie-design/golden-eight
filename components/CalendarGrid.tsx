@@ -10,6 +10,8 @@ interface CalendarDay {
   color: string
   note?: string
   sunrisePhotoUrl?: string | null   // 自己當日日出照（hover 顯示）
+  isLeave?: boolean                  // 當日是否請假（優先於 color，不與任何得分顏色混用）
+  leaveReason?: string | null
 }
 
 interface CalendarGridProps {
@@ -25,8 +27,14 @@ export function CalendarGrid({ days }: CalendarGridProps) {
 
   const firstDow = new Date(days[0].date + 'T00:00:00+08:00').getDay()
 
+  // 請假事由併入既有「點擊看備註」面板，不新增互動機制
+  function noteFor(day: CalendarDay): string {
+    if (day.isLeave) return day.note ? `請假：${day.leaveReason}；${day.note}` : `請假：${day.leaveReason}`
+    return day.note ?? ''
+  }
+
   function handleClick(day: CalendarDay) {
-    if (!day.note) { setSelected(null); return }
+    if (!noteFor(day)) { setSelected(null); return }
     setSelected(prev => prev?.date === day.date ? null : day)
   }
 
@@ -39,6 +47,7 @@ export function CalendarGrid({ days }: CalendarGridProps) {
         <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-orange-100" />5–6分</span>
         <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-green-100" />7分</span>
         <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-yellow-300" />8+分</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-blue-100" />請假</span>
       </div>
 
       {/* 星期標題 */}
@@ -54,17 +63,19 @@ export function CalendarGrid({ days }: CalendarGridProps) {
           <div key={'pad' + i} />
         ))}
         {days.map(day => {
-          const hasNote  = !!day.note
+          const note     = noteFor(day)
+          const hasNote  = !!note
           const hasPhoto = !!day.sunrisePhotoUrl
           const isSelected = selected?.date === day.date
+          const colorCls = day.isLeave ? 'bg-blue-100 text-blue-700' : day.color
           return (
             <div
               key={day.date}
-              title={day.score !== null ? `${day.date}: ${day.score} 分` : day.date}
+              title={day.isLeave ? `${day.date}: 請假（${day.leaveReason}）` : day.score !== null ? `${day.date}: ${day.score} 分` : day.date}
               onClick={() => handleClick(day)}
               className={cn(
                 'group relative flex aspect-square items-center justify-center rounded text-sm font-medium',
-                day.color,
+                colorCls,
                 (hasNote || hasPhoto) ? 'cursor-pointer' : 'cursor-default',
                 isSelected && 'ring-2 ring-amber-400 ring-offset-1',
               )}
@@ -93,11 +104,11 @@ export function CalendarGrid({ days }: CalendarGridProps) {
         })}
       </div>
 
-      {/* 備註面板 */}
+      {/* 備註面板（含請假事由） */}
       {selected && (
         <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
           <span className="mr-2 text-xs font-medium text-amber-600">{selected.date}</span>
-          <span className="text-gray-700">{selected.note}</span>
+          <span className="text-gray-700">{noteFor(selected)}</span>
         </div>
       )}
     </div>
