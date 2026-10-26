@@ -170,10 +170,11 @@ CREATE TABLE IF NOT EXISTS daily_status_snapshot (
   id          BIGSERIAL PRIMARY KEY,
   date        DATE NOT NULL,                    -- 邏輯日（12:00 為界，非日曆日）
   member_id   TEXT NOT NULL REFERENCES members(id),
-  missed      BOOLEAN NOT NULL,                 -- 該邏輯日是否無打卡紀錄
-  miss_streak INT NOT NULL DEFAULT 0,           -- 截至該日的連續缺卡天數（有打卡為 0）
+  missed      BOOLEAN NOT NULL,                 -- 該邏輯日是否無打卡紀錄且非請假
+  miss_streak INT NOT NULL DEFAULT 0,           -- 截至該日的連續缺卡天數（有打卡或請假不累進）
   rate        NUMERIC(5,2),                     -- 該日當下的累計月達成率（事實快照）
   passing     BOOLEAN,                          -- 該日當下是否達其階梯門檻（事實快照）
+  is_leave    BOOLEAN NOT NULL DEFAULT FALSE,   -- 該邏輯日是否請假（事實快照）
   pushed_at   TIMESTAMPTZ,                      -- 摘要推播完成時間；NULL = 未推播，可重試
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(date, member_id)

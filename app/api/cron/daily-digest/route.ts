@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { getCheckinDayTaipei, getPrevDayStr, getMonthEnd } from '@/lib/api-helper'
 import { buildDailySnapshot, diffStatusEvents, formatDigestMessage, type DailyStatus } from '@/lib/daily-status'
-import { fetchLeaveDates } from '@/lib/leave'
+import { fetchLeaveRecords } from '@/lib/leave'
 import { pushTextToUsers } from '@/lib/line-push'
 import { RECORD_COLS_STATS } from '@/lib/db-columns'
 import type { Member, CheckInRecord } from '@/types'
@@ -75,8 +75,16 @@ export async function GET(req: NextRequest) {
   }
 
   // 1. 建立當日快照（起算日未到者不產生列）
-  // 請假日：目標月一次撈，分母（snapshot + 門檻風險 pace）皆據此扣減
-  const leaveByMember = await fetchLeaveDates(db, memberIds, targetDate.substring(0, 7))
+  // 請假紀錄（含事由）：目標月一次撈，分母（snapshot + 門檻風險 pace）與漏卡/請假判定皆據此
+  const leaveRecordsByMember = await fetchLeaveRecords(db, memberIds, targetDate.substring(0, 7))
+  const leaveByMember: Record<string, Set<string>> = {}
+  const leaveReasonByMember: Record<string, string> = {}
+  for (const id of memberIds) {
+    const m = leaveRecordsByMember[id] ?? new Map<string, string>()
+    leaveByMember[id] = new Set(m.keys())
+    const reason = m.get(targetDate)
+    if (reason) leaveReasonByMember[id] = reason
+  }
   const snapshot = buildDailySnapshot(members, recsByMember, prevByMember, targetDate, leaveByMember)
 
   // 2. 先寫快照、後推播 —— 推播失敗不應使已確立的事實遺失
@@ -97,7 +105,7 @@ export async function GET(req: NextRequest) {
 
   // 4. 變化事件（首日無前一日快照 → 空陣列，避免全員誤報）
   const events  = diffStatusEvents(prevByMember, snapshot, nameById)
-  const message = formatDigestMessage(snapshot, events, nameById, levelById, targetDate, membersById, recsByMember, leaveByMember)
+  const message = formatDigestMessage(snapshot, events, nameById, levelById, targetDate, membersById, recsByMember, leaveByMember, leaveReasonByMember)
 
   // 5. 推播給已綁定 LINE 的管理員
   const recipients = members

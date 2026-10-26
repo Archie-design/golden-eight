@@ -13,6 +13,7 @@ export interface DailyStatus {
   miss_streak: number
   rate:        number
   passing:     boolean
+  is_leave:    boolean   // 該日是否請假（如同該日不存在：不計漏卡、miss_streak 不累進）
 }
 
 export type StatusEventType =
@@ -44,8 +45,10 @@ export function hasStarted(member: Member, date: string): boolean {
  * 建立指定邏輯日的全員狀態快照。
  *
  * - 起算日未到的成員不產生列（不是漏卡，是還沒加入；與工時分母、計分分母同源規則）
- * - `rate` / `passing` 為當下事實，呼叫端寫入後不得因日後補登/月結而重算
+ * - `rate` / `passing` / `is_leave` 為當下事實，呼叫端寫入後不得因日後補登/月結而重算
  * - `miss_streak` 由前一日快照累進；前一日無快照則從 0 起算
+ * - 請假日比照「如同該日不存在」：`missed = false`（不計漏卡），`miss_streak` 延續前一日數值
+ *   （不累進也不歸零）——歸零會洗白正在累積的長期缺席記錄，累進則違反「請假不算漏卡」
  *
  * @param members       活躍成員
  * @param recordsByMember 該月（至該邏輯日）每位成員的打卡紀錄
@@ -57,7 +60,7 @@ export function buildDailySnapshot(
   recordsByMember: Record<string, CheckInRecord[]>,
   prevByMember: Record<string, DailyStatus>,
   date: string,
-  leaveByMember?: Record<string, Set<string>>,   // 請假日從分母移除
+  leaveByMember?: Record<string, Set<string>>,   // 請假日從分母移除；亦用於漏卡/miss_streak 判定
 ): DailyStatus[] {
   const out: DailyStatus[] = []
 
@@ -66,17 +69,22 @@ export function buildDailySnapshot(
 
     const records  = recordsByMember[m.id] ?? []
     const hasToday = records.some(r => r.date === date)
+    const isLeave  = leaveByMember?.[m.id]?.has(date) ?? false
     const prev     = prevByMember[m.id]
 
-    const missed      = !hasToday
-    const miss_streak = hasToday ? 0 : (prev?.miss_streak ?? 0) + 1
+    const missed      = !hasToday && !isLeave
+    const miss_streak = isLeave
+      ? (prev?.miss_streak ?? 0)               // 請假：延續前一日，不累進不歸零
+      : hasToday
+        ? 0
+        : (prev?.miss_streak ?? 0) + 1
 
     // 當下事實：以該邏輯日為基準日計算累計月達成率與是否達標
     const stats     = calcMonthStats(m, records, date, leaveByMember?.[m.id])
     const threshold = LEVEL_THRESHOLDS[m.level] ?? 0.6
     const passing   = stats.maxScore > 0 && stats.rate >= threshold * 100
 
-    out.push({ member_id: m.id, missed, miss_streak, rate: stats.rate, passing })
+    out.push({ member_id: m.id, missed, miss_streak, rate: stats.rate, passing, is_leave: isLeave })
   }
 
   return out
@@ -111,9 +119,9 @@ export function diffStatusEvents(
       prevRate:   p.rate,
     }
 
-    // 缺卡狀態轉移
-    if (!p.missed && c.missed)      events.push({ ...base, type: 'miss_start' })
-    else if (p.missed && !c.missed) events.push({ ...base, type: 'return' })
+    // 缺卡狀態轉移；請假不算「回歸」——成員只是這天有正當理由，並未實際回來打卡
+    if (!p.missed && c.missed)                   events.push({ ...base, type: 'miss_start' })
+    else if (p.missed && !c.missed && !c.is_leave) events.push({ ...base, type: 'return' })
 
     // 跨越長期缺席門檻（僅在跨界當日觸發一次；其後累進不再報）
     if (p.miss_streak < LONG_ABSENCE_DAYS && c.miss_streak >= LONG_ABSENCE_DAYS) {
@@ -147,8 +155,9 @@ function formatDateLabel(date: string): string {
 /**
  * 組出 LINE 純文字摘要。
  *
- * 版面：⚡變化 → ❌漏卡 → 🎯門檻風險 → 💤長期缺席摺疊 → ✅總結
+ * 版面：⚡變化 → ❌漏卡 → 📝請假 → 🎯門檻風險 → 💤長期缺席摺疊 → ✅總結
  * 長期缺席者（miss_streak >= LONG_ABSENCE_DAYS）從漏卡/風險明細移除，摺疊為單行。
+ * 請假者（is_leave）從漏卡名單移除，改列於請假名單（含事由）。
  * 管理員自身不排除——管理員同時是學員，其漏卡與風險照常列入。
  */
 // 四象限在日報的呈現：只列 🔴 rescue / 🟠 lukewarm（要救 + 溫水）。
@@ -165,7 +174,8 @@ export function formatDigestMessage(
   date: string,
   membersById: Record<string, Member>,
   recordsByMember: Record<string, CheckInRecord[]>,
-  leaveByMember?: Record<string, Set<string>>,   // 請假日從分母移除（門檻風險 pace 一致）
+  leaveByMember?: Record<string, Set<string>>,       // 請假日從分母移除（門檻風險 pace 一致）
+  leaveReasonByMember?: Record<string, string>,      // 當日有請假者的事由（member_id → reason），僅供顯示
 ): string {
   const nm = (id: string) => nameById[id] ?? id
   const total = snapshot.length
@@ -173,8 +183,9 @@ export function formatDigestMessage(
   const longAbsent = snapshot.filter(s => s.miss_streak >= LONG_ABSENCE_DAYS)
   const longIds    = new Set(longAbsent.map(s => s.member_id))
 
-  const missed = snapshot.filter(s => s.missed && !longIds.has(s.member_id))
-  const done   = snapshot.filter(s => !s.missed)
+  const missed  = snapshot.filter(s => s.missed && !longIds.has(s.member_id))
+  const onLeave = snapshot.filter(s => s.is_leave)
+  const done    = snapshot.filter(s => !s.missed)
 
   // 門檻風險改用二維四象限（與後台一致）：即時算 pace，只列 🔴 要救 / 🟠 溫水。
   // pace 為當下呈現值、非留存事實，故不進 DailyStatus/DB，於此就地計算。
@@ -220,6 +231,15 @@ export function formatDigestMessage(
     }
   }
   L.push('')
+
+  if (onLeave.length > 0) {
+    L.push(`📝 今日請假 ${onLeave.length} 人`)
+    for (const s of onLeave) {
+      const reason = leaveReasonByMember?.[s.member_id]
+      L.push(reason ? `　${nm(s.member_id)}（${reason}）` : `　${nm(s.member_id)}`)
+    }
+    L.push('')
+  }
 
   if (atRisk.length > 0) {
     L.push('🎯 門檻風險（照近期速度預估月底）')
