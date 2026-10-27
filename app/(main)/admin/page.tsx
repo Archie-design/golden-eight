@@ -139,6 +139,10 @@ export default function AdminPage() {
     window.location.href = `/api/admin/export?yearMonth=${penaltyYM}`
   }
 
+  function handleExportAllRecords() {
+    window.location.href = '/api/admin/export-records'
+  }
+
   async function handleAddMember() {
     if (!mName || !/^09\d{8}$/.test(mPhone)) { toast.error('請輸入 10 位數手機號碼'); return }
     const res  = await fetch('/api/admin/members', {
@@ -472,6 +476,9 @@ export default function AdminPage() {
                 />
                 <Button size="sm" variant="outline" className="flex items-center gap-1" onClick={handleExportCSV}>
                   <Download className="w-3.5 h-3.5" /> CSV
+                </Button>
+                <Button size="sm" variant="outline" className="flex items-center gap-1" onClick={handleExportAllRecords}>
+                  <Download className="w-3.5 h-3.5" /> 全部紀錄 CSV
                 </Button>
                 <Button size="sm" variant="destructive" onClick={handleSettlement}>執行月結</Button>
               </div>
