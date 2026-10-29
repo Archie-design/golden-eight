@@ -69,7 +69,7 @@ export function MonthProgressCard({
         </div>
       )}
       {targetStatus === 'unreachable' && (
-        <div className="text-xs text-muted-foreground mb-2">本月已難達標，下月再拼！</div>
+        <div className="text-xs text-muted-foreground mb-2">為自己的心而做，能量會累積，不要放棄 💫</div>
       )}
       <DailyRateChart
         calendar={calendar}
