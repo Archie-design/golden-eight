@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
     return {
       date: d, day: i + 1, score, color: getCalendarColor(score), note: rec?.note ?? '', sunrisePhotoUrl,
       isLeave: leaveReason !== null, leaveReason,
+      tasks: rec?.tasks ?? null,
     }
   })
 

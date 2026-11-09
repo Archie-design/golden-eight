@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { TASKS } from '@/lib/constants'
 
 interface CalendarDay {
   date:  string
@@ -12,6 +13,7 @@ interface CalendarDay {
   sunrisePhotoUrl?: string | null   // 自己當日日出照（hover 顯示）
   isLeave?: boolean                  // 當日是否請假（優先於 color，不與任何得分顏色混用）
   leaveReason?: string | null
+  tasks?: boolean[] | null           // 當日 8 項任務完成狀態；無打卡紀錄為 null
 }
 
 interface CalendarGridProps {
@@ -34,7 +36,6 @@ export function CalendarGrid({ days }: CalendarGridProps) {
   }
 
   function handleClick(day: CalendarDay) {
-    if (!noteFor(day)) { setSelected(null); return }
     setSelected(prev => prev?.date === day.date ? null : day)
   }
 
@@ -74,9 +75,8 @@ export function CalendarGrid({ days }: CalendarGridProps) {
               title={day.isLeave ? `${day.date}: 請假（${day.leaveReason}）` : day.score !== null ? `${day.date}: ${day.score} 分` : day.date}
               onClick={() => handleClick(day)}
               className={cn(
-                'group relative flex aspect-square items-center justify-center rounded text-sm font-medium',
+                'group relative flex aspect-square items-center justify-center rounded text-sm font-medium cursor-pointer',
                 colorCls,
-                (hasNote || hasPhoto) ? 'cursor-pointer' : 'cursor-default',
                 isSelected && 'ring-2 ring-amber-400 ring-offset-1',
               )}
             >
@@ -104,11 +104,28 @@ export function CalendarGrid({ days }: CalendarGridProps) {
         })}
       </div>
 
-      {/* 備註面板（含請假事由） */}
+      {/* 明細面板：8 項任務完成狀態 + 備註/請假事由 */}
       {selected && (
-        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
-          <span className="mr-2 text-xs font-medium text-amber-600">{selected.date}</span>
-          <span className="text-gray-700">{noteFor(selected)}</span>
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm space-y-2">
+          <span className="text-xs font-medium text-amber-600">{selected.date}</span>
+          {selected.tasks ? (
+            <div className="flex flex-wrap gap-1">
+              {selected.tasks.map((done, i) => (
+                <div
+                  key={i}
+                  title={TASKS[i].name}
+                  className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-xs ${
+                    done ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400'
+                  }`}
+                >
+                  {done ? '✓' : '·'} {TASKS[i].name}
+                </div>
+              ))}
+            </div>
+          ) : !selected.isLeave && (
+            <p className="text-gray-500">當日未打卡</p>
+          )}
+          {noteFor(selected) && <p className="text-gray-700">{noteFor(selected)}</p>}
         </div>
       )}
     </div>
