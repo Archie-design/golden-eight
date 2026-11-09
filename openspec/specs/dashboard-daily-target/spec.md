@@ -21,7 +21,7 @@ TBD - created by archiving change add-dashboard-daily-target. Update Purpose aft
 
 - **已達標**（`remaining ≤ 0`）：呈現「已達標，繼續保持」語意，MUST NOT 顯示日均需分。
 - **一般**（日均需分 ≤ 8）：呈現「還有 N 天，平均每天需 X 分達標」。
-- **已難達標**（日均需分 > 8，超過單日上限 8 分）：呈現「本月已難達標，下月再拼」語意，MUST NOT 誤導學員以為可追回。
+- **已難達標**（日均需分 > 8，超過單日上限 8 分）：呈現鼓勵持續、不誤導可追回的語意（「為自己的心而做，能量會累積，不要放棄」），MUST NOT 誤導學員以為可追回，MUST NOT 呈現「放棄」「沒救了」等促使學員停止打卡的語意。
 
 #### Scenario: 已達標
 - **WHEN** `remaining ≤ 0`
@@ -33,7 +33,7 @@ TBD - created by archiving change add-dashboard-daily-target. Update Purpose aft
 
 #### Scenario: 已難達標
 - **WHEN** 日均需分 > 8
-- **THEN** 顯示「本月已難達標，下月再拼！」，不顯示不可能達到的日均數字為主訴求
+- **THEN** 顯示「為自己的心而做，能量會累積，不要放棄 💫」，不顯示不可能達到的日均數字為主訴求，不暗示本月目標仍可追回
 
 ---
 

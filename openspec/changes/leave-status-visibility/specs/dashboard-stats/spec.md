@@ -7,7 +7,7 @@
 
 - `monthSummary`：累計得分、達成率、距目標差、剩餘天數
 - `dailyRates[]`：每日達成率（折線圖用）
-- `calendar[]`：月曆每日得分（顏色分級用），每日物件 SHALL 包含請假標記：`isLeave`（boolean）與 `leaveReason`（string，無請假為 `null`）
+- `calendar[]`：月曆每日得分（顏色分級用），每日物件 SHALL 包含 `tasks: boolean[8] | null`（當日 8 項任務完成狀態；無打卡紀錄時為 `null`）與請假標記：`isLeave`（boolean）與 `leaveReason`（string，無請假為 `null`）
 - `taskCounts[8]`：當月各任務完成次數
 - `workHours`：月累計工時
 - `streak`：當月目前連續 / 最長連續打拳；歷史月份顯示最終連續
@@ -31,6 +31,14 @@
 - **WHEN** 呼叫 `GET /api/stats/dashboard?month=2026-04`
 - **THEN** 回傳 4 月完整資料，`isCurrentMonth = false`，refDate = 2026-04-30，`lastMonthDailyRates` 與 `historicalAvgDailyRates` 為空陣列或不出現
 
+#### Scenario: 日曆包含當日任務明細
+- **WHEN** 成員 5/3 完成任務 1、2、4、7（其餘未完成）
+- **THEN** `calendar[]` 中 5/3 的物件 `tasks = [true, true, false, true, false, false, true, false]`
+
+#### Scenario: 未打卡日無任務明細
+- **WHEN** 成員 5/5 無打卡紀錄
+- **THEN** `calendar[]` 中 5/5 的物件 `tasks = null`
+
 #### Scenario: 日曆包含請假標記
 - **WHEN** 成員 5/10 已請假（事由「大堂課請假」），5/11 未打卡且未請假
 - **THEN** `calendar[]` 中 5/10 的物件 `isLeave = true`、`leaveReason = '大堂課請假'`；5/11 的物件 `isLeave = false`、`leaveReason = null`
@@ -48,6 +56,8 @@
 
 請假日 SHALL 使用獨立於以上五色的顯示樣式，MUST NOT 與「未報（灰色）」或任何得分顏色混用，確保使用者能一眼區分「這天是請假」與「這天沒打卡」。請假日 SHALL 可透過既有的 hover 或點擊互動顯示請假事由。
 
+月曆每一格 SHALL 可點擊展開查看當日明細（不限於有備註或請假事由的日子）。有打卡紀錄的日子，展開面板 MUST 顯示該日 8 項任務的完成狀態；既有的備註、請假事由顯示方式不變。未打卡且未請假的日子，展開面板 SHALL 顯示「當日未打卡」提示，MUST NOT 顯示 8 項任務皆為未完成的勾選狀態（避免呈現無意義的「全部未完成」清單）。
+
 #### Scenario: 月曆顯示
 - **WHEN** 成員 5/3 得 8 分、5/4 得 6 分、5/5 未打卡
 - **THEN** 月曆 5/3 顯示金色、5/4 橘色、5/5 灰色
@@ -55,3 +65,11 @@
 #### Scenario: 請假日獨立樣式
 - **WHEN** 成員 5/6 已請假（事由「大堂課請假」）
 - **THEN** 月曆 5/6 顯示與「未報」及任何得分顏色皆不同的請假樣式，使用者可透過 hover 或點擊看到事由「大堂課請假」
+
+#### Scenario: 點擊有打卡的日子查看任務明細
+- **WHEN** 成員點擊 5/3（已打卡，完成 6 項任務）
+- **THEN** 展開面板顯示該日 8 項任務的完成/未完成狀態
+
+#### Scenario: 點擊未打卡的日子
+- **WHEN** 成員點擊 5/5（無打卡紀錄、未請假）
+- **THEN** 展開面板顯示「當日未打卡」提示，不顯示 8 項任務勾選清單
