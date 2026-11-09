@@ -52,6 +52,7 @@ export default function AdminPage() {
   const [penaltyShowDetail,   setPenaltyShowDetail]   = useState(false)
   const [penaltyData,  setPenaltyData]  = useState<{ yearMonth: string; rows: PenaltyRow[]; total: number } | null>(null)
   const [penaltyYM,    setPenaltyYM]    = useState(() => new Date().toISOString().slice(0, 7))
+  const [exportMemberIds, setExportMemberIds] = useState<Set<string>>(new Set())
   const [achStats,     setAchStats]     = useState<AchStat[]>([])
   const [memberStats,  setMemberStats]  = useState<MemberStat[]>([])
   const [showAddModal, setShowAddModal] = useState(false)
@@ -139,8 +140,17 @@ export default function AdminPage() {
     window.location.href = `/api/admin/export?yearMonth=${penaltyYM}`
   }
 
+  function toggleExportMember(id: string) {
+    setExportMemberIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
   function handleExportAllRecords() {
-    window.location.href = '/api/admin/export-records'
+    const qs = exportMemberIds.size ? `?memberIds=${[...exportMemberIds].join(',')}` : ''
+    window.location.href = `/api/admin/export-records${qs}`
   }
 
   async function handleAddMember() {
@@ -484,6 +494,31 @@ export default function AdminPage() {
               </div>
             </CardHeader>
             <CardContent>
+              {/* 全部紀錄 CSV 的成員篩選：不勾選任何人＝匯出全員 */}
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                <span className="text-xs text-muted-foreground self-center mr-1">
+                  全部紀錄 CSV 篩選成員（不勾選＝全員）：
+                </span>
+                {members.filter(m => m.status === '活躍').map(m => {
+                  const checked = exportMemberIds.has(m.id)
+                  return (
+                    <label
+                      key={m.id}
+                      className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs cursor-pointer transition-colors ${
+                        checked ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleExportMember(m.id)}
+                        className="h-3 w-3"
+                      />
+                      {m.name}
+                    </label>
+                  )
+                })}
+              </div>
               {!penaltyData ? (
                 <p className="text-sm text-muted-foreground">選擇月份查看，或先執行月結</p>
               ) : penaltyData.rows.length === 0 ? (
