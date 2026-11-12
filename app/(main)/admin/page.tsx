@@ -53,6 +53,8 @@ export default function AdminPage() {
   const [penaltyData,  setPenaltyData]  = useState<{ yearMonth: string; rows: PenaltyRow[]; total: number } | null>(null)
   const [penaltyYM,    setPenaltyYM]    = useState(() => new Date().toISOString().slice(0, 7))
   const [exportMemberIds, setExportMemberIds] = useState<Set<string>>(new Set())
+  const [exportStartMonth, setExportStartMonth] = useState('')
+  const [exportEndMonth,   setExportEndMonth]   = useState('')
   const [achStats,     setAchStats]     = useState<AchStat[]>([])
   const [memberStats,  setMemberStats]  = useState<MemberStat[]>([])
   const [showAddModal, setShowAddModal] = useState(false)
@@ -149,8 +151,12 @@ export default function AdminPage() {
   }
 
   function handleExportAllRecords() {
-    const qs = exportMemberIds.size ? `?memberIds=${[...exportMemberIds].join(',')}` : ''
-    window.location.href = `/api/admin/export-records${qs}`
+    const params = new URLSearchParams()
+    if (exportMemberIds.size) params.set('memberIds', [...exportMemberIds].join(','))
+    if (exportStartMonth)     params.set('startMonth', exportStartMonth)
+    if (exportEndMonth)       params.set('endMonth', exportEndMonth)
+    const qs = params.toString()
+    window.location.href = `/api/admin/export-records${qs ? `?${qs}` : ''}`
   }
 
   async function handleAddMember() {
@@ -494,7 +500,35 @@ export default function AdminPage() {
               </div>
             </CardHeader>
             <CardContent>
-              {/* 全部紀錄 CSV 的成員篩選：不勾選任何人＝匯出全員 */}
+              {/* 全部紀錄 CSV 的篩選：月份範圍不選＝全部歷史；成員不勾選＝全員 */}
+              <div className="mb-2 flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-muted-foreground">
+                  全部紀錄 CSV 篩選月份（不選＝全部歷史）：
+                </span>
+                <Input
+                  type="month"
+                  value={exportStartMonth}
+                  onChange={e => setExportStartMonth(e.target.value)}
+                  className="h-7 w-32 text-xs"
+                  placeholder="起"
+                />
+                <span className="text-xs text-muted-foreground">～</span>
+                <Input
+                  type="month"
+                  value={exportEndMonth}
+                  onChange={e => setExportEndMonth(e.target.value)}
+                  className="h-7 w-32 text-xs"
+                  placeholder="迄"
+                />
+                {(exportStartMonth || exportEndMonth) && (
+                  <button
+                    onClick={() => { setExportStartMonth(''); setExportEndMonth('') }}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    清除
+                  </button>
+                )}
+              </div>
               <div className="mb-3 flex flex-wrap gap-1.5">
                 <span className="text-xs text-muted-foreground self-center mr-1">
                   全部紀錄 CSV 篩選成員（不勾選＝全員）：
