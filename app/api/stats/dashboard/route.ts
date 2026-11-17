@@ -2,13 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentMember, getTodayTaipei, getMonthEnd } from '@/lib/api-helper'
 import { calcMonthStats, recommendLevel, calcDailyRateByDay, calcHistoricalAvgDailyRate } from '@/lib/scoring'
 import { fetchLeaveRecords } from '@/lib/leave'
-import { getCalendarColor } from '@/lib/constants'
+import { getCalendarColor, HISTORICAL_AVG_LOOKBACK_MONTHS } from '@/lib/constants'
 import { getWorkingDaysInMonth } from '@/lib/working-days'
 import { RECORD_COLS_STATS } from '@/lib/db-columns'
 import type { CheckInRecord } from '@/types'
 
-// 歷史累積平均折線的回溯上限（月），避免資深會員每次都全量掃歷史紀錄
-const HISTORICAL_AVG_LOOKBACK_MONTHS = 12
 
 export async function GET(request: NextRequest) {
   const result = await getCurrentMember()

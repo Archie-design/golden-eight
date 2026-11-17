@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { getCheckinDayTaipei, getPrevDayStr, getMonthEnd } from '@/lib/api-helper'
-import { buildDailySnapshot, diffStatusEvents, formatDigestMessage, type DailyStatus } from '@/lib/daily-status'
+import { buildDailySnapshot, formatDigestMessage, type DailyStatus } from '@/lib/daily-status'
+import { calcMonthStats, calcPaceStatus, calcHistoricalAvgDailyRate } from '@/lib/scoring'
 import { fetchLeaveRecords } from '@/lib/leave'
 import { pushTextToUsers } from '@/lib/line-push'
 import { RECORD_COLS_STATS } from '@/lib/db-columns'
+import { HISTORICAL_AVG_LOOKBACK_MONTHS } from '@/lib/constants'
 import type { Member, CheckInRecord } from '@/types'
+
+const SOLE_MEMBER_ID = 'M001'   // 群組已合併，僅剩柯啟鴻一人使用（見 personal-digest-review 變更）
 
 // GET /api/cron/daily-digest
 // Vercel Cron 於每日 04:30 UTC（=12:30 Taipei）觸發。
@@ -27,6 +31,7 @@ export async function GET(req: NextRequest) {
   // 剛截止的邏輯日（見上方註解）
   const targetDate = getPrevDayStr(getCheckinDayTaipei())
   const prevDate   = getPrevDayStr(targetDate)
+  const yearMonth  = targetDate.substring(0, 7)
 
   const { data: membersData } = await db
     .from('members')
@@ -40,13 +45,13 @@ export async function GET(req: NextRequest) {
   }
 
   const memberIds = members.map(m => m.id)
-  const monthStart = targetDate.substring(0, 7) + '-01'
+  const monthStart = yearMonth + '-01'
 
   const [recsRes, prevSnapRes, currSnapRes] = await Promise.all([
     // 當月至目標日的紀錄：calcMonthStats 需要整月分母，故自月初撈起
     db.from('checkin_records').select(RECORD_COLS_STATS)
       .in('member_id', memberIds)
-      .gte('date', monthStart).lte('date', getMonthEnd(targetDate.substring(0, 7)))
+      .gte('date', monthStart).lte('date', getMonthEnd(yearMonth))
       .order('date'),
     db.from('daily_status_snapshot').select('member_id, missed, miss_streak, rate, passing')
       .eq('date', prevDate).in('member_id', memberIds),
@@ -65,18 +70,9 @@ export async function GET(req: NextRequest) {
     prevByMember[s.member_id] = s
   })
 
-  const nameById:  Record<string, string> = {}
-  const levelById: Record<string, string> = {}
-  const membersById: Record<string, Member> = {}
-  for (const m of members) {
-    nameById[m.id]  = m.name
-    levelById[m.id] = m.level
-    membersById[m.id] = m
-  }
-
-  // 1. 建立當日快照（起算日未到者不產生列）
-  // 請假紀錄（含事由）：目標月一次撈，分母（snapshot + 門檻風險 pace）與漏卡/請假判定皆據此
-  const leaveRecordsByMember = await fetchLeaveRecords(db, memberIds, targetDate.substring(0, 7))
+  // 1. 建立當日快照（起算日未到者不產生列）—— 快照寫入邏輯維持不變，與訊息呈現格式正交
+  // 請假紀錄（含事由）：目標月一次撈，分母（snapshot）與漏卡/請假判定皆據此
+  const leaveRecordsByMember = await fetchLeaveRecords(db, memberIds, yearMonth)
   const leaveByMember: Record<string, Set<string>> = {}
   const leaveReasonByMember: Record<string, string> = {}
   for (const id of memberIds) {
@@ -103,13 +99,72 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, date: targetDate, msg: '本日已推播，略過', pushed: 0 })
   }
 
-  // 4. 變化事件（首日無前一日快照 → 空陣列，避免全員誤報）
-  const events  = diffStatusEvents(prevByMember, snapshot, nameById)
-  const message = formatDigestMessage(snapshot, events, nameById, levelById, targetDate, membersById, recsByMember, leaveByMember, leaveReasonByMember)
+  // 4. 組個人復盤內容（僅柯啟鴻一人，見 personal-digest-review 變更）
+  const soleMember = members.find(m => m.id === SOLE_MEMBER_ID)
+  if (!soleMember) {
+    console.error('[cron/daily-digest] 柯啟鴻（M001）不是活躍成員，無法產生復盤')
+    return NextResponse.json({ ok: false, date: targetDate, msg: '柯啟鴻不是活躍成員', pushed: 0 }, { status: 500 })
+  }
+
+  const soleRecords  = recsByMember[SOLE_MEMBER_ID] ?? []
+  const soleLeave    = leaveByMember[SOLE_MEMBER_ID]
+  const todayRecord  = soleRecords.find(r => r.date === targetDate)
+  const todayLeave   = soleLeave?.has(targetDate) ?? false
+
+  const monthStats = calcMonthStats(soleMember, soleRecords, targetDate, soleLeave)
+  // refDateComplete=true：日報的基準日是「已截止日」，該日已完整結束
+  const paceStatus = calcPaceStatus(soleMember, monthStats, soleRecords, targetDate, yearMonth, true, soleLeave)
+
+  // 上月同一天：依日序對齊（例如目標日為 11/16 則取上月第 16 天）
+  const [ty, tm] = yearMonth.split('-').map(Number)
+  const prevMonthDate = new Date(Date.UTC(ty, tm - 2, 1))
+  const prevYm = `${prevMonthDate.getUTCFullYear()}-${String(prevMonthDate.getUTCMonth() + 1).padStart(2, '0')}`
+  const targetDay = parseInt(targetDate.split('-')[2], 10)
+  const lastMonthSameDayStr = `${prevYm}-${String(targetDay).padStart(2, '0')}`
+
+  const { data: lastMonthRec } = await db
+    .from('checkin_records').select('total_score')
+    .eq('member_id', SOLE_MEMBER_ID).eq('date', lastMonthSameDayStr)
+    .maybeSingle()
+  const lastMonthRate = lastMonthRec
+    ? Math.round(((lastMonthRec as { total_score: number }).total_score / 8) * 100)
+    : null
+
+  // 歷史累積平均（同一日序）：起算日 ~ 上月月底，上限回溯 HISTORICAL_AVG_LOOKBACK_MONTHS 個月
+  const startStr = soleMember.effective_start_date ?? soleMember.join_date
+  const lookbackDate = new Date(Date.UTC(ty, tm - 1 - HISTORICAL_AVG_LOOKBACK_MONTHS, 1))
+  const lookbackStr  = `${lookbackDate.getUTCFullYear()}-${String(lookbackDate.getUTCMonth() + 1).padStart(2, '0')}-01`
+  const historyStart = startStr > lookbackStr ? startStr : lookbackStr
+  const historyEnd    = getMonthEnd(prevYm)
+
+  let historicalAvgRate: number | null = null
+  if (historyStart <= historyEnd) {
+    const { data: historyRecs } = await db
+      .from('checkin_records').select('date, total_score')
+      .eq('member_id', SOLE_MEMBER_ID)
+      .gte('date', historyStart).lte('date', historyEnd)
+    const avgByDay = calcHistoricalAvgDailyRate((historyRecs ?? []) as { date: string; total_score: number }[])
+    historicalAvgRate = avgByDay[targetDay - 1]?.rate ?? null
+  }
+
+  const message = formatDigestMessage(
+    targetDate,
+    {
+      tasks: todayRecord?.tasks ?? null,
+      score: todayRecord?.total_score ?? null,
+      isLeave: todayLeave,
+      leaveReason: leaveReasonByMember[SOLE_MEMBER_ID],
+    },
+    monthStats,
+    todayRecord?.punch_streak ?? 0,
+    paceStatus,
+    lastMonthRate,
+    historicalAvgRate,
+  )
 
   // 5. 群組已合併，僅推播給柯啟鴻（M001）本人，不再對全體管理員群發
   const recipients = members
-    .filter(m => m.id === 'M001' && m.line_user_id)
+    .filter(m => m.id === SOLE_MEMBER_ID && m.line_user_id)
     .map(m => m.line_user_id as string)
 
   // 無綁定：代表柯啟鴻尚未綁 LINE 或帳號設定異常。回 500 讓 Vercel Cron 頁面標紅，
@@ -133,8 +188,7 @@ export async function GET(req: NextRequest) {
   }
 
   console.log('[cron/daily-digest]', targetDate,
-    `snapshot=${snapshot.length}`, `events=${events.length}`,
-    `sent=${push.sent.length}`, `failed=${push.failed.length}`,
+    `snapshot=${snapshot.length}`, `sent=${push.sent.length}`, `failed=${push.failed.length}`,
   )
 
   // 有收件人卻一個都沒推成功：推播管道故障（token 失效／未加好友／LINE API 異常）。
@@ -149,7 +203,6 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     ok: true, date: targetDate,
-    events: events.length,
     pushed: push.sent.length,
     failed: push.failed,
     message,

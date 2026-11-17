@@ -49,6 +49,12 @@ export const LONG_ABSENCE_DAYS = 7
  */
 export const PACE_OK_THRESHOLD = 0.85
 
+/**
+ * 歷史累積每日平均（跟自己過去比較）的回溯上限，避免查詢量隨使用時間拉長無上限增長。
+ * 與 app/api/stats/dashboard/route.ts 的折線圖、daily-digest 的個人復盤共用同一個常數。
+ */
+export const HISTORICAL_AVG_LOOKBACK_MONTHS = 12
+
 // ─── 夥伴系統 ────────────────────────────────────────────────
 
 /** 每位成員最多可擁有的夥伴數（accepted 狀態） */

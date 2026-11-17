@@ -2,7 +2,7 @@
 // 黃金八套餐 — 每日狀態快照與變化事件（純函式，無副作用）
 // ============================================================
 
-import { calcMonthStats, calcPaceStatus, type PaceQuadrant } from './scoring'
+import { calcMonthStats, type PaceQuadrant } from './scoring'
 import { LEVEL_THRESHOLDS, LONG_ABSENCE_DAYS } from './constants'
 import type { Member, CheckInRecord } from '@/types'
 
@@ -136,13 +136,8 @@ export function diffStatusEvents(
   return events
 }
 
-const EVENT_LABEL: Record<StatusEventType, (e: StatusEvent) => string> = {
-  miss_start:   e => `🔴 ${e.name} 開始缺卡（連 ${e.missStreak} 天）`,
-  return:       e => `✨ ${e.name} 回來了！`,
-  drop_below:   e => `⚠️ ${e.name} 跌破門檻 ${e.prevRate}%→${e.rate}%`,
-  back_above:   e => `🎉 ${e.name} 回到門檻 ${e.prevRate}%→${e.rate}%`,
-  long_absence: e => `💤 ${e.name} 轉入長期缺席（連 ${e.missStreak} 天）`,
-}
+// EVENT_LABEL（跨成員事件文案）已隨 personal-digest-review 變更移除，
+// diffStatusEvents 本身保留不刪供日後若群組重新擴編多人使用時參考。
 
 const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六']
 
@@ -153,110 +148,103 @@ function formatDateLabel(date: string): string {
 }
 
 /**
- * 組出 LINE 純文字摘要。
+ * 組出 LINE 純文字摘要——單一使用者的個人復盤（群組已合併，系統僅剩 M001 一人使用）。
  *
- * 版面：⚡變化 → ❌漏卡 → 📝請假 → 🎯門檻風險 → 💤長期缺席摺疊 → ✅總結
- * 長期缺席者（miss_streak >= LONG_ABSENCE_DAYS）從漏卡/風險明細移除，摺疊為單行。
- * 請假者（is_leave）從漏卡名單移除，改列於請假名單（含事由）。
- * 管理員自身不排除——管理員同時是學員，其漏卡與風險照常列入。
+ * 版面：今日打卡狀況 → 本月累計 → 連續打拳 → 今日 vs 上月同天 → 今日 vs 歷史累積平均 → 追蹤軌道
+ *
+ * 舊版的全員摘要格式（漏卡名單、門檻風險四象限、長期缺席摺疊、狀態變化事件、全員平均）
+ * 已隨 personal-digest-review 變更移除——那些是跨成員比較概念，單人情境下沒有意義。
+ * `buildDailySnapshot`/`diffStatusEvents` 本身保留不刪，供日後若群組重新擴編多人使用時參考，
+ * 但本函式不再呼叫 `diffStatusEvents` 的輸出。
  */
-// 四象限在日報的呈現：只列 🔴 rescue / 🟠 lukewarm（要救 + 溫水）。
-const QUADRANT_DIGEST: Partial<Record<PaceQuadrant, string>> = {
-  rescue:   '🔴',
-  lukewarm: '🟠',
+const TASK_NAMES = ['早睡早起', '破曉打拳', '丹氣跑步', '曬太陽', '工作8小時', '不吃肉', '寫觀心書', '淨心功法']
+
+export interface TodayStatus {
+  tasks: boolean[] | null   // 當日 8 項任務完成狀態；無打卡紀錄為 null
+  score: number | null      // 當日得分；無打卡紀錄為 null
+  isLeave: boolean
+  leaveReason?: string
+}
+
+export interface MonthStatsLike {
+  totalScore: number
+  maxScore:   number
+  rate:       number
+  targetScore: number
+  remaining:  number
+}
+
+export interface PaceStatusLike {
+  pace:     number
+  projRate: number
+  quadrant: PaceQuadrant
 }
 
 export function formatDigestMessage(
-  snapshot: DailyStatus[],
-  events: StatusEvent[],
-  nameById: Record<string, string>,
-  levelById: Record<string, string>,
   date: string,
-  membersById: Record<string, Member>,
-  recordsByMember: Record<string, CheckInRecord[]>,
-  leaveByMember?: Record<string, Set<string>>,       // 請假日從分母移除（門檻風險 pace 一致）
-  leaveReasonByMember?: Record<string, string>,      // 當日有請假者的事由（member_id → reason），僅供顯示
+  today: TodayStatus,
+  monthStats: MonthStatsLike,
+  punchStreak: number,
+  paceStatus: PaceStatusLike,
+  lastMonthRate: number | null,        // 上月同一天的達成率；上月無資料為 null
+  historicalAvgRate: number | null,    // 歷史累積平均同一天的達成率；無歷史資料為 null
 ): string {
-  const nm = (id: string) => nameById[id] ?? id
-  const total = snapshot.length
-
-  const longAbsent = snapshot.filter(s => s.miss_streak >= LONG_ABSENCE_DAYS)
-  const longIds    = new Set(longAbsent.map(s => s.member_id))
-
-  const missed  = snapshot.filter(s => s.missed && !longIds.has(s.member_id))
-  const onLeave = snapshot.filter(s => s.is_leave)
-  const done    = snapshot.filter(s => !s.missed)
-
-  // 門檻風險改用二維四象限（與後台一致）：即時算 pace，只列 🔴 要救 / 🟠 溫水。
-  // pace 為當下呈現值、非留存事實，故不進 DailyStatus/DB，於此就地計算。
-  type RiskRow = { id: string; mark: string; projRate: number; order: number }
-  const atRisk: RiskRow[] = []
-  for (const s of snapshot) {
-    if (longIds.has(s.member_id)) continue
-    const m = membersById[s.member_id]
-    if (!m) continue
-    const lv    = leaveByMember?.[m.id]
-    const stats = calcMonthStats(m, recordsByMember[m.id] ?? [], date, lv)
-    // refDateComplete=true：日報的基準日為「已截止日」，該日已完整結束
-    const ps    = calcPaceStatus(m, stats, recordsByMember[m.id] ?? [], date, date.substring(0, 7), true, lv)
-    const mark  = QUADRANT_DIGEST[ps.quadrant]
-    if (!mark) continue   // 只保留 rescue / lukewarm
-    atRisk.push({ id: s.member_id, mark, projRate: ps.projRate, order: ps.quadrant === 'rescue' ? 0 : 1 })
-  }
-  atRisk.sort((a, b) => a.order - b.order || a.projRate - b.projRate)   // 🔴 先、預估低者先
-
-  const avg = total > 0
-    ? Math.round(snapshot.reduce((sum, s) => sum + s.rate, 0) / total)
-    : 0
-
   const L: string[] = []
   L.push(`📋 黃金八套餐 · ${formatDateLabel(date)} 已截止`)
   L.push('')
 
-  L.push('⚡ 今日變化')
-  if (events.length === 0) {
-    L.push('　（無異動）')
+  // 今日打卡狀況
+  L.push('✅ 今日打卡狀況')
+  if (today.isLeave) {
+    L.push(`　今日已請假${today.leaveReason ? `（${today.leaveReason}）` : ''}`)
+  } else if (today.tasks === null) {
+    L.push('　今日未打卡')
   } else {
-    for (const e of events) L.push(`　${EVENT_LABEL[e.type](e)}`)
+    const doneNames = TASK_NAMES.filter((_, i) => today.tasks![i])
+    const undoneNames = TASK_NAMES.filter((_, i) => !today.tasks![i])
+    L.push(`　得分：${today.score} 分`)
+    L.push(`　完成：${doneNames.length > 0 ? doneNames.join('、') : '（無）'}`)
+    if (undoneNames.length > 0) L.push(`　未完成：${undoneNames.join('、')}`)
   }
   L.push('')
 
-  L.push(`❌ 漏卡 ${missed.length}/${total}`)
-  if (missed.length === 0) {
-    L.push('　（無）')
+  // 本月累計
+  L.push('📊 本月累計')
+  L.push(`　累計得分 ${monthStats.totalScore} / ${monthStats.maxScore}　達成率 ${monthStats.rate}%`)
+  L.push(`　距目標差 ${monthStats.remaining > 0 ? `-${monthStats.remaining}` : '已達標 ✓'}（目標 ${monthStats.targetScore} 分）`)
+  L.push('')
+
+  // 連續打拳
+  L.push(`🥊 連續打拳 ${punchStreak} 天`)
+  L.push('')
+
+  // 今日達成率：未打卡或請假時沒有分數可比，不可顯示誤導性的 0%
+  const todayRate = today.score !== null ? Math.round((today.score / 8) * 100) : null
+
+  // 今日 vs 上月同一天
+  L.push('📅 今日 vs 上月同一天')
+  if (todayRate === null) {
+    L.push('　今日尚無打卡紀錄，無法比較')
   } else {
-    for (const s of missed) {
-      const streak = s.miss_streak > 1 ? `連 ${s.miss_streak} 天` : '單日'
-      L.push(`　${nm(s.member_id)}　${streak}`)
-    }
+    L.push(lastMonthRate === null ? '　上月無資料' : `　今日 ${todayRate}%　上月同天 ${lastMonthRate}%`)
   }
   L.push('')
 
-  if (onLeave.length > 0) {
-    L.push(`📝 今日請假 ${onLeave.length} 人`)
-    for (const s of onLeave) {
-      const reason = leaveReasonByMember?.[s.member_id]
-      L.push(reason ? `　${nm(s.member_id)}（${reason}）` : `　${nm(s.member_id)}`)
-    }
-    L.push('')
+  // 今日 vs 歷史累積平均
+  L.push('📈 今日 vs 歷史累積平均')
+  if (todayRate === null) {
+    L.push('　今日尚無打卡紀錄，無法比較')
+  } else {
+    L.push(historicalAvgRate === null ? '　暫無歷史資料' : `　今日 ${todayRate}%　歷史平均 ${historicalAvgRate}%`)
   }
+  L.push('')
 
-  if (atRisk.length > 0) {
-    L.push('🎯 門檻風險（照近期速度預估月底）')
-    for (const r of atRisk) {
-      const lv  = levelById[r.id] ?? ''
-      const thr = Math.round((LEVEL_THRESHOLDS[lv] ?? 0.6) * 100)
-      L.push(`　${r.mark} ${nm(r.id)}　月底預估 ${r.projRate}%（需 ${thr}%）`)
-    }
-    L.push('')
+  // 追蹤軌道
+  const QUADRANT_LABEL: Record<PaceQuadrant, string> = {
+    safe: '✅ 穩健', lukewarm: '🟠 溫水', slow_start: '🟡 起步慢', rescue: '🔴 要救', exempt: '—',
   }
-
-  if (longAbsent.length > 0) {
-    L.push(`💤 長期缺席 ${longAbsent.length} 人（${longAbsent.map(s => nm(s.member_id)).join('・')}）`)
-    L.push('')
-  }
-
-  L.push(`✅ ${done.length} 人完成 · 全月均 ${avg}%`)
+  L.push('🎯 追蹤軌道（照近期速度預估月底）')
+  L.push(`　${QUADRANT_LABEL[paceStatus.quadrant]}　月底預估 ${paceStatus.projRate}%（目前進度 ${paceStatus.pace}%）`)
 
   return L.join('\n')
 }
