@@ -107,18 +107,17 @@ export async function GET(req: NextRequest) {
   const events  = diffStatusEvents(prevByMember, snapshot, nameById)
   const message = formatDigestMessage(snapshot, events, nameById, levelById, targetDate, membersById, recsByMember, leaveByMember, leaveReasonByMember)
 
-  // 5. 推播給已綁定 LINE 的管理員
+  // 5. 群組已合併，僅推播給柯啟鴻（M001）本人，不再對全體管理員群發
   const recipients = members
-    .filter(m => m.is_admin && m.line_user_id)
+    .filter(m => m.id === 'M001' && m.line_user_id)
     .map(m => m.line_user_id as string)
 
-  // 無綁定管理員：daily-digest 的用途就是推給管理員，一個都沒有代表設定異常
-  // （管理員未綁 LINE，或 is_admin 標記遺失）。回 500 讓 Vercel Cron 頁面標紅，
+  // 無綁定：代表柯啟鴻尚未綁 LINE 或帳號設定異常。回 500 讓 Vercel Cron 頁面標紅，
   // 避免「每天靜默不推、卻以為正常」——本次事件（CRON_SECRET 漏設）暴露的弱點。
   if (!recipients.length) {
-    console.error('[cron/daily-digest] 無已綁定 LINE 的管理員，無法推播（設定異常）')
+    console.error('[cron/daily-digest] 柯啟鴻（M001）未綁定 LINE，無法推播（設定異常）')
     return NextResponse.json(
-      { ok: false, date: targetDate, msg: '無已綁定 LINE 的管理員，無法推播', pushed: 0 },
+      { ok: false, date: targetDate, msg: '柯啟鴻未綁定 LINE，無法推播', pushed: 0 },
       { status: 500 },
     )
   }
