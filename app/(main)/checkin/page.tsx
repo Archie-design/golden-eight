@@ -17,6 +17,7 @@ import { TASKS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { captureAndShare } from '@/lib/share-image'
 import { MonthProgressCard, type MonthProgressCardProps } from '@/components/MonthProgressCard'
+import { isEarlySleepAchieved } from '@/lib/scoring'
 
 interface TodayData {
   today: string        // 打卡邏輯日
@@ -28,7 +29,7 @@ interface TodayData {
   punchStreak: number
   monthRate: number
   todayLeave: { reason: string } | null
-  todayRecord: { submitted: boolean; totalScore?: number; submitTime?: string; tasks?: boolean[]; note?: string; work_hours?: number | null; early_sleep_half?: boolean; run_minutes?: number | null; run_km?: number | null }
+  todayRecord: { submitted: boolean; totalScore?: number; submitTime?: string; tasks?: boolean[]; note?: string; work_hours?: number | null; sleep_start?: string | null; sleep_end?: string | null; run_minutes?: number | null; run_km?: number | null }
 }
 
 interface NewAchievement { code: string; name: string; badge: string }
@@ -43,7 +44,8 @@ export default function CheckInPage() {
   const [showAch, setShowAch]   = useState(false)
   const [isEditing, setIsEditing]           = useState(false)
   const [workHours, setWorkHours]           = useState<string>('')
-  const [earlySleepHalf, setEarlySleepHalf] = useState(false)
+  const [sleepStart, setSleepStart]         = useState('')
+  const [sleepEnd, setSleepEnd]             = useState('')
   const [expandedTask, setExpandedTask]     = useState<number | null>(null)
   const expandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dataRef        = useRef<TodayData | null>(null)
@@ -78,7 +80,8 @@ export default function CheckInPage() {
           setChecked(Array(8).fill(false))
           setNote('')
           setWorkHours('')
-          setEarlySleepHalf(false)
+          setSleepStart('')
+          setSleepEnd('')
           setIsEditing(false)
           setSunrisePhotoUrl(json.sunrisePhotoUrl ?? null)
           setRunMinutes(json.todayRecord?.run_minutes != null ? String(json.todayRecord.run_minutes) : '')
@@ -94,7 +97,8 @@ export default function CheckInPage() {
     setChecked(data.todayRecord.tasks ?? Array(8).fill(false))
     setNote(data.todayRecord.note ?? '')
     setWorkHours(data.todayRecord.work_hours != null ? String(data.todayRecord.work_hours) : '')
-    setEarlySleepHalf(data.todayRecord.early_sleep_half ?? false)
+    setSleepStart(data.todayRecord.sleep_start ?? '')
+    setSleepEnd(data.todayRecord.sleep_end ?? '')
     setIsEditing(true)
   }
 
@@ -103,7 +107,8 @@ export default function CheckInPage() {
     setChecked(Array(8).fill(false))
     setNote('')
     setWorkHours('')
-    setEarlySleepHalf(false)
+    setSleepStart('')
+    setSleepEnd('')
   }
 
   useEffect(() => { loadData() }, [])
@@ -201,9 +206,9 @@ export default function CheckInPage() {
   }
 
   async function handleSubmit() {
-    // 破曉打拳需先完成早睡早起/子時入睡：送出前先攔截（後端為主防線）
-    if (checked[1] && !checked[0]) {
-      toast.error('要打卡「破曉打拳」前，請先完成「早睡早起（子時入睡）」')
+    // 勾選早睡早起需填入睡/起床時間：送出前先攔截（後端為主防線）
+    if (checked[0] && (!sleepStart || !sleepEnd)) {
+      toast.error('勾選「早睡早起」請填入睡時間與起床時間')
       return
     }
     setLoading(true)
@@ -214,7 +219,7 @@ export default function CheckInPage() {
       body: JSON.stringify({
         tasks: checked,
         note,
-        early_sleep_half: earlySleepHalf,
+        ...(checked[0] ? { sleep_start: sleepStart, sleep_end: sleepEnd } : {}),
         ...(workHours !== '' ? { work_hours: Number(workHours) } : {}),
       }),
     })
@@ -302,7 +307,7 @@ export default function CheckInPage() {
         body: JSON.stringify({
           tasks: rec.tasks ?? Array(8).fill(false),
           note:  rec.note ?? '',
-          early_sleep_half: rec.early_sleep_half ?? false,
+          ...(rec.tasks?.[0] ? { sleep_start: rec.sleep_start, sleep_end: rec.sleep_end } : {}),
           ...(rec.work_hours != null ? { work_hours: rec.work_hours } : {}),
           ...(m !== '' ? { run_minutes: Math.round(Number(m)) } : {}),
           ...(k !== '' ? { run_km: Number(Number(k).toFixed(2)) } : {}),
@@ -449,7 +454,7 @@ export default function CheckInPage() {
                     <span className="font-medium">{task.name}</span>
                     {i === 0 && data.todayRecord.tasks![0] && (
                       <span className="ml-auto text-xs opacity-70">
-                        {data.todayRecord.early_sleep_half ? '0.5分' : '1分'}
+                        {isEarlySleepAchieved(data.todayRecord.sleep_start, data.todayRecord.sleep_end) ? '1分' : '0分'}
                       </span>
                     )}
                     {i === 4 && data.todayRecord.work_hours != null && (
@@ -620,7 +625,7 @@ export default function CheckInPage() {
             </CardHeader>
             <CardContent className="space-y-2">
               {TASKS.map((task, i) => i === 0 ? (
-                // 早睡早起：兩段式互斥按鈕（11點前 = 1分 / 12點前 = 0.5分）
+                // 早睡早起：勾選後填入睡/起床時間，即時換算是否達成（11 點前入睡 + 睡滿 6 小時）
                 <div
                   key={i}
                   className={cn(
@@ -632,7 +637,10 @@ export default function CheckInPage() {
                 >
                   <div
                     className="flex items-center gap-3 cursor-pointer"
-                    onClick={() => showIconPopup(0)}
+                    onClick={() => {
+                      setChecked(prev => prev.map((v, idx) => idx === 0 ? !v : v))
+                      showIconPopup(0)
+                    }}
                   >
                     <span className="shrink-0">
                       <TaskIcon image={task.image} name={task.icon} className="w-10 h-10" />
@@ -641,46 +649,42 @@ export default function CheckInPage() {
                       <div className="font-medium text-sm">{task.name}</div>
                       <div className="text-xs text-muted-foreground">{task.desc}</div>
                     </div>
+                    <CheckCircle2
+                      className={cn('w-5 h-5 text-green-500 transition-opacity', checked[0] ? 'opacity-100' : 'opacity-20')}
+                    />
                   </div>
-                  <div className="flex gap-2 mt-2">
-                    <button
-                      onClick={() => {
-                        if (checked[0] && !earlySleepHalf) {
-                          setChecked(prev => prev.map((v, idx) => idx === 0 ? false : v))
-                        } else {
-                          setChecked(prev => prev.map((v, idx) => idx === 0 ? true : v))
-                          setEarlySleepHalf(false)
-                        }
-                      }}
-                      className={cn(
-                        'flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition-all',
-                        checked[0] && !earlySleepHalf
-                          ? 'border-yellow-400 bg-yellow-100 text-yellow-800'
-                          : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                  {checked[0] && (
+                    <div className="mt-2">
+                      <div className="flex gap-2">
+                        <label className="flex flex-1 flex-col text-xs text-muted-foreground">
+                          入睡時間
+                          <input
+                            type="time"
+                            value={sleepStart}
+                            onChange={e => setSleepStart(e.target.value)}
+                            className="mt-1 h-9 rounded-md border px-2 text-sm"
+                          />
+                        </label>
+                        <label className="flex flex-1 flex-col text-xs text-muted-foreground">
+                          起床時間
+                          <input
+                            type="time"
+                            value={sleepEnd}
+                            onChange={e => setSleepEnd(e.target.value)}
+                            className="mt-1 h-9 rounded-md border px-2 text-sm"
+                          />
+                        </label>
+                      </div>
+                      {sleepStart && sleepEnd && (
+                        <div className={cn(
+                          'mt-1.5 text-xs font-medium',
+                          isEarlySleepAchieved(sleepStart, sleepEnd) ? 'text-green-700' : 'text-red-600'
+                        )}>
+                          {isEarlySleepAchieved(sleepStart, sleepEnd) ? '✓ 達成（1 分）' : '✗ 未達成（0 分）：須 23:00 前入睡且睡滿 6 小時'}
+                        </div>
                       )}
-                    >
-                      11點前入睡（1分）
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (checked[0] && earlySleepHalf) {
-                          setChecked(prev => prev.map((v, idx) => idx === 0 ? false : v))
-                          setEarlySleepHalf(false)
-                        } else {
-                          setChecked(prev => prev.map((v, idx) => idx === 0 ? true : v))
-                          setEarlySleepHalf(true)
-                        }
-                      }}
-                      className={cn(
-                        'flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition-all',
-                        checked[0] && earlySleepHalf
-                          ? 'border-yellow-400 bg-yellow-100 text-yellow-800'
-                          : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                      )}
-                    >
-                      12點前入睡（0.5分）
-                    </button>
-                  </div>
+                    </div>
+                  )}
                 </div>
               ) : i === 4 ? (
                 // 工作 8 小時：數字輸入；點任務列即可標記完成（休息日填 0）

@@ -24,19 +24,21 @@ export const RegisterSchema = LoginSchema.extend({
   level:    z.enum(LEVELS, { message: '無效的階梯選項' }),
 })
 
+const TIME_RE = /^\d{2}:\d{2}$/
+
 export const CheckInSubmitSchema = z.object({
   date:             z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   tasks:            z.array(z.boolean()).length(8, '任務陣列必須為 8 個布林值'),
   note:             z.string().max(500).optional(),
   work_hours:       z.number().min(0).max(24).optional(),
-  early_sleep_half: z.boolean().optional().default(false),
+  sleep_start:      z.string().regex(TIME_RE, '入睡時間格式錯誤').optional(),
+  sleep_end:        z.string().regex(TIME_RE, '起床時間格式錯誤').optional(),
   run_minutes:      z.number().int().min(0).max(1440).optional(),   // 丹氣慢跑分鐘（純記錄）
   run_km:           z.number().min(0).max(999.99).optional(),       // 丹氣慢跑公里（2 位小數，純記錄）
 }).refine(
-  // 破曉打拳(tasks[1])前置條件：須同時完成早睡早起/子時入睡(tasks[0])。
-  // 同一筆打卡內判定，不跨日；早睡只要勾選即算(1 分或 0.5 分皆可)。
-  d => !d.tasks[1] || d.tasks[0],
-  { message: '要打卡「破曉打拳」前，請先完成「早睡早起（子時入睡）」', path: ['tasks'] },
+  // 勾選早睡早起(tasks[0])時，須填入睡/起床時間才能判定是否睡滿 6 小時。
+  d => !d.tasks[0] || (d.sleep_start && d.sleep_end),
+  { message: '勾選「早睡早起」請填入睡時間與起床時間', path: ['sleep_start'] },
 )
 
 export const NextLevelSchema = z.object({

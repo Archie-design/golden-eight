@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
   const parsed = await parseBody(request, CheckInSubmitSchema)
   if (parsed instanceof NextResponse) return parsed
-  const { tasks, note, work_hours, early_sleep_half, run_minutes, run_km } = parsed.data
+  const { tasks, note, work_hours, sleep_start, sleep_end, run_minutes, run_km } = parsed.data
 
   const target  = getCheckinDayTaipei()
   const prevDay = getPrevDayStr(target)
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
   if (typeof work_hours === 'number') {
     normalizedTasks[4] = true
   }
-  const baseScore  = calcBaseScore(normalizedTasks, early_sleep_half)
+  const baseScore  = calcBaseScore(normalizedTasks, sleep_start, sleep_end)
   const totalScore = baseScore
 
   const { data: prevRec } = await db
@@ -73,7 +73,8 @@ export async function POST(request: NextRequest) {
     punch_streak:     punchStreak,
     note:             note || '',
     work_hours:       typeof work_hours === 'number' ? work_hours : null,
-    early_sleep_half: early_sleep_half,
+    sleep_start:      normalizedTasks[0] ? sleep_start : null,
+    sleep_end:        normalizedTasks[0] ? sleep_end : null,
     run_minutes:      typeof run_minutes === 'number' ? run_minutes : null,
     run_km:           typeof run_km === 'number' ? Number(run_km.toFixed(2)) : null,
   })
@@ -168,7 +169,7 @@ export async function PATCH(request: NextRequest) {
 
   const parsed = await parseBody(request, CheckInSubmitSchema)
   if (parsed instanceof NextResponse) return parsed
-  const { tasks, note, work_hours, early_sleep_half, run_minutes, run_km } = parsed.data
+  const { tasks, note, work_hours, sleep_start, sleep_end, run_minutes, run_km } = parsed.data
 
   const target  = getCheckinDayTaipei()
   const prevDay = getPrevDayStr(target)
@@ -199,7 +200,7 @@ export async function PATCH(request: NextRequest) {
   if (typeof work_hours === 'number') {
     normalizedTasks[4] = true
   }
-  const baseScore  = calcBaseScore(normalizedTasks, early_sleep_half)
+  const baseScore  = calcBaseScore(normalizedTasks, sleep_start, sleep_end)
   const totalScore = baseScore
 
   // 昨日 streak 推進：昨日有打拳才延續，否則歸 0
@@ -226,7 +227,8 @@ export async function PATCH(request: NextRequest) {
     punch_streak:     punchStreak,
     note:             note ?? existing.note ?? '',
     work_hours:       updatedWorkHours,
-    early_sleep_half: early_sleep_half,
+    sleep_start:      normalizedTasks[0] ? sleep_start : null,
+    sleep_end:        normalizedTasks[0] ? sleep_end : null,
     run_minutes:      updatedRunMinutes,
     run_km:           updatedRunKm,
   }).eq('member_id', member.id).eq('date', target)

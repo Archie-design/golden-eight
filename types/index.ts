@@ -54,7 +54,9 @@ export interface CheckInRecord {
   punch_bonus: number       // 0 or 0.5
   total_score: number       // 0–8.5
   punch_streak: number      // 當前連續打拳天數（提交時計算寫入）
-  early_sleep_half: boolean // task 1 選「12點前入睡」時為 true
+  early_sleep_half?: boolean // 已停用（split-dawn-punch-sleep-scoring 後不再寫入），保留供歷史資料相容
+  sleep_start?: string | null // task 1 入睡時間 HH:MM（勾選早睡早起時填寫）
+  sleep_end?: string | null   // task 1 起床時間 HH:MM（勾選早睡早起時填寫）
   work_hours?: number | null
   note?: string
   submit_time: string

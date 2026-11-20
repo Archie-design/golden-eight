@@ -66,7 +66,9 @@ CREATE TABLE IF NOT EXISTS checkin_records (
   punch_streak      INT NOT NULL DEFAULT 0,
   note              TEXT,
   submit_time       TIMESTAMPTZ DEFAULT NOW(),
-  early_sleep_half  BOOLEAN NOT NULL DEFAULT FALSE,  -- task 1 選「12點前入睡」時為 true
+  early_sleep_half  BOOLEAN NOT NULL DEFAULT FALSE,  -- 已停用（split-dawn-punch-sleep-scoring 後不再寫入），保留供歷史資料相容
+  sleep_start       TEXT,                             -- task 1 入睡時間 HH:MM（勾選早睡早起時填寫）
+  sleep_end         TEXT,                             -- task 1 起床時間 HH:MM（勾選早睡早起時填寫）
   sunrise_photo_path TEXT,                            -- 日出照 Storage path（nullable）；3 個月後由 cron 清理
   run_minutes       INT,                              -- 丹氣慢跑分鐘數（選填，純記錄）
   run_km            NUMERIC(6,2),                     -- 丹氣慢跑公里數（選填，2 位小數，純記錄）

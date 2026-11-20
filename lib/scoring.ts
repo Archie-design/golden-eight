@@ -15,9 +15,29 @@ export function isBaseScorePerfect(score: number | string): boolean {
 
 // ─── 得分計算 ─────────────────────────────────────────────────
 
-export function calcBaseScore(tasks: boolean[], earlySleepHalf = false): number {
-  const count = tasks.filter(Boolean).length
-  return (earlySleepHalf && tasks[0]) ? count - 0.5 : count
+const SLEEP_CUTOFF   = '23:00'   // 入睡時間門檻（含）
+const SLEEP_MIN_MINS = 6 * 60    // 睡滿 6 小時門檻
+
+/**
+ * 早睡早起達成判定：須同時滿足「入睡時間 23:00 前（含）」與「睡眠時數 ≥ 6 小時」。
+ * 睡眠時數以 (sleep_end - sleep_start + 1440) % 1440 分鐘計算，跨午夜為常態（沿用
+ * lib/sunrise.ts 的 addMinutes mod-1440 模式），故不特別判斷跨日，只用 mod 運算。
+ * HH:MM 零填充字串在同一天範圍內可直接字串序比較，故門檻判斷用字串比較即可。
+ */
+export function isEarlySleepAchieved(sleepStart?: string | null, sleepEnd?: string | null): boolean {
+  if (!sleepStart || !sleepEnd) return false
+  if (sleepStart > SLEEP_CUTOFF) return false
+
+  const [sh, sm] = sleepStart.split(':').map(Number)
+  const [eh, em] = sleepEnd.split(':').map(Number)
+  const minutes = ((eh * 60 + em) - (sh * 60 + sm) + 1440) % 1440
+
+  return minutes >= SLEEP_MIN_MINS
+}
+
+export function calcBaseScore(tasks: boolean[], sleepStart?: string | null, sleepEnd?: string | null): number {
+  const earlySleepOk = !tasks[0] || isEarlySleepAchieved(sleepStart, sleepEnd)
+  return tasks.filter(Boolean).length - (tasks[0] && !earlySleepOk ? 1 : 0)
 }
 
 /** 連續打拳天數（加分機制已移除，連續紀錄供成就系統使用） */
